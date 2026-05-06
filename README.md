@@ -1,2 +1,4 @@
-# server_go
-test goframe
+# GoFrame Template For SingleRepo
+
+Quick Start: 
+- https://goframe.org/quick

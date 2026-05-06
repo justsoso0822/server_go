@@ -1,6 +1,6 @@
-module server
+module server_go
 
-go 1.26.2
+go 1.23.0
 
 require github.com/gogf/gf/v2 v2.10.0
 
