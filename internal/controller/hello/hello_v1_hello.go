@@ -3,6 +3,7 @@ package hello
 import (
 	"context"
 
+	"server_go/api/hello/v1"
 	"github.com/gogf/gf/v2/frame/g"
 )
 

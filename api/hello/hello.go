@@ -6,6 +6,8 @@ package hello
 
 import (
 	"context"
+
+	"server_go/api/hello/v1"
 )
 
 type IHelloV1 interface {
