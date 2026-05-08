@@ -1,0 +1,50 @@
+name: ${APP_NAME:-server-go}
+
+services:
+    traefik:
+        image: traefik
+        container_name: ${APP_NAME:-server-go}-gateway
+        restart: unless-stopped
+        command:
+            - --api=true
+            - --api.dashboard=true
+            - --entrypoints.web.address=:7001
+            - --entrypoints.traefik.address=:8080
+            - --providers.docker=true
+            - --providers.docker.endpoint=unix:///var/run/docker.sock
+            - --providers.docker.exposedbydefault=false
+            - --providers.docker.network=${APP_NAME:-server-go}-network
+            - --providers.docker.constraints=Label(`traefik.enable`,`true`)
+            - --accesslog=true
+            - --accesslog.format=${TRAEFIK_ACCESSLOG_FORMAT:-json}
+            - --log.level=INFO
+            - --ping=true
+        ports:
+            - '${HOST_GATEWAY_PORT:-7001}:7001'
+            - '${TRAEFIK_DASHBOARD_PORT:-18080}:8080'
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        logging:
+            driver: json-file
+            options:
+                max-size: 20m
+                max-file: '5'
+        healthcheck:
+            test: ['CMD', 'traefik', 'healthcheck', '--ping']
+            interval: 10s
+            timeout: 3s
+            retries: 5
+            start_period: 10s
+        labels:
+            - traefik.enable=true
+            - traefik.docker.network=${APP_NAME:-server-go}-network
+            - traefik.http.routers.${APP_NAME:-server-go}-dashboard.entrypoints=traefik
+            - "traefik.http.routers.${APP_NAME:-server-go}-dashboard.rule=PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
+            - traefik.http.routers.${APP_NAME:-server-go}-dashboard.priority=1000
+            - traefik.http.routers.${APP_NAME:-server-go}-dashboard.service=api@internal
+        networks:
+            - app-network
+
+networks:
+    app-network:
+        name: ${APP_NAME:-server-go}-network

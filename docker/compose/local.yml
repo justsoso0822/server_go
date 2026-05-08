@@ -1,0 +1,70 @@
+name: ${APP_NAME:-server-go}
+
+services:
+    mysql:
+        image: mysql:8.4
+        container_name: ${APP_NAME:-server-go}-mysql
+        restart: unless-stopped
+        environment:
+            TZ: Asia/Shanghai
+            MYSQL_ROOT_PASSWORD: root
+        command:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
+            - --sql-mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+        ports:
+            - '330:3306'
+        volumes:
+            - local-mysql-data:/var/lib/mysql
+            - ../mysql/init:/docker-entrypoint-initdb.d:ro
+        healthcheck:
+            test:
+                [
+                    'CMD-SHELL',
+                    'mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD}',
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 10
+            start_period: 30s
+        networks:
+            app-network:
+                aliases:
+                    - mysql
+
+    redis:
+        image: redis:7.4-alpine
+        container_name: ${APP_NAME:-server-go}-redis
+        restart: unless-stopped
+        command:
+            [
+                'redis-server',
+                '--requirepass',
+                'root',
+                '--appendonly',
+                'yes',
+            ]
+        ports:
+            - '637:6379'
+        volumes:
+            - local-redis-data:/data
+        healthcheck:
+            test: ['CMD', 'redis-cli', '-a', 'root', 'ping']
+            interval: 10s
+            timeout: 5s
+            retries: 10
+            start_period: 10s
+        networks:
+            app-network:
+                aliases:
+                    - redis
+
+volumes:
+    local-mysql-data:
+        name: ${APP_NAME:-server-go}-mysql-data
+    local-redis-data:
+        name: ${APP_NAME:-server-go}-redis-data
+
+networks:
+    app-network:
+        name: ${APP_NAME:-server-go}-network

@@ -1,0 +1,39 @@
+name: ${APP_NAME:-server-go}
+
+services:
+    blue:
+        build:
+            context: ../..
+            dockerfile: docker/Dockerfile
+        image: ${APP_IMAGE:-server-go:1.0.0}
+        restart: unless-stopped
+        stop_grace_period: 15s
+        environment:
+            APP_NAME: ${APP_NAME:-server-go}
+            APP_COLOR: blue
+            APP_VERSION: ${APP_VERSION:-1.0.0}
+            APP_CONTROL_TOKEN: ${APP_CONTROL_TOKEN:-PLEASE_CHANGE_ME}
+            GF_GCFG_FILE: ${GF_GCFG_FILE:-config.docker.yaml}
+        logging:
+            driver: json-file
+            options:
+                max-size: 20m
+                max-file: '5'
+        labels:
+            - traefik.enable=true
+            - traefik.docker.network=${APP_NAME:-server-go}-network
+            - traefik.http.routers.${APP_NAME:-server-go}.entrypoints=web
+            - "traefik.http.routers.${APP_NAME:-server-go}.rule=PathPrefix(`/`)"
+            - traefik.http.routers.${APP_NAME:-server-go}.service=${APP_NAME:-server-go}
+            - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.server.port=7001
+            - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.healthcheck.path=/health/lb
+            - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.healthcheck.interval=3s
+            - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.healthcheck.timeout=3s
+        networks:
+            app-network:
+                aliases:
+                    - ${APP_NAME:-server-go}-blue
+
+networks:
+    app-network:
+        name: ${APP_NAME:-server-go}-network

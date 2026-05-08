@@ -1,0 +1,10 @@
+database:
+  default:
+    link: "mysql:root:root@tcp(mysql:3306)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
+    debug: false
+
+redis:
+  default:
+    address: "redis:6379"
+    pass: "root"
+    db: 0

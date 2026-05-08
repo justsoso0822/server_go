@@ -1,13 +1,11 @@
-
-# CLI tool, only in development environment.
-# https://goframe.org/docs/cli
 gfcli:
   gen:
     dao:
-      - link: "mysql:root:12345678@tcp(127.0.0.1:3306)/test"
+      - link: "mysql:root:root@tcp(127.0.0.1:330)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
         descriptionTag: true
-
+        noModelComment: true
+        tables: "user,user_res,user_item,user_loginkey,user_bag,user_bag_tp,user_data,user_task,user_online,prf_task,mem_config,sys_gm"
   docker:
     build: "-a amd64 -s linux -p temp -ew"
     tagPrefixes:
-      - my.image.pub/my-app
+      - ccr.ccs.tencentyun.com/justsoso-local
