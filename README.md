@@ -1511,3 +1511,1724 @@ docker run --rm --network server-go-network -p 7001:7001 server-go:local
 8. `internal/middleware/verify.go`：看登录态校验。
 9. `internal/logic/user/user.go`：看完整业务流程。
 10. `internal/dao` 和 `internal/model/entity`：看数据库访问模型。
+
+---
+
+## 21. 源码逐文件讲解：server / model / controller / service / logic
+
+这一节把当前项目中手写的 server、model、controller、service、logic 代码集中贴出，并按文件解释。阅读时建议按调用链看：
+
+```text
+main.go
+  -> internal/cmd/cmd.go
+  -> internal/controller/*.go
+  -> internal/service/*.go
+  -> internal/logic/**/*.go
+  -> internal/dao + internal/model/entity
+```
+
+### 21.1 Server 入口
+
+#### `main.go`
+
+```go
+package main
+
+import (
+	_ "server_go/internal/packed"
+
+	_ "server_go/internal/logic/bag"
+	_ "server_go/internal/logic/game"
+	_ "server_go/internal/logic/grid"
+	_ "server_go/internal/logic/other"
+	_ "server_go/internal/logic/task"
+	_ "server_go/internal/logic/user"
+
+	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	_ "github.com/gogf/gf/contrib/nosql/redis/v2"
+
+	"github.com/gogf/gf/v2/os/gctx"
+
+	"server_go/internal/cmd"
+)
+
+func main() {
+	cmd.Main.Run(gctx.GetInitCtx())
+}
+```
+
+讲解：
+
+- `package main` 表示这是可执行程序入口包。
+- `_ "server_go/internal/packed"` 是空导入，只执行该包的 `init`，通常用于 GoFrame 资源打包。
+- `_ "server_go/internal/logic/..."` 也是空导入，目的是触发各 logic 包里的 `init()`，完成 service 注册。
+- `_ "github.com/gogf/gf/contrib/drivers/mysql/v2"` 注册 MySQL 驱动。
+- `_ "github.com/gogf/gf/contrib/nosql/redis/v2"` 注册 Redis 支持。
+- `gctx.GetInitCtx()` 创建初始化上下文。
+- `cmd.Main.Run(...)` 启动 `internal/cmd/cmd.go` 里定义的命令。
+
+#### `internal/cmd/cmd.go`
+
+```go
+package cmd
+
+import (
+	"context"
+
+	"server_go/internal/controller"
+	"server_go/internal/middleware"
+
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/os/gcmd"
+)
+
+var (
+	Main = gcmd.Command{
+		Name:  "main",
+		Usage: "main",
+		Brief: "start http server",
+		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
+			s := g.Server()
+
+			// Game API routes
+			s.Group("/api", func(group *ghttp.RouterGroup) {
+				group.Middleware(
+					middleware.Sign,
+					middleware.Verify,
+					middleware.Response,
+				)
+				group.Bind(
+					controller.User,
+					controller.Game,
+					controller.Bag,
+					controller.Grid,
+				)
+			})
+
+			// Other routes (no sign/verify)
+			s.Group("/", func(group *ghttp.RouterGroup) {
+				group.Middleware(middleware.Response)
+				group.Bind(
+					controller.Other,
+				)
+			})
+
+			// Health + internal control routes (no middleware)
+			s.Group("/", func(group *ghttp.RouterGroup) {
+				group.Bind(
+					controller.Health,
+				)
+			})
+
+			s.Run()
+			return nil
+		},
+	}
+)
+```
+
+讲解：
+
+- `gcmd.Command` 是 GoFrame 命令对象。
+- `Func` 是命令执行函数，程序启动后会进入这里。
+- `g.Server()` 获取默认 HTTP Server。
+- `/api` 路由组绑定用户、游戏、背包、棋盘接口，并使用 `Sign`、`Verify`、`Response` 三个中间件。
+- `/` 路由组绑定 `Other`，用于 `/res_version/{key}`，只走统一响应，不走签名和登录校验。
+- 第二个 `/` 路由组绑定健康检查和内部控制接口，不走统一响应，由 controller 手动写 JSON。
+- `s.Run()` 阻塞运行 HTTP Server。
+
+### 21.2 Model 层
+
+#### `internal/model/model.go`
+
+```go
+package model
+
+import (
+	"server_go/internal/model/entity"
+
+	"github.com/gogf/gf/v2/database/gdb"
+)
+
+// --- User ---
+
+type LoginInput struct {
+	Uid      int64  `json:"uid"`
+	LoginKey string `json:"login_key"`
+	Openid   string `json:"openid"`
+	Platform string `json:"platform"`
+	Version  string `json:"version"`
+}
+
+type LoginOutput struct {
+	Uid    int64           `json:"uid"`
+	Newbie int             `json:"newbie"`
+	User   interface{}     `json:"user"`
+	Res    *entity.UserRes `json:"res,omitempty"`
+	Datas  gdb.Result      `json:"datas,omitempty"`
+	Items  gdb.Result      `json:"items,omitempty"`
+	Config gdb.Result      `json:"config,omitempty"`
+	Gm     int             `json:"gm"`
+}
+
+type UpdateResInput struct {
+	Uid    int64       `json:"uid"`
+	Items  interface{} `json:"items"`
+	Reason string      `json:"reason"`
+}
+
+type UpdateFieldInput struct {
+	Uid    int64  `json:"uid"`
+	Cnt    int64  `json:"cnt"`
+	Reason string `json:"reason"`
+}
+
+type UpdateFieldOutput struct {
+	Res      *entity.UserRes `json:"res"`
+	AddValue int64           `json:"add_value"`
+}
+
+// --- Game ---
+
+type OnlineInput struct {
+	Uid     int64 `json:"uid"`
+	Seconds int64 `json:"seconds"`
+}
+
+// --- Bag ---
+
+type BagInput struct {
+	Uid     int64 `json:"uid"`
+	Chapter int   `json:"chapter"`
+}
+
+type BagOutput struct {
+	Uid     int64      `json:"uid"`
+	Chapter int        `json:"chapter"`
+	Bag     gdb.Result `json:"bag"`
+}
+
+// --- Grid ---
+
+type GridOutput struct {
+	Bag   *BagOutput  `json:"bag,omitempty"`
+	BagTp *BagOutput  `json:"bag_tp,omitempty"`
+	Tasks interface{} `json:"tasks,omitempty"`
+}
+
+// --- Other ---
+
+type ResVersionOutput struct {
+	Code int    `json:"code"`
+	Ver  string `json:"ver,omitempty"`
+	Msg  string `json:"msg,omitempty"`
+}
+```
+
+讲解：
+
+- `model` 包是内部业务层 DTO，不直接负责 HTTP 路由。
+- `LoginInput` 是用户登录业务入参，由 controller 从 `api.LoginReq` 转换而来。
+- `LoginOutput` 是用户登录业务出参，包含用户、资源、数据、道具、配置、GM 状态。
+- `UpdateFieldInput` 是更新资源字段的通用入参，`Cnt` 表示变化值。
+- `UpdateFieldOutput` 返回更新后的资源和实际变化值。
+- `OnlineInput` 用于记录在线时长。
+- `BagInput` 同时用于背包和棋盘查询，因为棋盘查询也需要 `uid + chapter`。
+- `BagOutput` 中 `gdb.Result` 是 GoFrame 数据库查询结果列表。
+- `GridOutput` 聚合背包、背包模板和任务数据。
+- `ResVersionOutput` 是资源版本业务输出。
+
+### 21.3 Controller 层
+
+#### `internal/controller/bag.go`
+
+```go
+package controller
+
+import (
+	"context"
+
+	apiBag "server_go/api/bag"
+	"server_go/internal/model"
+	"server_go/internal/service"
+)
+
+var Bag = &cBag{}
+
+type cBag struct{}
+
+func (c *cBag) GetBag(ctx context.Context, req *apiBag.GetBagReq) (res *apiBag.GetBagRes, err error) {
+	out, err := service.Bag().GetUserBag(ctx, &model.BagInput{Uid: req.Uid, Chapter: req.Chapter})
+	if err != nil {
+		return nil, err
+	}
+	return (*apiBag.GetBagRes)(toBagRes(out)), nil
+}
+
+func (c *cBag) GetBagTp(ctx context.Context, req *apiBag.GetBagTpReq) (res *apiBag.GetBagTpRes, err error) {
+	out, err := service.Bag().GetUserBagTp(ctx, &model.BagInput{Uid: req.Uid, Chapter: req.Chapter})
+	if err != nil {
+		return nil, err
+	}
+	return (*apiBag.GetBagTpRes)(toBagRes(out)), nil
+}
+
+func toBagRes(out *model.BagOutput) *apiBag.BagRes {
+	if out == nil {
+		return nil
+	}
+	return &apiBag.BagRes{
+		Uid:     out.Uid,
+		Chapter: out.Chapter,
+		Bag:     out.Bag,
+	}
+}
+```
+
+讲解：
+
+- `var Bag = &cBag{}` 暴露给路由绑定使用。
+- `GetBag` 接收 HTTP 请求对象 `apiBag.GetBagReq`。
+- controller 不直接查数据库，而是调用 `service.Bag().GetUserBag`。
+- `toBagRes` 把内部业务输出 `model.BagOutput` 转成 API 响应 `apiBag.BagRes`。
+- `GetBagTp` 逻辑类似，只是查询背包模板表。
+
+#### `internal/controller/game.go`
+
+```go
+package controller
+
+import (
+	"context"
+
+	apiGame "server_go/api/game"
+	"server_go/internal/model"
+	"server_go/internal/service"
+
+	"github.com/gogf/gf/v2/os/gtime"
+)
+
+var Game = &cGame{}
+
+type cGame struct{}
+
+func (c *cGame) Online(ctx context.Context, req *apiGame.OnlineReq) (res *apiGame.OnlineRes, err error) {
+	err = service.Game().Online(ctx, &model.OnlineInput{
+		Uid: req.Uid, Seconds: req.Seconds,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &apiGame.OnlineRes{Now: gtime.TimestampMilli()}, nil
+}
+
+func (c *cGame) Time(ctx context.Context, req *apiGame.TimeReq) (res *apiGame.TimeRes, err error) {
+	return &apiGame.TimeRes{Now: gtime.TimestampMilli()}, nil
+}
+```
+
+讲解：
+
+- `Online` 记录用户在线时长，成功后返回服务器当前毫秒时间戳。
+- `Time` 不走 service，直接返回当前毫秒时间戳。
+- `gtime.TimestampMilli()` 是 GoFrame 获取当前毫秒时间戳的方法。
+
+#### `internal/controller/grid.go`
+
+```go
+package controller
+
+import (
+	"context"
+
+	apiGrid "server_go/api/grid"
+	"server_go/internal/model"
+	"server_go/internal/service"
+)
+
+var Grid = &cGrid{}
+
+type cGrid struct{}
+
+func (c *cGrid) GetGrid(ctx context.Context, req *apiGrid.GetGridReq) (res *apiGrid.GetGridRes, err error) {
+	out, err := service.Grid().GetGrid(ctx, &model.BagInput{Uid: req.Uid, Chapter: req.Chapter})
+	if err != nil {
+		return nil, err
+	}
+	return &apiGrid.GetGridRes{
+		Bag:   toBagRes(out.Bag),
+		BagTp: toBagRes(out.BagTp),
+		Tasks: out.Tasks,
+	}, nil
+}
+```
+
+讲解：
+
+- `GetGrid` 把棋盘接口请求转换为 `model.BagInput`。
+- 实际业务由 `service.Grid().GetGrid` 完成。
+- 返回值复用 `toBagRes`，把 `model.BagOutput` 转成 `apiBag.BagRes`。
+
+#### `internal/controller/other.go`
+
+```go
+package controller
+
+import (
+	"context"
+
+	apiOther "server_go/api/other"
+	"server_go/internal/service"
+)
+
+var Other = &cOther{}
+
+type cOther struct{}
+
+func (c *cOther) ResVersion(ctx context.Context, req *apiOther.ResVersionReq) (res *apiOther.ResVersionRes, err error) {
+	out, err := service.Other().GetResVersion(ctx, req.Key)
+	if err != nil {
+		return nil, err
+	}
+	return &apiOther.ResVersionRes{
+		Code: out.Code,
+		Ver:  out.Ver,
+		Msg:  out.Msg,
+	}, nil
+}
+```
+
+讲解：
+
+- `ResVersion` 处理 `/res_version/{key}`。
+- 这个接口不在 `/api` 路由组内，不走签名和登录校验。
+- controller 只负责转发 key 和转换响应。
+
+#### `internal/controller/user.go`
+
+```go
+package controller
+
+import (
+	"context"
+
+	apiUser "server_go/api/user"
+	"server_go/internal/model"
+	"server_go/internal/service"
+)
+
+var User = &cUser{}
+
+type cUser struct{}
+
+func (c *cUser) Login(ctx context.Context, req *apiUser.LoginReq) (res *apiUser.LoginRes, err error) {
+	out, err := service.User().Login(ctx, &model.LoginInput{
+		Uid:      req.Uid,
+		LoginKey: req.LoginKey,
+		Openid:   req.Openid,
+		Platform: req.Platform,
+		Version:  req.Version,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &apiUser.LoginRes{
+		Uid:    out.Uid,
+		Newbie: out.Newbie,
+		User:   out.User,
+		Res:    out.Res,
+		Datas:  out.Datas,
+		Items:  out.Items,
+		Config: out.Config,
+		Gm:     out.Gm,
+	}, nil
+}
+
+func (c *cUser) AddTili(ctx context.Context, req *apiUser.AddTiliReq) (res *apiUser.AddTiliRes, err error) {
+	out, err := service.User().UpdateTili(ctx, &model.UpdateFieldInput{
+		Uid: req.Uid, Cnt: 50, Reason: "测试增加体力",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return (*apiUser.AddTiliRes)(toUpdateFieldRes(out)), nil
+}
+
+func (c *cUser) AddGold(ctx context.Context, req *apiUser.AddGoldReq) (res *apiUser.AddGoldRes, err error) {
+	out, err := service.User().UpdateGold(ctx, &model.UpdateFieldInput{
+		Uid: req.Uid, Cnt: 50, Reason: "测试增加金币",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return (*apiUser.AddGoldRes)(toUpdateFieldRes(out)), nil
+}
+
+func (c *cUser) AddDiamond(ctx context.Context, req *apiUser.AddDiamondReq) (res *apiUser.AddDiamondRes, err error) {
+	out, err := service.User().UpdateDiamond(ctx, &model.UpdateFieldInput{
+		Uid: req.Uid, Cnt: 50, Reason: "测试增加钻石",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return (*apiUser.AddDiamondRes)(toUpdateFieldRes(out)), nil
+}
+
+func toUpdateFieldRes(out *model.UpdateFieldOutput) *apiUser.UpdateFieldRes {
+	if out == nil {
+		return nil
+	}
+	return &apiUser.UpdateFieldRes{
+		Res:      out.Res,
+		AddValue: out.AddValue,
+	}
+}
+```
+
+讲解：
+
+- `Login` 把 HTTP 登录请求转换成内部 `model.LoginInput`。
+- `AddTili`、`AddGold`、`AddDiamond` 是测试资源增加接口，固定增加 50。
+- `Reason` 用于资源流水日志，方便定位资源变化来源。
+- `toUpdateFieldRes` 是内部输出到 API 输出的转换函数。
+
+#### `internal/controller/health.go`
+
+```go
+package controller
+
+import (
+	"context"
+	"os"
+	"sync"
+	"time"
+
+	apiHealth "server_go/api/health"
+
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/net/ghttp"
+)
+
+var Health = &cHealth{}
+
+type cHealth struct{}
+
+var startTime = time.Now()
+
+var drainState = &drainStateManager{}
+
+type drainStateManager struct {
+	mu                   sync.RWMutex
+	draining             bool
+	rejectingNewRequests bool
+}
+
+func (d *drainStateManager) IsTrafficShift() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.draining
+}
+
+func (d *drainStateManager) IsRejecting() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.rejectingNewRequests
+}
+
+func (d *drainStateManager) StartTrafficShift() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.draining = true
+	d.rejectingNewRequests = false
+}
+
+func (d *drainStateManager) StartRejectNew() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.draining = true
+	d.rejectingNewRequests = true
+}
+
+func (d *drainStateManager) Resume() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.draining = false
+	d.rejectingNewRequests = false
+}
+
+func (c *cHealth) Ready(ctx context.Context, req *apiHealth.ReadyReq) (res *apiHealth.ReadyRes, err error) {
+	ghttp.RequestFromCtx(ctx).Response.WriteJson(g.Map{"ok": true})
+	return
+}
+
+func (c *cHealth) Health(ctx context.Context, req *apiHealth.HealthReq) (res *apiHealth.HealthRes, err error) {
+	ghttp.RequestFromCtx(ctx).Response.WriteJson(g.Map{
+		"status":    "ok",
+		"pid":       os.Getpid(),
+		"uptime":    int(time.Since(startTime).Seconds()),
+		"timestamp": time.Now().Format("2006/01/02 15:04:05"),
+	})
+	return
+}
+
+func (c *cHealth) HealthDetail(ctx context.Context, req *apiHealth.HealthDetailReq) (res *apiHealth.HealthDetailRes, err error) {
+	ghttp.RequestFromCtx(ctx).Response.WriteJson(g.Map{
+		"status":    "ok",
+		"pid":       os.Getpid(),
+		"uptime":    int(time.Since(startTime).Seconds()),
+		"timestamp": time.Now().Format("2006/01/02 15:04:05"),
+		"draining":  drainState.IsTrafficShift(),
+		"rejecting": drainState.IsRejecting(),
+	})
+	return
+}
+
+func (c *cHealth) HealthLb(ctx context.Context, req *apiHealth.HealthLbReq) (res *apiHealth.HealthLbRes, err error) {
+	r := ghttp.RequestFromCtx(ctx)
+	if drainState.IsTrafficShift() {
+		r.Response.Status = 503
+		r.Response.WriteJson(g.Map{"status": "draining"})
+	} else {
+		r.Response.WriteJson(g.Map{"status": "ok"})
+	}
+	return
+}
+
+func (c *cHealth) TrafficShift(ctx context.Context, req *apiHealth.TrafficShiftReq) (res *apiHealth.TrafficShiftRes, err error) {
+	r := ghttp.RequestFromCtx(ctx)
+	if !ensureInternalAccess(r) {
+		return
+	}
+	drainState.StartTrafficShift()
+	r.Response.WriteJson(g.Map{"ok": true, "state": "traffic-shift"})
+	return
+}
+
+func (c *cHealth) RejectNew(ctx context.Context, req *apiHealth.RejectNewReq) (res *apiHealth.RejectNewRes, err error) {
+	r := ghttp.RequestFromCtx(ctx)
+	if !ensureInternalAccess(r) {
+		return
+	}
+	drainState.StartRejectNew()
+	r.Response.WriteJson(g.Map{"ok": true, "state": "reject-new-requests"})
+	return
+}
+
+func (c *cHealth) ResumeTraffic(ctx context.Context, req *apiHealth.ResumeTrafficReq) (res *apiHealth.ResumeTrafficRes, err error) {
+	r := ghttp.RequestFromCtx(ctx)
+	if !ensureInternalAccess(r) {
+		return
+	}
+	drainState.Resume()
+	r.Response.WriteJson(g.Map{"ok": true, "state": "resume-traffic"})
+	return
+}
+
+func ensureInternalAccess(r *ghttp.Request) bool {
+	expected := os.Getenv("APP_CONTROL_TOKEN")
+	if expected == "" || expected == "PLEASE_CHANGE_ME" {
+		r.Response.Status = 500
+		r.Response.WriteJson(g.Map{"ok": false, "msg": "APP_CONTROL_TOKEN not configured"})
+		return false
+	}
+	forwarded := r.GetHeader("x-forwarded-for")
+	if forwarded != "" {
+		r.Response.Status = 404
+		r.Response.WriteJson(g.Map{"ok": false})
+		return false
+	}
+	received := r.GetHeader("x-control-token")
+	if received != expected {
+		r.Response.Status = 404
+		r.Response.WriteJson(g.Map{"ok": false})
+		return false
+	}
+	return true
+}
+```
+
+讲解：
+
+- 健康检查接口自己写响应，不依赖 `middleware.Response`。
+- `startTime` 用于计算进程已运行秒数。
+- `drainStateManager` 管理蓝绿发布时的流量状态。
+- `sync.RWMutex` 保证并发读写 `draining/rejectingNewRequests` 安全。
+- `HealthLb` 给 Traefik 调用，如果正在切流则返回 503，让网关停止转发流量。
+- `ensureInternalAccess` 要求配置 `APP_CONTROL_TOKEN`，并要求请求头 `x-control-token` 匹配。
+
+### 21.4 Service 层
+
+#### `internal/service/bag.go`
+
+```go
+package service
+
+import (
+	"context"
+
+	"server_go/internal/model"
+)
+
+type IBag interface {
+	GetUserBag(ctx context.Context, in *model.BagInput) (*model.BagOutput, error)
+	GetUserBagTp(ctx context.Context, in *model.BagInput) (*model.BagOutput, error)
+}
+
+var localBag IBag
+
+func Bag() IBag {
+	if localBag == nil {
+		panic("service IBag not registered")
+	}
+	return localBag
+}
+
+func RegisterBag(s IBag) {
+	localBag = s
+}
+```
+
+讲解：
+
+- `IBag` 定义背包服务必须实现的方法。
+- `localBag` 保存真正实现。
+- `RegisterBag` 由 `logic/bag` 的 `init()` 调用。
+- `Bag()` 给 controller 或其他 logic 获取服务。
+
+#### `internal/service/game.go`
+
+```go
+package service
+
+import (
+	"context"
+
+	"server_go/internal/model"
+)
+
+type IGame interface {
+	Online(ctx context.Context, in *model.OnlineInput) error
+}
+
+var localGame IGame
+
+func Game() IGame {
+	if localGame == nil {
+		panic("service IGame not registered")
+	}
+	return localGame
+}
+
+func RegisterGame(s IGame) {
+	localGame = s
+}
+```
+
+讲解：
+
+- `IGame` 当前只定义在线时长记录。
+- `Game()` 是统一入口，屏蔽具体实现结构体 `sGame`。
+
+#### `internal/service/grid.go`
+
+```go
+package service
+
+import (
+	"context"
+
+	"server_go/internal/model"
+)
+
+type IGrid interface {
+	GetGrid(ctx context.Context, in *model.BagInput) (*model.GridOutput, error)
+}
+
+var localGrid IGrid
+
+func Grid() IGrid {
+	if localGrid == nil {
+		panic("service IGrid not registered")
+	}
+	return localGrid
+}
+
+func RegisterGrid(s IGrid) {
+	localGrid = s
+}
+```
+
+讲解：
+
+- `IGrid` 定义棋盘聚合查询。
+- 入参复用 `model.BagInput`，因为只需要 `uid/chapter`。
+
+#### `internal/service/other.go`
+
+```go
+package service
+
+import (
+	"context"
+
+	"server_go/internal/model"
+)
+
+type IOther interface {
+	GetResVersion(ctx context.Context, key string) (*model.ResVersionOutput, error)
+}
+
+var localOther IOther
+
+func Other() IOther {
+	if localOther == nil {
+		panic("service IOther not registered")
+	}
+	return localOther
+}
+
+func RegisterOther(s IOther) {
+	localOther = s
+}
+```
+
+讲解：
+
+- `IOther` 当前只负责资源版本查询。
+- 该服务被 `controller.Other` 调用。
+
+#### `internal/service/task.go`
+
+```go
+package service
+
+import (
+	"context"
+)
+
+type ITask interface {
+	InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error)
+}
+
+var localTask ITask
+
+func Task() ITask {
+	if localTask == nil {
+		panic("service ITask not registered")
+	}
+	return localTask
+}
+
+func RegisterTask(s ITask) {
+	localTask = s
+}
+```
+
+讲解：
+
+- `ITask` 提供任务初始化和读取。
+- `logic/grid` 会调用 `service.Task().InitTasks` 聚合任务数据。
+
+#### `internal/service/user.go`
+
+```go
+package service
+
+import (
+	"context"
+
+	"server_go/internal/model"
+	"server_go/internal/model/entity"
+)
+
+type IUser interface {
+	Login(ctx context.Context, in *model.LoginInput) (*model.LoginOutput, error)
+	UpdateDiamond(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error)
+	UpdateGold(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error)
+	UpdateTili(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error)
+	UpdateExp(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error)
+	UpdateStar(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error)
+	GetUser(ctx context.Context, uid int64) (*entity.User, error)
+	GetUserRes(ctx context.Context, uid int64) (*entity.UserRes, error)
+}
+
+var localUser IUser
+
+func User() IUser {
+	if localUser == nil {
+		panic("service IUser not registered")
+	}
+	return localUser
+}
+
+func RegisterUser(s IUser) {
+	localUser = s
+}
+```
+
+讲解：
+
+- `IUser` 是用户业务接口。
+- `Login` 是登录主流程。
+- `UpdateDiamond/Gold/Tili/Exp/Star` 是资源更新方法。
+- `GetUser/GetUserRes` 是用户基础数据和资源数据读取方法。
+- `localUser == nil` 时 panic，能尽早暴露 logic 包没有注册的问题。
+
+### 21.5 Logic 层
+
+#### `internal/logic/bag/bag.go`
+
+```go
+package bag
+
+import (
+	"context"
+
+	"server_go/internal/dao"
+	"server_go/internal/model"
+	"server_go/internal/service"
+)
+
+type sBag struct{}
+
+func init() {
+	service.RegisterBag(&sBag{})
+}
+
+func (s *sBag) GetUserBag(ctx context.Context, in *model.BagInput) (*model.BagOutput, error) {
+	rows, err := dao.UserBag.Ctx(ctx).Where("uid", in.Uid).Where("chapter", in.Chapter).All()
+	if err != nil {
+		return nil, err
+	}
+	return &model.BagOutput{Uid: in.Uid, Chapter: in.Chapter, Bag: rows}, nil
+}
+
+func (s *sBag) GetUserBagTp(ctx context.Context, in *model.BagInput) (*model.BagOutput, error) {
+	rows, err := dao.UserBagTp.Ctx(ctx).Where("uid", in.Uid).Where("chapter", in.Chapter).All()
+	if err != nil {
+		return nil, err
+	}
+	return &model.BagOutput{Uid: in.Uid, Chapter: in.Chapter, Bag: rows}, nil
+}
+```
+
+讲解：
+
+- `sBag` 是背包服务实现。
+- `init()` 把 `sBag` 注册到 service 层。
+- `GetUserBag` 查询 `user_bag`。
+- `GetUserBagTp` 查询 `user_bag_tp`。
+- `All()` 返回多行结果。
+
+#### `internal/logic/game/game.go`
+
+```go
+package game
+
+import (
+	"context"
+	"fmt"
+
+	"server_go/internal/dao"
+	"server_go/internal/model"
+	"server_go/internal/service"
+
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gtime"
+)
+
+type sGame struct{}
+
+func init() {
+	service.RegisterGame(&sGame{})
+}
+
+func (s *sGame) Online(ctx context.Context, in *model.OnlineInput) error {
+	now := gtime.Now()
+	dayStr := fmt.Sprintf("%d-%02d-%02d, %02d:00:00", now.Year(), now.Month(), now.Day(), now.Hour())
+
+	row, err := dao.UserOnline.Ctx(ctx).Where("uid", in.Uid).Where("day", dayStr).One()
+	if err != nil {
+		return err
+	}
+
+	nowTime := gtime.Now().Format("Y-m-d H:i:s")
+	seconds := in.Seconds
+	if !row.IsEmpty() {
+		seconds += row["tm_online"].Int64()
+		_, err = dao.UserOnline.Ctx(ctx).Where("uid", in.Uid).Where("day", dayStr).
+			Data(g.Map{"tm_online": seconds, "tm_update": nowTime}).Update()
+	} else {
+		_, err = dao.UserOnline.Ctx(ctx).Data(g.Map{
+			"uid": in.Uid, "day": dayStr, "tm_online": seconds, "tm_update": nowTime,
+		}).Insert()
+	}
+	return err
+}
+```
+
+讲解：
+
+- 按“用户 + 小时”统计在线时长。
+- `dayStr` 实际包含年月日和小时。
+- 如果当前小时已有记录，就累加 `tm_online`。
+- 如果没有记录，就插入一条。
+- `g.Map` 是 GoFrame 的 `map[string]interface{}` 简写。
+
+#### `internal/logic/grid/grid.go`
+
+```go
+package grid
+
+import (
+	"context"
+	"sync"
+
+	"server_go/internal/model"
+	"server_go/internal/service"
+)
+
+type sGrid struct{}
+
+func init() {
+	service.RegisterGrid(&sGrid{})
+}
+
+func (s *sGrid) GetGrid(ctx context.Context, in *model.BagInput) (*model.GridOutput, error) {
+	out := &model.GridOutput{}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	var firstErr error
+
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+		result, err := service.Bag().GetUserBag(ctx, in)
+		if err != nil {
+			mu.Lock()
+			if firstErr == nil {
+				firstErr = err
+			}
+			mu.Unlock()
+			return
+		}
+		mu.Lock()
+		out.Bag = result
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		result, err := service.Bag().GetUserBagTp(ctx, in)
+		if err != nil {
+			mu.Lock()
+			if firstErr == nil {
+				firstErr = err
+			}
+			mu.Unlock()
+			return
+		}
+		mu.Lock()
+		out.BagTp = result
+		mu.Unlock()
+	}()
+
+	go func() {
+		defer wg.Done()
+		tasks, err := service.Task().InitTasks(ctx, in.Uid)
+		if err != nil {
+			mu.Lock()
+			if firstErr == nil {
+				firstErr = err
+			}
+			mu.Unlock()
+			return
+		}
+		mu.Lock()
+		out.Tasks = tasks
+		mu.Unlock()
+	}()
+
+	wg.Wait()
+	return out, firstErr
+}
+```
+
+讲解：
+
+- `GetGrid` 同时查询背包、背包模板、任务。
+- 三个 goroutine 并发执行，减少总等待时间。
+- `WaitGroup` 等待三个 goroutine 结束。
+- `Mutex` 保护 `out` 和 `firstErr`，避免并发写冲突。
+- `firstErr` 保存第一个出现的错误。
+
+#### `internal/logic/other/other.go`
+
+```go
+package other
+
+import (
+	"context"
+	"fmt"
+
+	"server_go/internal/dao"
+	"server_go/internal/model"
+	"server_go/internal/service"
+	"server_go/utility/secretutil"
+
+	"github.com/gogf/gf/v2/frame/g"
+)
+
+type sOther struct{}
+
+func init() {
+	service.RegisterOther(&sOther{})
+}
+
+func (s *sOther) GetResVersion(ctx context.Context, key string) (*model.ResVersionOutput, error) {
+	redis := g.Redis()
+	rkey := fmt.Sprintf("res_version.%s", key)
+
+	exists, err := redis.Do(ctx, "EXISTS", rkey)
+	if err != nil {
+		return nil, err
+	}
+	if exists.Int() > 0 {
+		return &model.ResVersionOutput{Code: -1036, Msg: "get_res_version: 不能重复调用"}, nil
+	}
+	_, _ = redis.Do(ctx, "SET", rkey, "1", "EX", 3600)
+
+	if !secretutil.CheckSecret(key) {
+		return &model.ResVersionOutput{Code: -1, Msg: "参数错误"}, nil
+	}
+
+	ver, err := dao.MemConfig.Ctx(ctx).Where("id", 50).Value("value")
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.ResVersionOutput{Code: 0, Ver: ver.String()}, nil
+}
+```
+
+讲解：
+
+- 用 Redis key `res_version.{key}` 做一小时防重复。
+- `EXISTS` 判断是否已调用。
+- `SET ... EX 3600` 写入一小时过期的标记。
+- `secretutil.CheckSecret` 校验 key 合法性。
+- 从 `mem_config` 表读取 `id=50` 的版本值。
+
+#### `internal/logic/task/task.go`
+
+```go
+package task
+
+import (
+	"context"
+	"fmt"
+
+	"server_go/internal/dao"
+	"server_go/internal/logic/user"
+	"server_go/internal/service"
+
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gtime"
+)
+
+type sTask struct{}
+
+func init() {
+	service.RegisterTask(&sTask{})
+}
+
+func (s *sTask) InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error) {
+	taskConf, err := dao.UserData.Ctx(ctx).Where("uid", uid).Where("key", "task_conf").Value("value")
+	if err != nil {
+		return nil, err
+	}
+
+	confStr := taskConf.String()
+	if confStr == "" {
+		_, _ = dao.UserData.Ctx(ctx).Data(g.Map{"uid": uid, "key": "task_conf", "value": "4"}).Insert()
+		confStr = "4"
+	}
+
+	serList := user.PickNumbers(confStr)
+	var arr []map[string]interface{}
+
+	for _, ser := range serList {
+		task, e := getOneTask(ctx, uid, ser)
+		if e != nil {
+			return nil, e
+		}
+		if task != nil {
+			task["uid"] = uid
+			arr = append(arr, task)
+		}
+	}
+
+	return arr, nil
+}
+
+func getOneTask(ctx context.Context, uid int64, ser int) (map[string]interface{}, error) {
+	minMax, err := getTaskSerMinMax(ctx, ser)
+	if err != nil {
+		return nil, err
+	}
+	if minMax == nil {
+		return nil, fmt.Errorf("用户%d的任务类型%d没有数据", uid, ser)
+	}
+	minId, maxId := minMax[0], minMax[1]
+
+	row, err := dao.UserTask.Ctx(ctx).Where("uid", uid).
+		WhereGTE("taskid", minId).WhereLTE("taskid", maxId).
+		Limit(1).One()
+	if err != nil {
+		return nil, err
+	}
+
+	var taskId int
+	needClear := false
+	nowSec := gtime.Timestamp()
+
+	if row.IsEmpty() {
+		taskId = minId
+		_, err = dao.UserTask.Ctx(ctx).Data(g.Map{
+			"uid": uid, "taskid": taskId, "addtm": nowSec, "done": 0, "donetm": 0,
+		}).Insert()
+		if err != nil {
+			return nil, err
+		}
+	} else if row["done"].Int() != 0 {
+		taskId = row["taskid"].Int()
+		if taskId >= maxId {
+			v, e := dao.PrfTask.Ctx(ctx).Where("ser", ser).Where("start_loop", 1).
+				OrderAsc("id").Limit(1).Value("id")
+			if e != nil {
+				return nil, e
+			}
+			taskId = v.Int()
+		} else {
+			v, e := dao.PrfTask.Ctx(ctx).Where("ser", ser).WhereGT("id", taskId).
+				OrderAsc("id").Limit(1).Value("id")
+			if e != nil {
+				return nil, e
+			}
+			taskId = v.Int()
+		}
+		needClear = true
+		_, err = dao.UserTask.Ctx(ctx).Data(g.Map{
+			"uid": uid, "taskid": taskId, "addtm": nowSec, "done": 0, "donetm": 0,
+		}).Insert()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		taskId = row["taskid"].Int()
+	}
+
+	if needClear {
+		_, _ = dao.UserTask.Ctx(ctx).Where("uid", uid).
+			WhereGTE("taskid", minId).WhereLTE("taskid", maxId).
+			Where("done", 1).Delete()
+	}
+
+	if taskId == 0 {
+		return nil, nil
+	}
+
+	taskRow, err := dao.PrfTask.Ctx(ctx).Where("id", taskId).One()
+	if err != nil {
+		return nil, err
+	}
+	if taskRow.IsEmpty() {
+		return nil, nil
+	}
+	return taskRow.Map(), nil
+}
+
+func getTaskSerMinMax(ctx context.Context, ser int) ([]int, error) {
+	minVal, err := dao.PrfTask.Ctx(ctx).Where("ser", ser).Min("id")
+	if err != nil {
+		return nil, err
+	}
+	if minVal == 0 {
+		return nil, nil
+	}
+	maxVal, err := dao.PrfTask.Ctx(ctx).Where("ser", ser).Max("id")
+	if err != nil {
+		return nil, err
+	}
+	if maxVal == 0 {
+		return nil, nil
+	}
+	return []int{int(minVal), int(maxVal)}, nil
+}
+```
+
+讲解：
+
+- `InitTasks` 读取用户任务配置 `user_data.key=task_conf`。
+- 如果没有配置，默认插入 `4`。
+- `user.PickNumbers` 从配置字符串中提取任务类型编号。
+- `getOneTask` 根据任务类型 `ser` 找当前任务。
+- 如果用户没有该类型任务，从配置表最小任务 ID 开始。
+- 如果当前任务已完成，则进入下一个任务；到最大 ID 后找 `start_loop=1` 的循环起点。
+- `needClear` 为 true 时，清理该任务类型下已完成旧任务。
+
+#### `internal/logic/lock/lock.go`
+
+```go
+package lock
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"math/rand"
+	"os"
+	"time"
+
+	"github.com/gogf/gf/v2/database/gredis"
+	"github.com/gogf/gf/v2/frame/g"
+)
+
+const (
+	acquireTimeoutMs = 1000
+	retryBaseMs      = 20
+	retryMaxMs       = 200
+	lockTTLMs        = 30000
+)
+
+func Lock(ctx context.Context, key string) (string, error) {
+	if key == "" {
+		return "", fmt.Errorf("[Lock] key is required")
+	}
+	redis := g.Redis()
+	redisKey := "lock:" + key
+	token := fmt.Sprintf("%d:%d:%d", os.Getpid(), time.Now().UnixNano(), rand.Int63())
+
+	deadline := time.Now().Add(time.Duration(acquireTimeoutMs) * time.Millisecond)
+	retryCount := 0
+
+	for time.Now().Before(deadline) {
+		ok, err := tryAcquire(ctx, redis, redisKey, token)
+		if err != nil {
+			return "", err
+		}
+		if ok {
+			return token, nil
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
+		}
+		cap := math.Min(float64(retryMaxMs), float64(retryBaseMs)*math.Pow(2, float64(retryCount)))
+		sleepMs := int(math.Min(float64(remaining.Milliseconds()), float64(rand.Intn(int(cap)+1))))
+		retryCount++
+		time.Sleep(time.Duration(sleepMs) * time.Millisecond)
+	}
+	return "", nil
+}
+
+func Unlock(ctx context.Context, key, token string) error {
+	if key == "" || token == "" {
+		return nil
+	}
+	redis := g.Redis()
+	redisKey := "lock:" + key
+	script := `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`
+	_, err := redis.Do(ctx, "EVAL", script, 1, redisKey, token)
+	return err
+}
+
+func tryAcquire(ctx context.Context, redis *gredis.Redis, key, token string) (bool, error) {
+	res, err := redis.Do(ctx, "SET", key, token, "PX", lockTTLMs, "NX")
+	if err != nil {
+		return false, err
+	}
+	return res.String() == "OK", nil
+}
+```
+
+讲解：
+
+- `Lock` 用 Redis `SET key token PX ttl NX` 获取锁。
+- `NX` 表示只有 key 不存在时才设置成功。
+- `PX lockTTLMs` 表示锁自动过期，当前是 30000 毫秒。
+- `token` 用进程 ID、纳秒时间、随机数组成，用于标识锁持有者。
+- 获取失败会短暂 sleep 后重试，最多尝试 1000 毫秒。
+- `Unlock` 用 Lua 脚本保证“只有 token 匹配才删除锁”，避免误删别人持有的锁。
+
+#### `internal/logic/gamelog/gamelog.go`
+
+```go
+package gamelog
+
+import (
+	"context"
+	"math"
+
+	"server_go/internal/dao"
+
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gctx"
+)
+
+// TraceRes records a resource change asynchronously.
+func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason string) {
+	if uid == 0 {
+		return
+	}
+	num := now - old
+	if num == 0 {
+		return
+	}
+	if num > 0 {
+		resName = "+" + resName
+	} else {
+		resName = "-" + resName
+	}
+	absNum := int64(math.Abs(float64(num)))
+	bgCtx := gctx.NeverDone(ctx)
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				g.Log().Errorf(context.Background(), "TraceRes panic: %v", r)
+			}
+		}()
+		_, _ = dao.LogTrace.Ctx(bgCtx).Data(g.Map{
+			"uid": uid, "type": resName, "num": absNum,
+			"before": old, "after": now, "reason": reason,
+		}).Insert()
+	}()
+}
+
+// Log records a message asynchronously.
+func Log(ctx context.Context, uid int64, msg string) {
+	bgCtx := gctx.NeverDone(ctx)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				g.Log().Errorf(context.Background(), "Log panic: %v", r)
+			}
+		}()
+		_, _ = dao.LogMsg.Ctx(bgCtx).Data(g.Map{"uid": uid, "msg": msg}).Insert()
+	}()
+}
+```
+
+讲解：
+
+- `TraceRes` 异步记录资源变化流水。
+- `num := now - old` 计算变化量。
+- 增加资源时类型前加 `+`，减少资源时类型前加 `-`。
+- `gctx.NeverDone(ctx)` 避免请求结束后异步日志 context 被取消。
+- goroutine 内部使用 `recover`，避免日志写入 panic 影响主流程。
+- `Log` 用于写普通消息日志 `_log_msg`。
+
+#### `internal/logic/user/user.go`
+
+`user.go` 是业务最重的文件，包含登录、资源更新、用户资源读取和工具函数。源码较长，下面完整贴出。
+
+```go
+package user
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"strconv"
+	"strings"
+
+	"server_go/internal/consts"
+	"server_go/internal/dao"
+	"server_go/internal/logic/gamelog"
+	"server_go/internal/logic/lock"
+	"server_go/internal/model"
+	"server_go/internal/model/entity"
+	"server_go/internal/service"
+
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gctx"
+	"github.com/gogf/gf/v2/os/gtime"
+)
+
+type sUser struct{}
+
+func init() {
+	service.RegisterUser(&sUser{})
+}
+
+func (s *sUser) Login(ctx context.Context, in *model.LoginInput) (*model.LoginOutput, error) {
+	if in.Openid == "" {
+		return nil, fmt.Errorf("参数错误: openid 必填")
+	}
+
+	out := &model.LoginOutput{Uid: in.Uid}
+
+	var user *entity.User
+	err := dao.User.Ctx(ctx).Where("uid", in.Uid).Scan(&user)
+	if err != nil {
+		return nil, err
+	}
+
+	if user != nil {
+		if user.Platform != in.Platform || user.Openid != in.Openid {
+			return nil, fmt.Errorf("账号信息不匹配")
+		}
+		out.Newbie = 0
+		out.User = user
+	} else {
+		out.Newbie = 1
+		nowDay := gtime.Now().StartOfDay().Timestamp()
+		err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+			_, e := dao.User.Ctx(ctx).TX(tx).Data(g.Map{
+				"uid": in.Uid, "platform": in.Platform, "openid": in.Openid,
+			}).Insert()
+			if e != nil {
+				return e
+			}
+			_, e = dao.UserRes.Ctx(ctx).TX(tx).Data(g.Map{
+				"uid": in.Uid, "gold": 200, "diamond": 100, "star": 0,
+				"tili": 100, "tili_time": 0, "exp": 0, "level": 1, "day_time": nowDay,
+			}).Insert()
+			return e
+		})
+		if err != nil {
+			return nil, err
+		}
+		out.User = &entity.User{
+			Uid: uint(in.Uid), Platform: in.Platform, Openid: in.Openid,
+		}
+	}
+
+	// Log login (fire-and-forget with recover)
+	bgCtx := gctx.NeverDone(ctx)
+	go func() {
+		defer func() { recover() }()
+		_, _ = dao.LogLogin.Ctx(bgCtx).Data(g.Map{"uid": in.Uid, "platform": in.Platform}).Insert()
+	}()
+
+	// Upsert login key
+	_, err = dao.UserLoginkey.Ctx(ctx).Data(g.Map{
+		"uid": in.Uid, "key": in.LoginKey, "ver": in.Version, "time": gtime.Timestamp(),
+	}).Save()
+	if err != nil {
+		return nil, err
+	}
+
+	out.Datas, err = dao.UserData.Ctx(ctx).Where("uid", in.Uid).All()
+	if err != nil {
+		return nil, err
+	}
+
+	gmVal, err := dao.SysGm.Ctx(ctx).Where("uid", in.Uid).Value("uid")
+	if err != nil {
+		return nil, err
+	}
+	if gmVal.IsEmpty() {
+		out.Gm = 0
+	} else {
+		out.Gm = 1
+	}
+
+	out.Items, err = dao.UserItem.Ctx(ctx).Where("uid", in.Uid).All()
+	if err != nil {
+		return nil, err
+	}
+
+	out.Res, err = s.GetUserRes(ctx, in.Uid)
+	if err != nil {
+		return nil, err
+	}
+
+	out.Config, err = dao.MemConfig.Ctx(ctx).All()
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+func (s *sUser) UpdateDiamond(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
+	return updateResField(ctx, in, "diamond", "钻石")
+}
+
+func (s *sUser) UpdateGold(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
+	return updateResField(ctx, in, "gold", "金币")
+}
+
+func (s *sUser) UpdateTili(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
+	return updateResField(ctx, in, "tili", "体力")
+}
+
+func (s *sUser) UpdateExp(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
+	return updateResField(ctx, in, "exp", "经验")
+}
+
+func (s *sUser) UpdateStar(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
+	return updateResField(ctx, in, "star", "星星")
+}
+
+func (s *sUser) GetUser(ctx context.Context, uid int64) (*entity.User, error) {
+	var user *entity.User
+	err := dao.User.Ctx(ctx).Where("uid", uid).Scan(&user)
+	return user, err
+}
+
+func (s *sUser) GetUserRes(ctx context.Context, uid int64) (*entity.UserRes, error) {
+	var res *entity.UserRes
+	err := dao.UserRes.Ctx(ctx).Where("uid", uid).Scan(&res)
+	if err != nil || res == nil {
+		return res, err
+	}
+	nowDay := int(gtime.Now().StartOfDay().Timestamp())
+	if res.DayTime != nowDay {
+		_, _ = dao.UserRes.Ctx(ctx).Where("uid", uid).Data(g.Map{"day_conf": "", "day_time": nowDay}).Update()
+		res.DayConf = ""
+		res.DayTime = nowDay
+	}
+	return res, nil
+}
+
+func updateResField(ctx context.Context, in *model.UpdateFieldInput, field, resName string) (*model.UpdateFieldOutput, error) {
+	lockKey := fmt.Sprintf("update_%s:%d", field, in.Uid)
+	token, err := lock.Lock(ctx, lockKey)
+	if err != nil {
+		return nil, err
+	}
+	if token == "" {
+		return nil, fmt.Errorf("系统繁忙，请稍后再试")
+	}
+	defer func() { _ = lock.Unlock(ctx, lockKey, token) }()
+
+	var res *entity.UserRes
+	err = dao.UserRes.Ctx(ctx).Where("uid", in.Uid).Scan(&res)
+	if err != nil {
+		return nil, err
+	}
+	if res == nil {
+		return nil, fmt.Errorf("用户资源不存在")
+	}
+
+	var oldCnt int64
+	switch field {
+	case "diamond":
+		oldCnt = int64(res.Diamond)
+	case "gold":
+		oldCnt = int64(res.Gold)
+	case "tili":
+		oldCnt = int64(res.Tili)
+	case "exp":
+		oldCnt = int64(res.Exp)
+	case "star":
+		oldCnt = int64(res.Star)
+	}
+
+	newCnt := oldCnt + in.Cnt
+	if newCnt < 0 {
+		newCnt = 0
+	}
+	if newCnt == oldCnt {
+		return &model.UpdateFieldOutput{Res: res, AddValue: 0}, nil
+	}
+
+	_, err = dao.UserRes.Ctx(ctx).Where("uid", in.Uid).Data(g.Map{field: newCnt}).Update()
+	if err != nil {
+		gamelog.Log(ctx, in.Uid, fmt.Sprintf("更新用户资源失败 %s %d %s %v", field, in.Cnt, in.Reason, err))
+		return nil, err
+	}
+
+	// Update the struct
+	switch field {
+	case "diamond":
+		res.Diamond = int(newCnt)
+	case "gold":
+		res.Gold = int(newCnt)
+	case "tili":
+		res.Tili = int(newCnt)
+	case "exp":
+		res.Exp = int(newCnt)
+	case "star":
+		res.Star = int(newCnt)
+	}
+
+	gamelog.TraceRes(ctx, in.Uid, oldCnt, newCnt, resName, in.Reason)
+	return &model.UpdateFieldOutput{Res: res, AddValue: newCnt - oldCnt}, nil
+}
+
+// --- Utility ---
+
+func ParseRes(items interface{}) []consts.ResItem {
+	switch v := items.(type) {
+	case []consts.ResItem:
+		return v
+	case string:
+		return parseResString(v)
+	default:
+		return nil
+	}
+}
+
+func parseResString(s string) []consts.ResItem {
+	nums := PickNumbers(s)
+	if len(nums) == 0 || len(nums)%3 != 0 {
+		return nil
+	}
+	result := make([]consts.ResItem, 0, len(nums)/3)
+	for i := 0; i < len(nums); i += 3 {
+		result = append(result, consts.ResItem{Type: nums[i], Id: nums[i+1], Cnt: nums[i+2]})
+	}
+	return result
+}
+
+// PickNumbers extracts all integers from a string.
+func PickNumbers(s string) []int {
+	var result []int
+	current := ""
+	for _, c := range s {
+		if (c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' {
+			current += string(c)
+		} else {
+			if current != "" {
+				if n, err := strconv.Atoi(current); err == nil {
+					result = append(result, n)
+				} else if f, err := strconv.ParseFloat(current, 64); err == nil {
+					result = append(result, int(math.Floor(f)))
+				}
+				current = ""
+			}
+		}
+	}
+	if current != "" {
+		if n, err := strconv.Atoi(current); err == nil {
+			result = append(result, n)
+		} else if f, err := strconv.ParseFloat(current, 64); err == nil {
+			result = append(result, int(math.Floor(f)))
+		}
+	}
+	return result
+}
+
+func init() {
+	_ = strings.Join
+}
+```
+
+讲解：
+
+- `Login` 是用户登录主流程。
+- 已存在用户时校验 `platform/openid`，防止同一 uid 被不同账号复用。
+- 新用户创建时使用事务，同时插入 `user` 和 `user_res`。
+- 登录日志异步写入 `_log_login`，不阻塞主流程。
+- `UserLoginkey.Save()` 保存当前登录 key，供 `Verify` 中间件校验。
+- `GetUserRes` 会检查跨天逻辑，如果 `DayTime` 不是今天，就重置 `day_conf` 并更新 `day_time`。
+- `updateResField` 是资源更新通用方法，负责加锁、读旧值、计算新值、更新数据库、写资源流水。
+- `ParseRes` 和 `PickNumbers` 是资源配置解析工具。
+- 末尾 `init(){ _ = strings.Join }` 只是为了保留 `strings` 导入不报未使用；如果后续不需要 `strings`，可以清理。
