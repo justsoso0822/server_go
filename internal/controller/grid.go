@@ -17,5 +17,9 @@ func (c *cGrid) GetGrid(ctx context.Context, req *apiGrid.GetGridReq) (res *apiG
 	if err != nil {
 		return nil, err
 	}
-	return (*apiGrid.GetGridRes)(out), nil
+	return &apiGrid.GetGridRes{
+		Bag:   toBagRes(out.Bag),
+		BagTp: toBagRes(out.BagTp),
+		Tasks: out.Tasks,
+	}, nil
 }

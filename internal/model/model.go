@@ -17,14 +17,14 @@ type LoginInput struct {
 }
 
 type LoginOutput struct {
-	Uid    int64            `json:"uid"`
-	Newbie int              `json:"newbie"`
-	User   interface{}      `json:"user"`
-	Res    *entity.UserRes  `json:"res,omitempty"`
-	Datas  gdb.Result       `json:"datas,omitempty"`
-	Items  gdb.Result       `json:"items,omitempty"`
-	Config gdb.Result       `json:"config,omitempty"`
-	Gm     int              `json:"gm"`
+	Uid    int64           `json:"uid"`
+	Newbie int             `json:"newbie"`
+	User   interface{}     `json:"user"`
+	Res    *entity.UserRes `json:"res,omitempty"`
+	Datas  gdb.Result      `json:"datas,omitempty"`
+	Items  gdb.Result      `json:"items,omitempty"`
+	Config gdb.Result      `json:"config,omitempty"`
+	Gm     int             `json:"gm"`
 }
 
 type UpdateResInput struct {
@@ -67,9 +67,9 @@ type BagOutput struct {
 // --- Grid ---
 
 type GridOutput struct {
-	Bag    *BagOutput  `json:"bag,omitempty"`
-	BagTp  *BagOutput  `json:"bag_tp,omitempty"`
-	Tasks  interface{} `json:"tasks,omitempty"`
+	Bag   *BagOutput  `json:"bag,omitempty"`
+	BagTp *BagOutput  `json:"bag_tp,omitempty"`
+	Tasks interface{} `json:"tasks,omitempty"`
 }
 
 // --- Other ---

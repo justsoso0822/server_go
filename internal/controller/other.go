@@ -16,5 +16,9 @@ func (c *cOther) ResVersion(ctx context.Context, req *apiOther.ResVersionReq) (r
 	if err != nil {
 		return nil, err
 	}
-	return (*apiOther.ResVersionRes)(out), nil
+	return &apiOther.ResVersionRes{
+		Code: out.Code,
+		Ver:  out.Ver,
+		Msg:  out.Msg,
+	}, nil
 }

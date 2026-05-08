@@ -23,7 +23,16 @@ func (c *cUser) Login(ctx context.Context, req *apiUser.LoginReq) (res *apiUser.
 	if err != nil {
 		return nil, err
 	}
-	return (*apiUser.LoginRes)(out), nil
+	return &apiUser.LoginRes{
+		Uid:    out.Uid,
+		Newbie: out.Newbie,
+		User:   out.User,
+		Res:    out.Res,
+		Datas:  out.Datas,
+		Items:  out.Items,
+		Config: out.Config,
+		Gm:     out.Gm,
+	}, nil
 }
 
 func (c *cUser) AddTili(ctx context.Context, req *apiUser.AddTiliReq) (res *apiUser.AddTiliRes, err error) {
@@ -33,7 +42,7 @@ func (c *cUser) AddTili(ctx context.Context, req *apiUser.AddTiliReq) (res *apiU
 	if err != nil {
 		return nil, err
 	}
-	return (*apiUser.AddTiliRes)(out), nil
+	return (*apiUser.AddTiliRes)(toUpdateFieldRes(out)), nil
 }
 
 func (c *cUser) AddGold(ctx context.Context, req *apiUser.AddGoldReq) (res *apiUser.AddGoldRes, err error) {
@@ -43,7 +52,7 @@ func (c *cUser) AddGold(ctx context.Context, req *apiUser.AddGoldReq) (res *apiU
 	if err != nil {
 		return nil, err
 	}
-	return (*apiUser.AddGoldRes)(out), nil
+	return (*apiUser.AddGoldRes)(toUpdateFieldRes(out)), nil
 }
 
 func (c *cUser) AddDiamond(ctx context.Context, req *apiUser.AddDiamondReq) (res *apiUser.AddDiamondRes, err error) {
@@ -53,5 +62,15 @@ func (c *cUser) AddDiamond(ctx context.Context, req *apiUser.AddDiamondReq) (res
 	if err != nil {
 		return nil, err
 	}
-	return (*apiUser.AddDiamondRes)(out), nil
+	return (*apiUser.AddDiamondRes)(toUpdateFieldRes(out)), nil
+}
+
+func toUpdateFieldRes(out *model.UpdateFieldOutput) *apiUser.UpdateFieldRes {
+	if out == nil {
+		return nil
+	}
+	return &apiUser.UpdateFieldRes{
+		Res:      out.Res,
+		AddValue: out.AddValue,
+	}
 }

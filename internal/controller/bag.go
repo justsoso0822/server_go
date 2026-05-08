@@ -17,7 +17,7 @@ func (c *cBag) GetBag(ctx context.Context, req *apiBag.GetBagReq) (res *apiBag.G
 	if err != nil {
 		return nil, err
 	}
-	return (*apiBag.GetBagRes)(out), nil
+	return (*apiBag.GetBagRes)(toBagRes(out)), nil
 }
 
 func (c *cBag) GetBagTp(ctx context.Context, req *apiBag.GetBagTpReq) (res *apiBag.GetBagTpRes, err error) {
@@ -25,5 +25,16 @@ func (c *cBag) GetBagTp(ctx context.Context, req *apiBag.GetBagTpReq) (res *apiB
 	if err != nil {
 		return nil, err
 	}
-	return (*apiBag.GetBagTpRes)(out), nil
+	return (*apiBag.GetBagTpRes)(toBagRes(out)), nil
+}
+
+func toBagRes(out *model.BagOutput) *apiBag.BagRes {
+	if out == nil {
+		return nil
+	}
+	return &apiBag.BagRes{
+		Uid:     out.Uid,
+		Chapter: out.Chapter,
+		Bag:     out.Bag,
+	}
 }
