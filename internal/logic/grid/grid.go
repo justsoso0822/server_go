@@ -4,11 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"server_go/internal/logic/bag"
-	"server_go/internal/logic/task"
+	"server_go/internal/model"
 	"server_go/internal/service"
-
-	"github.com/gogf/gf/v2/frame/g"
 )
 
 type sGrid struct{}
@@ -17,13 +14,8 @@ func init() {
 	service.RegisterGrid(&sGrid{})
 }
 
-func (s *sGrid) GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, error) {
-	return GetGrid(ctx, uid, chapter)
-}
-
-// GetGrid fetches bag + bag_tp + tasks concurrently.
-func GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, error) {
-	ret := g.Map{}
+func (s *sGrid) GetGrid(ctx context.Context, in *model.BagInput) (*model.GridOutput, error) {
+	out := &model.GridOutput{}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	var firstErr error
@@ -32,7 +24,7 @@ func GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, error) {
 
 	go func() {
 		defer wg.Done()
-		result, err := bag.GetUserBag(ctx, uid, chapter)
+		result, err := service.Bag().GetUserBag(ctx, in)
 		if err != nil {
 			mu.Lock()
 			if firstErr == nil {
@@ -42,13 +34,13 @@ func GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, error) {
 			return
 		}
 		mu.Lock()
-		ret["bag"] = result
+		out.Bag = result
 		mu.Unlock()
 	}()
 
 	go func() {
 		defer wg.Done()
-		result, err := bag.GetUserBagTp(ctx, uid, chapter)
+		result, err := service.Bag().GetUserBagTp(ctx, in)
 		if err != nil {
 			mu.Lock()
 			if firstErr == nil {
@@ -58,13 +50,13 @@ func GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, error) {
 			return
 		}
 		mu.Lock()
-		ret["bag_tp"] = result
+		out.BagTp = result
 		mu.Unlock()
 	}()
 
 	go func() {
 		defer wg.Done()
-		tasks, err := task.InitTasks(ctx, uid)
+		tasks, err := service.Task().InitTasks(ctx, in.Uid)
 		if err != nil {
 			mu.Lock()
 			if firstErr == nil {
@@ -74,10 +66,10 @@ func GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, error) {
 			return
 		}
 		mu.Lock()
-		ret["tasks"] = tasks
+		out.Tasks = tasks
 		mu.Unlock()
 	}()
 
 	wg.Wait()
-	return ret, firstErr
+	return out, firstErr
 }

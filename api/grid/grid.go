@@ -1,6 +1,8 @@
 package grid
 
 import (
+	"server_go/internal/model"
+
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -9,6 +11,4 @@ type GetGridReq struct {
 	Uid     int64 `json:"uid" v:"required"`
 	Chapter int   `json:"chapter" in:"path" v:"required"`
 }
-type GetGridRes struct {
-	g.Meta `mime:"application/json"`
-}
+type GetGridRes model.GridOutput

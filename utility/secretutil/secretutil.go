@@ -2,19 +2,17 @@ package secretutil
 
 import (
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"strings"
 )
 
 const (
-	secretPrefix     = "HC1"
-	secretCharset    = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	secretPrefix      = "HC1"
+	secretCharset     = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	secretChecksumLen = 6
 	secretMinBodyLen  = 12
 )
 
-// GenRandomSecret generates a random secret string with prefix and checksum.
 func GenRandomSecret(length int) string {
 	minLen := len(secretPrefix) + secretMinBodyLen + secretChecksumLen
 	if length < minLen {
@@ -59,7 +57,6 @@ func GenRandomSecret(length int) string {
 	return prefixAndBody + checksum
 }
 
-// CheckSecret verifies a secret string has correct format and checksum.
 func CheckSecret(secret string) bool {
 	s := strings.TrimSpace(secret)
 	if s == "" {
@@ -155,8 +152,4 @@ func containsDigit(s string) bool {
 		}
 	}
 	return false
-}
-
-func init() {
-	_ = fmt.Sprintf // avoid unused import
 }

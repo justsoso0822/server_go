@@ -4,9 +4,8 @@ import (
 	"context"
 
 	apiGrid "server_go/api/grid"
+	"server_go/internal/model"
 	"server_go/internal/service"
-
-	"github.com/gogf/gf/v2/net/ghttp"
 )
 
 var Grid = &cGrid{}
@@ -14,10 +13,9 @@ var Grid = &cGrid{}
 type cGrid struct{}
 
 func (c *cGrid) GetGrid(ctx context.Context, req *apiGrid.GetGridReq) (res *apiGrid.GetGridRes, err error) {
-	result, err := service.Grid().GetGrid(ctx, req.Uid, req.Chapter)
+	out, err := service.Grid().GetGrid(ctx, &model.BagInput{Uid: req.Uid, Chapter: req.Chapter})
 	if err != nil {
 		return nil, err
 	}
-	ghttp.RequestFromCtx(ctx).Response.WriteJson(result)
-	return
+	return (*apiGrid.GetGridRes)(out), nil
 }

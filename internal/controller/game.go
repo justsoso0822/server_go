@@ -4,9 +4,10 @@ import (
 	"context"
 
 	apiGame "server_go/api/game"
+	"server_go/internal/model"
 	"server_go/internal/service"
 
-	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/os/gtime"
 )
 
 var Game = &cGame{}
@@ -14,16 +15,15 @@ var Game = &cGame{}
 type cGame struct{}
 
 func (c *cGame) Online(ctx context.Context, req *apiGame.OnlineReq) (res *apiGame.OnlineRes, err error) {
-	result, err := service.Game().Online(ctx, req.Uid, req.Seconds)
+	err = service.Game().Online(ctx, &model.OnlineInput{
+		Uid: req.Uid, Seconds: req.Seconds,
+	})
 	if err != nil {
 		return nil, err
 	}
-	ghttp.RequestFromCtx(ctx).Response.WriteJson(result)
-	return
+	return &apiGame.OnlineRes{Now: gtime.TimestampMilli()}, nil
 }
 
 func (c *cGame) Time(ctx context.Context, req *apiGame.TimeReq) (res *apiGame.TimeRes, err error) {
-	result := service.Game().ServerTime()
-	ghttp.RequestFromCtx(ctx).Response.WriteJson(result)
-	return
+	return &apiGame.TimeRes{Now: gtime.TimestampMilli()}, nil
 }

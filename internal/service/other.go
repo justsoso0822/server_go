@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/frame/g"
+	"server_go/internal/model"
 )
 
 type IOther interface {
-	GetResVersion(ctx context.Context, key string) (g.Map, error)
+	GetResVersion(ctx context.Context, key string) (*model.ResVersionOutput, error)
 }
 
 var localOther IOther

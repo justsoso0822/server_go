@@ -19,7 +19,6 @@ const (
 	lockTTLMs        = 30000
 )
 
-// Lock acquires a Redis distributed lock with exponential backoff.
 func Lock(ctx context.Context, key string) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("[Lock] key is required")
@@ -51,14 +50,12 @@ func Lock(ctx context.Context, key string) (string, error) {
 	return "", nil
 }
 
-// Unlock releases a Redis distributed lock using the token.
 func Unlock(ctx context.Context, key, token string) error {
 	if key == "" || token == "" {
 		return nil
 	}
 	redis := g.Redis()
 	redisKey := "lock:" + key
-
 	script := `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`
 	_, err := redis.Do(ctx, "EVAL", script, 1, redisKey, token)
 	return err

@@ -2,12 +2,10 @@ package service
 
 import (
 	"context"
-
-	"github.com/gogf/gf/v2/frame/g"
 )
 
 type ITask interface {
-	InitTasks(ctx context.Context, uid int64) ([]g.Map, error)
+	InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error)
 }
 
 var localTask ITask

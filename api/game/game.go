@@ -10,12 +10,12 @@ type OnlineReq struct {
 	Seconds int64 `json:"seconds" v:"required|min:0"`
 }
 type OnlineRes struct {
-	g.Meta `mime:"application/json"`
+	Now int64 `json:"now"`
 }
 
 type TimeReq struct {
 	g.Meta `path:"/game/time" method:"get,post" tags:"Game" summary:"获取服务器时间"`
 }
 type TimeRes struct {
-	g.Meta `mime:"application/json"`
+	Now int64 `json:"now"`
 }

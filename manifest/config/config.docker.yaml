@@ -1,3 +1,14 @@
+server:
+  address: ":7001"
+  openapiPath: "/api.json"
+  swaggerPath: "/swagger"
+  graceful: true
+  gracefulTimeout: 15
+
+app:
+  keys:
+    - "SzNg8LgHjEUgTAc4"
+
 database:
   default:
     link: "mysql:root:root@tcp(mysql:3306)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
@@ -8,3 +19,7 @@ redis:
     address: "redis:6379"
     pass: "root"
     db: 0
+
+logger:
+  level: "info"
+  stdout: true

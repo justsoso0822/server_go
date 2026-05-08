@@ -1,3 +1,12 @@
+server:
+  address: ":7001"
+  graceful: true
+  gracefulTimeout: 15
+
+app:
+  keys:
+    - "SzNg8LgHjEUgTAc4"
+
 database:
   default:
     link: "mysql:root:change_me@tcp(172.17.0.14:3306)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
@@ -8,3 +17,7 @@ redis:
     address: "172.17.25.15:6379"
     pass: "change_me"
     db: 20
+
+logger:
+  level: "warn"
+  stdout: true

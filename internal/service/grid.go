@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/frame/g"
+	"server_go/internal/model"
 )
 
 type IGrid interface {
-	GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, error)
+	GetGrid(ctx context.Context, in *model.BagInput) (*model.GridOutput, error)
 }
 
 var localGrid IGrid

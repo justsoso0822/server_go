@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/frame/g"
+	"server_go/internal/model"
 )
 
 type IBag interface {
-	GetUserBag(ctx context.Context, uid int64, chapter int) (g.Map, error)
-	GetUserBagTp(ctx context.Context, uid int64, chapter int) (g.Map, error)
+	GetUserBag(ctx context.Context, in *model.BagInput) (*model.BagOutput, error)
+	GetUserBagTp(ctx context.Context, in *model.BagInput) (*model.BagOutput, error)
 }
 
 var localBag IBag

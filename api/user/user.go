@@ -1,6 +1,8 @@
 package user
 
 import (
+	"server_go/internal/model"
+
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -12,27 +14,22 @@ type LoginReq struct {
 	Platform string `json:"platform" v:"required"`
 	Version  string `json:"version" v:"required"`
 }
-type LoginRes struct {
-	g.Meta `mime:"application/json"`
-}
+type LoginRes model.LoginOutput
 
 type AddTiliReq struct {
 	g.Meta `path:"/user/add_tili" method:"get,post" tags:"User" summary:"测试增加体力"`
+	Uid    int64 `json:"uid" v:"required"`
 }
-type AddTiliRes struct {
-	g.Meta `mime:"application/json"`
-}
+type AddTiliRes model.UpdateFieldOutput
 
 type AddGoldReq struct {
 	g.Meta `path:"/user/add_gold" method:"get,post" tags:"User" summary:"测试增加金币"`
+	Uid    int64 `json:"uid" v:"required"`
 }
-type AddGoldRes struct {
-	g.Meta `mime:"application/json"`
-}
+type AddGoldRes model.UpdateFieldOutput
 
 type AddDiamondReq struct {
 	g.Meta `path:"/user/add_diamond" method:"get,post" tags:"User" summary:"测试增加钻石"`
+	Uid    int64 `json:"uid" v:"required"`
 }
-type AddDiamondRes struct {
-	g.Meta `mime:"application/json"`
-}
+type AddDiamondRes model.UpdateFieldOutput

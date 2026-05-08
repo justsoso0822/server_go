@@ -3,10 +3,9 @@ package task
 import (
 	"context"
 	"fmt"
-	"math"
-	"strconv"
 
 	"server_go/internal/dao"
+	"server_go/internal/logic/user"
 	"server_go/internal/service"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -19,12 +18,7 @@ func init() {
 	service.RegisterTask(&sTask{})
 }
 
-func (s *sTask) InitTasks(ctx context.Context, uid int64) ([]g.Map, error) {
-	return InitTasks(ctx, uid)
-}
-
-// InitTasks loads user task_conf and resolves current task for each series.
-func InitTasks(ctx context.Context, uid int64) ([]g.Map, error) {
+func (s *sTask) InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error) {
 	taskConf, err := dao.UserData.Ctx(ctx).Where("uid", uid).Where("key", "task_conf").Value("value")
 	if err != nil {
 		return nil, err
@@ -36,8 +30,8 @@ func InitTasks(ctx context.Context, uid int64) ([]g.Map, error) {
 		confStr = "4"
 	}
 
-	serList := pickNumbers(confStr)
-	var arr []g.Map
+	serList := user.PickNumbers(confStr)
+	var arr []map[string]interface{}
 
 	for _, ser := range serList {
 		task, e := getOneTask(ctx, uid, ser)
@@ -53,7 +47,7 @@ func InitTasks(ctx context.Context, uid int64) ([]g.Map, error) {
 	return arr, nil
 }
 
-func getOneTask(ctx context.Context, uid int64, ser int) (g.Map, error) {
+func getOneTask(ctx context.Context, uid int64, ser int) (map[string]interface{}, error) {
 	minMax, err := getTaskSerMinMax(ctx, ser)
 	if err != nil {
 		return nil, err
@@ -138,7 +132,6 @@ func getTaskSerMinMax(ctx context.Context, ser int) ([]int, error) {
 	if minVal == 0 {
 		return nil, nil
 	}
-
 	maxVal, err := dao.PrfTask.Ctx(ctx).Where("ser", ser).Max("id")
 	if err != nil {
 		return nil, err
@@ -146,33 +139,5 @@ func getTaskSerMinMax(ctx context.Context, ser int) ([]int, error) {
 	if maxVal == 0 {
 		return nil, nil
 	}
-
 	return []int{int(minVal), int(maxVal)}, nil
-}
-
-func pickNumbers(s string) []int {
-	var result []int
-	current := ""
-	for _, c := range s {
-		if (c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' {
-			current += string(c)
-		} else {
-			if current != "" {
-				if n, err := strconv.Atoi(current); err == nil {
-					result = append(result, n)
-				} else if f, err := strconv.ParseFloat(current, 64); err == nil {
-					result = append(result, int(math.Floor(f)))
-				}
-				current = ""
-			}
-		}
-	}
-	if current != "" {
-		if n, err := strconv.Atoi(current); err == nil {
-			result = append(result, n)
-		} else if f, err := strconv.ParseFloat(current, 64); err == nil {
-			result = append(result, int(math.Floor(f)))
-		}
-	}
-	return result
 }

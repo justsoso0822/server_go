@@ -11,10 +11,13 @@ import (
 	"server_go/internal/dao"
 	"server_go/internal/logic/gamelog"
 	"server_go/internal/logic/lock"
+	"server_go/internal/model"
+	"server_go/internal/model/entity"
 	"server_go/internal/service"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
@@ -24,403 +27,206 @@ func init() {
 	service.RegisterUser(&sUser{})
 }
 
-func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform, version string) (map[string]interface{}, error) {
-	return Login(ctx, uid, loginKey, openid, platform, version)
-}
-func (s *sUser) UpdateDiamond(ctx context.Context, uid, cnt int64, ret map[string]interface{}, reason string) error {
-	return UpdateDiamond(ctx, uid, cnt, ret, reason)
-}
-func (s *sUser) UpdateGold(ctx context.Context, uid, cnt int64, ret map[string]interface{}, reason string) error {
-	return UpdateGold(ctx, uid, cnt, ret, reason)
-}
-func (s *sUser) UpdateTili(ctx context.Context, uid, cnt int64, ret map[string]interface{}, reason string) error {
-	return UpdateTili(ctx, uid, cnt, ret, reason)
-}
-func (s *sUser) UpdateExp(ctx context.Context, uid, cnt int64, ret map[string]interface{}, reason string) error {
-	return UpdateExp(ctx, uid, cnt, ret, reason)
-}
-func (s *sUser) UpdateStar(ctx context.Context, uid, cnt int64, ret map[string]interface{}, reason string) error {
-	return UpdateStar(ctx, uid, cnt, ret, reason)
-}
-func (s *sUser) UpdateRes(ctx context.Context, uid int64, items interface{}, ret map[string]interface{}, reason string) error {
-	return UpdateRes(ctx, uid, items, ret, reason)
-}
-func (s *sUser) UpdateItemsOther(ctx context.Context, uid int64, items map[int]int, ret map[string]interface{}, reason string) error {
-	return UpdateItemsOther(ctx, uid, items, ret, reason)
-}
-func (s *sUser) GetUser(ctx context.Context, uid int64) (map[string]interface{}, error) {
-	return GetUser(ctx, uid)
-}
-func (s *sUser) GetUserRes(ctx context.Context, uid int64) (map[string]interface{}, error) {
-	return GetUserRes(ctx, uid)
-}
-
-// Login handles user login: find or create user, write login key, return full state.
-func Login(ctx context.Context, uid int64, loginKey, openid, platform, version string) (g.Map, error) {
-	if openid == "" {
-		return g.Map{"code": -1, "msg": "参数错误"}, nil
+func (s *sUser) Login(ctx context.Context, in *model.LoginInput) (*model.LoginOutput, error) {
+	if in.Openid == "" {
+		return nil, fmt.Errorf("参数错误: openid 必填")
 	}
 
-	ret := g.Map{"uid": uid}
+	out := &model.LoginOutput{Uid: in.Uid}
 
-	user, err := GetUser(ctx, uid)
+	var user *entity.User
+	err := dao.User.Ctx(ctx).Where("uid", in.Uid).Scan(&user)
 	if err != nil {
 		return nil, err
 	}
 
 	if user != nil {
-		if g.NewVar(user["platform"]).String() != platform || g.NewVar(user["openid"]).String() != openid {
-			return g.Map{"code": -1035, "msg": "账号信息不匹配"}, nil
+		if user.Platform != in.Platform || user.Openid != in.Openid {
+			return nil, fmt.Errorf("账号信息不匹配")
 		}
-		ret["newbie"] = 0
-		ret["user"] = user
+		out.Newbie = 0
+		out.User = user
 	} else {
-		ret["newbie"] = 1
+		out.Newbie = 1
 		nowDay := gtime.Now().StartOfDay().Timestamp()
 		err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
-			_, e := tx.Ctx(ctx).Exec(
-				"INSERT INTO `user` (`uid`, `platform`, `openid`) VALUES (?, ?, ?)",
-				uid, platform, openid,
-			)
+			_, e := dao.User.Ctx(ctx).TX(tx).Data(g.Map{
+				"uid": in.Uid, "platform": in.Platform, "openid": in.Openid,
+			}).Insert()
 			if e != nil {
 				return e
 			}
-			_, e = tx.Ctx(ctx).Exec(
-				"INSERT INTO `user_res` (`uid`, `gold`, `diamond`, `star`, `tili`, `tili_time`, `exp`, `level`, `day_time`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-				uid, 200, 100, 0, 100, 0, 0, 1, nowDay,
-			)
+			_, e = dao.UserRes.Ctx(ctx).TX(tx).Data(g.Map{
+				"uid": in.Uid, "gold": 200, "diamond": 100, "star": 0,
+				"tili": 100, "tili_time": 0, "exp": 0, "level": 1, "day_time": nowDay,
+			}).Insert()
 			return e
 		})
 		if err != nil {
 			return nil, err
 		}
-		ret["user"] = g.Map{
-			"uid": uid, "platform": platform, "openid": openid,
-			"sid": 0, "born": gtime.Now().Format("Y-m-d H:i:s"),
+		out.User = &entity.User{
+			Uid: uint(in.Uid), Platform: in.Platform, Openid: in.Openid,
 		}
 	}
 
-	// Log login (fire-and-forget)
+	// Log login (fire-and-forget with recover)
+	bgCtx := gctx.NeverDone(ctx)
 	go func() {
-		_, _ = g.DB().Exec(context.Background(),
-			"INSERT INTO `_log_login` (`uid`, `platform`) VALUES (?, ?)", uid, platform)
+		defer func() { recover() }()
+		_, _ = dao.LogLogin.Ctx(bgCtx).Data(g.Map{"uid": in.Uid, "platform": in.Platform}).Insert()
 	}()
 
 	// Upsert login key
-	_, err = g.DB().Exec(ctx,
-		"INSERT INTO `user_loginkey` (`uid`, `key`, `ver`, `time`) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE `key` = VALUES(`key`), `ver` = VALUES(`ver`), `time` = VALUES(`time`)",
-		uid, loginKey, version, gtime.Timestamp(),
-	)
+	_, err = dao.UserLoginkey.Ctx(ctx).Data(g.Map{
+		"uid": in.Uid, "key": in.LoginKey, "ver": in.Version, "time": gtime.Timestamp(),
+	}).Save()
 	if err != nil {
 		return nil, err
 	}
 
-	// Fetch additional data
-	datas, err := dao.UserData.Ctx(ctx).Where("uid", uid).All()
+	out.Datas, err = dao.UserData.Ctx(ctx).Where("uid", in.Uid).All()
 	if err != nil {
 		return nil, err
 	}
-	ret["datas"] = datas
 
-	gmVal, err := dao.SysGm.Ctx(ctx).Where("uid", uid).Value("uid")
+	gmVal, err := dao.SysGm.Ctx(ctx).Where("uid", in.Uid).Value("uid")
 	if err != nil {
 		return nil, err
 	}
 	if gmVal.IsEmpty() {
-		ret["gm"] = 0
+		out.Gm = 0
 	} else {
-		ret["gm"] = 1
+		out.Gm = 1
 	}
 
-	items, err := dao.UserItem.Ctx(ctx).Where("uid", uid).All()
+	out.Items, err = dao.UserItem.Ctx(ctx).Where("uid", in.Uid).All()
 	if err != nil {
 		return nil, err
 	}
-	ret["items"] = items
 
-	res, err := GetUserRes(ctx, uid)
+	out.Res, err = s.GetUserRes(ctx, in.Uid)
 	if err != nil {
 		return nil, err
 	}
-	ret["res"] = res
 
-	config, err := dao.MemConfig.Ctx(ctx).All()
+	out.Config, err = dao.MemConfig.Ctx(ctx).All()
 	if err != nil {
 		return nil, err
 	}
-	ret["config"] = config
 
-	return ret, nil
+	return out, nil
 }
 
-// --- Resource update functions ---
-
-func UpdateDiamond(ctx context.Context, uid, cnt int64, ret g.Map, reason string) error {
-	lockKey := fmt.Sprintf("update_diamond:%d", uid)
-	return updateUserResField(ctx, uid, "diamond", cnt, ret, reason, lockKey, "__add_diamond", "钻石")
+func (s *sUser) UpdateDiamond(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
+	return updateResField(ctx, in, "diamond", "钻石")
 }
 
-func UpdateGold(ctx context.Context, uid, cnt int64, ret g.Map, reason string) error {
-	lockKey := fmt.Sprintf("update_gold:%d", uid)
-	return updateUserResField(ctx, uid, "gold", cnt, ret, reason, lockKey, "__add_gold", "金币")
+func (s *sUser) UpdateGold(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
+	return updateResField(ctx, in, "gold", "金币")
 }
 
-func UpdateTili(ctx context.Context, uid, cnt int64, ret g.Map, reason string) error {
-	lockKey := fmt.Sprintf("update_tili:%d", uid)
-	return updateUserResField(ctx, uid, "tili", cnt, ret, reason, lockKey, "__add_tili", "体力")
+func (s *sUser) UpdateTili(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
+	return updateResField(ctx, in, "tili", "体力")
 }
 
-func UpdateExp(ctx context.Context, uid, cnt int64, ret g.Map, reason string) error {
-	lockKey := fmt.Sprintf("update_exp:%d", uid)
-	return updateUserResField(ctx, uid, "exp", cnt, ret, reason, lockKey, "__add_exp", "经验")
+func (s *sUser) UpdateExp(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
+	return updateResField(ctx, in, "exp", "经验")
 }
 
-func UpdateStar(ctx context.Context, uid, cnt int64, ret g.Map, reason string) error {
-	lockKey := fmt.Sprintf("update_star:%d", uid)
-	return updateUserResField(ctx, uid, "star", cnt, ret, reason, lockKey, "__add_star", "星星")
+func (s *sUser) UpdateStar(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
+	return updateResField(ctx, in, "star", "星星")
 }
 
-func updateUserResField(ctx context.Context, uid int64, field string, cnt int64, ret g.Map, reason, lockKey, addKey, resName string) error {
+func (s *sUser) GetUser(ctx context.Context, uid int64) (*entity.User, error) {
+	var user *entity.User
+	err := dao.User.Ctx(ctx).Where("uid", uid).Scan(&user)
+	return user, err
+}
+
+func (s *sUser) GetUserRes(ctx context.Context, uid int64) (*entity.UserRes, error) {
+	var res *entity.UserRes
+	err := dao.UserRes.Ctx(ctx).Where("uid", uid).Scan(&res)
+	if err != nil || res == nil {
+		return res, err
+	}
+	nowDay := int(gtime.Now().StartOfDay().Timestamp())
+	if res.DayTime != nowDay {
+		_, _ = dao.UserRes.Ctx(ctx).Where("uid", uid).Data(g.Map{"day_conf": "", "day_time": nowDay}).Update()
+		res.DayConf = ""
+		res.DayTime = nowDay
+	}
+	return res, nil
+}
+
+func updateResField(ctx context.Context, in *model.UpdateFieldInput, field, resName string) (*model.UpdateFieldOutput, error) {
+	lockKey := fmt.Sprintf("update_%s:%d", field, in.Uid)
 	token, err := lock.Lock(ctx, lockKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if token == "" {
-		return fmt.Errorf("系统繁忙，请稍后再试")
+		return nil, fmt.Errorf("系统繁忙，请稍后再试")
 	}
 	defer func() { _ = lock.Unlock(ctx, lockKey, token) }()
 
-	res, err := GetUserRes(ctx, uid)
+	var res *entity.UserRes
+	err = dao.UserRes.Ctx(ctx).Where("uid", in.Uid).Scan(&res)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if res == nil {
-		return fmt.Errorf("用户资源不存在")
+		return nil, fmt.Errorf("用户资源不存在")
 	}
 
-	oldCnt := g.NewVar(res[field]).Int64()
-	newCnt := oldCnt + cnt
+	var oldCnt int64
+	switch field {
+	case "diamond":
+		oldCnt = int64(res.Diamond)
+	case "gold":
+		oldCnt = int64(res.Gold)
+	case "tili":
+		oldCnt = int64(res.Tili)
+	case "exp":
+		oldCnt = int64(res.Exp)
+	case "star":
+		oldCnt = int64(res.Star)
+	}
+
+	newCnt := oldCnt + in.Cnt
 	if newCnt < 0 {
 		newCnt = 0
 	}
 	if newCnt == oldCnt {
-		return nil
+		return &model.UpdateFieldOutput{Res: res, AddValue: 0}, nil
 	}
 
-	_, err = dao.UserRes.Ctx(ctx).Where("uid", uid).Data(g.Map{field: newCnt}).Update()
+	_, err = dao.UserRes.Ctx(ctx).Where("uid", in.Uid).Data(g.Map{field: newCnt}).Update()
 	if err != nil {
-		gamelog.Log(ctx, uid, fmt.Sprintf("更新用户资源失败 %s %d %s %v", field, cnt, reason, err))
-		return err
-	}
-
-	res[field] = newCnt
-	ret["res"] = res
-
-	prev := g.NewVar(ret[addKey]).Int64()
-	ret[addKey] = (newCnt - oldCnt) + prev
-
-	gamelog.TraceRes(ctx, uid, oldCnt, newCnt, resName, reason)
-	return nil
-}
-
-// UpdateRes parses resource items and applies all changes.
-func UpdateRes(ctx context.Context, uid int64, items interface{}, ret g.Map, reason string) error {
-	resList := ParseRes(items)
-	if len(resList) == 0 {
-		return nil
-	}
-
-	var addDiamond, addGold, addTili, addExp, addStar int64
-	addItemsOther := make(map[int]int)
-
-	for _, r := range resList {
-		switch r.Type {
-		case consts.ResTypeDiamond:
-			addDiamond += int64(r.Cnt)
-		case consts.ResTypeGold:
-			addGold += int64(r.Cnt)
-		case consts.ResTypeTili:
-			addTili += int64(r.Cnt)
-		case consts.ResTypeExp:
-			addExp += int64(r.Cnt)
-		case consts.ResTypeStar:
-			addStar += int64(r.Cnt)
-		case consts.ResTypeItemOther:
-			addItemsOther[r.Id] += r.Cnt
-		default:
-			return fmt.Errorf("不支持的资源类型 %d", r.Type)
-		}
-	}
-
-	if addDiamond != 0 {
-		if err := UpdateDiamond(ctx, uid, addDiamond, ret, reason); err != nil {
-			return err
-		}
-	}
-	if addGold != 0 {
-		if err := UpdateGold(ctx, uid, addGold, ret, reason); err != nil {
-			return err
-		}
-	}
-	if addTili != 0 {
-		if err := UpdateTili(ctx, uid, addTili, ret, reason); err != nil {
-			return err
-		}
-	}
-	if addExp != 0 {
-		if err := UpdateExp(ctx, uid, addExp, ret, reason); err != nil {
-			return err
-		}
-	}
-	if addStar != 0 {
-		if err := UpdateStar(ctx, uid, addStar, ret, reason); err != nil {
-			return err
-		}
-	}
-	if len(addItemsOther) > 0 {
-		if err := UpdateItemsOther(ctx, uid, addItemsOther, ret, reason); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// UpdateItemsOther batch-updates non-grid items with locking and transaction.
-func UpdateItemsOther(ctx context.Context, uid int64, items map[int]int, ret g.Map, reason string) error {
-	if len(items) == 0 {
-		return nil
-	}
-	lockKey := fmt.Sprintf("update_items_other:%d", uid)
-	token, err := lock.Lock(ctx, lockKey)
-	if err != nil {
-		return err
-	}
-	if token == "" {
-		return fmt.Errorf("系统繁忙，请稍后再试")
-	}
-	defer func() { _ = lock.Unlock(ctx, lockKey, token) }()
-
-	ids := make([]int, 0, len(items))
-	for id := range items {
-		if id != 0 {
-			ids = append(ids, id)
-		}
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-
-	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
-		rows, e := dao.UserItem.Ctx(ctx).TX(tx).Where("uid", uid).WhereIn("tid", ids).All()
-		if e != nil {
-			return e
-		}
-		oldCntMap := make(map[int]int)
-		for _, row := range rows {
-			oldCntMap[row["tid"].Int()] = row["cnt"].Int()
-		}
-
-		var valuesSql []string
-		var upsertArgs []interface{}
-		type updateInfo struct {
-			Id, Delta, OldCnt, NewCnt int
-		}
-		var updates []updateInfo
-
-		for _, id := range ids {
-			delta := items[id]
-			if delta == 0 {
-				continue
-			}
-			oldCnt := oldCntMap[id]
-			newCnt := oldCnt + delta
-			if newCnt < 0 {
-				newCnt = 0
-			}
-			valuesSql = append(valuesSql, "(?, ?, ?)")
-			upsertArgs = append(upsertArgs, uid, id, newCnt)
-			updates = append(updates, updateInfo{Id: id, Delta: delta, OldCnt: oldCnt, NewCnt: newCnt})
-		}
-
-		if len(valuesSql) > 0 {
-			sql := fmt.Sprintf(
-				"INSERT INTO `user_item` (`uid`, `tid`, `cnt`) VALUES %s ON DUPLICATE KEY UPDATE `cnt` = VALUES(`cnt`)",
-				strings.Join(valuesSql, ","),
-			)
-			if _, e = tx.Ctx(ctx).Exec(sql, upsertArgs...); e != nil {
-				return e
-			}
-		}
-
-		retItems, _ := ret["items"].([]g.Map)
-		if retItems == nil {
-			retItems = []g.Map{}
-		}
-		addItemsOther, _ := ret["__add_items_other"].([]g.Map)
-		if addItemsOther == nil {
-			addItemsOther = []g.Map{}
-		}
-
-		for _, u := range updates {
-			found := false
-			for i, item := range retItems {
-				if g.NewVar(item["tid"]).Int() == u.Id {
-					retItems[i]["cnt"] = u.NewCnt
-					found = true
-					break
-				}
-			}
-			if !found {
-				retItems = append(retItems, g.Map{"uid": uid, "tid": u.Id, "cnt": u.NewCnt})
-			}
-			addItemsOther = append(addItemsOther, g.Map{"type": 8, "id": u.Id, "cnt": u.Delta})
-			gamelog.TraceRes(ctx, uid, int64(u.OldCnt), int64(u.NewCnt), fmt.Sprintf("道具-%d", u.Id), reason)
-		}
-		ret["items"] = retItems
-		ret["__add_items_other"] = addItemsOther
-		return nil
-	})
-
-	if err != nil {
-		gamelog.Log(ctx, uid, fmt.Sprintf("批量更新用户物品失败 %s %v", reason, err))
-	}
-	return err
-}
-
-// --- User/UserRes getters ---
-
-func GetUser(ctx context.Context, uid int64) (g.Map, error) {
-	row, err := dao.User.Ctx(ctx).Where("uid", uid).One()
-	if err != nil {
+		gamelog.Log(ctx, in.Uid, fmt.Sprintf("更新用户资源失败 %s %d %s %v", field, in.Cnt, in.Reason, err))
 		return nil, err
 	}
-	if row.IsEmpty() {
-		return nil, nil
+
+	// Update the struct
+	switch field {
+	case "diamond":
+		res.Diamond = int(newCnt)
+	case "gold":
+		res.Gold = int(newCnt)
+	case "tili":
+		res.Tili = int(newCnt)
+	case "exp":
+		res.Exp = int(newCnt)
+	case "star":
+		res.Star = int(newCnt)
 	}
-	return row.Map(), nil
+
+	gamelog.TraceRes(ctx, in.Uid, oldCnt, newCnt, resName, in.Reason)
+	return &model.UpdateFieldOutput{Res: res, AddValue: newCnt - oldCnt}, nil
 }
 
-func GetUserRes(ctx context.Context, uid int64) (g.Map, error) {
-	row, err := dao.UserRes.Ctx(ctx).Where("uid", uid).One()
-	if err != nil {
-		return nil, err
-	}
-	if row.IsEmpty() {
-		return nil, nil
-	}
+// --- Utility ---
 
-	res := row.Map()
-	nowDay := gtime.Now().StartOfDay().Timestamp()
-	if g.NewVar(res["day_time"]).Int64() != nowDay {
-		_, _ = dao.UserRes.Ctx(ctx).Where("uid", uid).Data(g.Map{"day_conf": "", "day_time": nowDay}).Update()
-		res["day_conf"] = ""
-		res["day_time"] = nowDay
-	}
-	res["now"] = gtime.TimestampMilli()
-	return res, nil
-}
-
-// ParseRes parses resource items from string "type,id,cnt,..." or slice.
 func ParseRes(items interface{}) []consts.ResItem {
 	switch v := items.(type) {
 	case []consts.ResItem:
@@ -433,7 +239,7 @@ func ParseRes(items interface{}) []consts.ResItem {
 }
 
 func parseResString(s string) []consts.ResItem {
-	nums := pickNumbers(s)
+	nums := PickNumbers(s)
 	if len(nums) == 0 || len(nums)%3 != 0 {
 		return nil
 	}
@@ -444,7 +250,8 @@ func parseResString(s string) []consts.ResItem {
 	return result
 }
 
-func pickNumbers(s string) []int {
+// PickNumbers extracts all integers from a string.
+func PickNumbers(s string) []int {
 	var result []int
 	current := ""
 	for _, c := range s {
@@ -469,4 +276,8 @@ func pickNumbers(s string) []int {
 		}
 	}
 	return result
+}
+
+func init() {
+	_ = strings.Join
 }
