@@ -15,7 +15,9 @@ go run main.go
 go run cmd/deploy/main.go stop-local-db
 ```
 
-访问: http://localhost:7001
+访问:
+- 宿主机直接运行：`http://localhost:7001`
+- 本地 Docker 蓝绿发布：默认 `http://localhost:17001`（取决于 `.env.local` 中的 `HOST_GATEWAY_PORT`）
 
 ### 使用 Makefile（推荐）
 
@@ -165,7 +167,7 @@ go run cmd/deploy/main.go deploy production version=v1.2.3
 
 2. **准备阶段**
    - 启动 Traefik 网关（如果未运行）
-   - 等待 5 秒让网关就绪
+   - 等待 2 秒让网关就绪
 
 3. **部署阶段**
    - 使用 docker compose 启动目标颜色的容器
@@ -218,7 +220,7 @@ go run cmd/deploy/main.go status
 > **说明**：status 命令不需要指定环境参数，它会显示当前机器上所有 server-go 相关的容器。
 
 **输出示例：**
-```
+```text
 === Environment: test ===
 
 Running containers:
@@ -233,6 +235,8 @@ abc123         server-go-network   bridge    local
 Volumes:
 DRIVER    VOLUME NAME
 ```
+
+> 说明：网关端口映射取决于对应 `.env.*` 中的 `HOST_GATEWAY_PORT`，例如 `.env.local` 默认是 `17001`。
 
 ### 5. 启动本地数据库 (start-local-db)
 
@@ -293,22 +297,28 @@ go run cmd/deploy/main.go stop-local-db
 
 ```bash
 # 1. 确认 .env.local 中 IMAGE_SOURCE=local
-# 结果：deploy local 会在本机先构建镜像，再执行蓝绿发布
+# 结果：deploy local 会在本机先校验网关，再构建镜像并执行蓝绿发布
 
 # 2. 首次发布
-ngo run cmd/deploy/main.go deploy local
+go run cmd/deploy/main.go deploy local
 # 结果：
-#   - 默认使用 1.0.0 构建本地镜像
+#   - 先校验网关；如果不存在则启动
+#   - 网关校验通过后，默认使用 1.0.0 构建本地镜像
 #   - 同时打上 1.0.0 和 latest 标签
-#   - 启动 Traefik 网关
 #   - 首次发布到 blue
+#   - 默认通过 http://localhost:17001 访问（取决于 .env.local 的 HOST_GATEWAY_PORT）
 
 # 3. 发布指定版本
-ngo run cmd/deploy/main.go deploy local version=v1.2.3
+go run cmd/deploy/main.go deploy local version=v1.2.3
 # 结果：
+#   - 先校验网关；如果端口冲突则直接失败
 #   - 本机构建 v1.2.3 并同时打上 latest
 #   - 与当前运行颜色做蓝绿切换
 #   - 健康检查通过后切流
+
+# 4. 端口冲突时强制替换网关
+go run cmd/deploy/main.go deploy local -f
+# 结果：只有显式传 -f 时，才会强制替换当前网关
 ```
 
 ### 场景 2：测试环境首次部署
