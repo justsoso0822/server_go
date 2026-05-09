@@ -12,9 +12,14 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
-var Health = &cHealth{}
+var (
+	Health          = &cHealth{}
+	InternalControl = &cInternalControl{}
+)
 
 type cHealth struct{}
+
+type cInternalControl struct{}
 
 var startTime = time.Now()
 
@@ -97,7 +102,7 @@ func (c *cHealth) HealthLb(ctx context.Context, req *apiHealth.HealthLbReq) (res
 	return
 }
 
-func (c *cHealth) TrafficShift(ctx context.Context, req *apiHealth.TrafficShiftReq) (res *apiHealth.TrafficShiftRes, err error) {
+func (c *cInternalControl) TrafficShift(ctx context.Context, req *apiHealth.TrafficShiftReq) (res *apiHealth.TrafficShiftRes, err error) {
 	r := ghttp.RequestFromCtx(ctx)
 	if !ensureInternalAccess(r) {
 		return
@@ -107,7 +112,7 @@ func (c *cHealth) TrafficShift(ctx context.Context, req *apiHealth.TrafficShiftR
 	return
 }
 
-func (c *cHealth) RejectNew(ctx context.Context, req *apiHealth.RejectNewReq) (res *apiHealth.RejectNewRes, err error) {
+func (c *cInternalControl) RejectNew(ctx context.Context, req *apiHealth.RejectNewReq) (res *apiHealth.RejectNewRes, err error) {
 	r := ghttp.RequestFromCtx(ctx)
 	if !ensureInternalAccess(r) {
 		return
@@ -117,7 +122,7 @@ func (c *cHealth) RejectNew(ctx context.Context, req *apiHealth.RejectNewReq) (r
 	return
 }
 
-func (c *cHealth) ResumeTraffic(ctx context.Context, req *apiHealth.ResumeTrafficReq) (res *apiHealth.ResumeTrafficRes, err error) {
+func (c *cInternalControl) ResumeTraffic(ctx context.Context, req *apiHealth.ResumeTrafficReq) (res *apiHealth.ResumeTrafficRes, err error) {
 	r := ghttp.RequestFromCtx(ctx)
 	if !ensureInternalAccess(r) {
 		return

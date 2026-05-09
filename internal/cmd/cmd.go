@@ -19,7 +19,7 @@ var (
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
 			s := g.Server()
 
-			// Game API routes
+			// 游戏接口路由
 			s.Group("/api", func(group *ghttp.RouterGroup) {
 				group.Middleware(
 					middleware.Sign,
@@ -34,18 +34,25 @@ var (
 				)
 			})
 
-			// Other routes (no sign/verify)
-			s.Group("/", func(group *ghttp.RouterGroup) {
+			// 其他路由（不校验签名和登录态）
+			s.Group("/other", func(group *ghttp.RouterGroup) {
 				group.Middleware(middleware.Response)
 				group.Bind(
 					controller.Other,
 				)
 			})
 
-			// Health + internal control routes (no middleware)
-			s.Group("/", func(group *ghttp.RouterGroup) {
+			// 健康检查路由（无中间件）
+			s.Group("/health", func(group *ghttp.RouterGroup) {
 				group.Bind(
 					controller.Health,
+				)
+			})
+
+			// 内部控制路由（无中间件）
+			s.Group("/_internal/control", func(group *ghttp.RouterGroup) {
+				group.Bind(
+					controller.InternalControl,
 				)
 			})
 
