@@ -29,8 +29,8 @@ app:
 database:
   default:
     # 数据库连接字符串
-    # 连接本地 Docker 数据库，端口映射到 127.0.0.1:330
-    link: "mysql:root:root@tcp(127.0.0.1:330)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
+    # 容器内使用服务名 mysql:3306，宿主机开发使用 127.0.0.1:330
+    link: "mysql:root:root@tcp(mysql:3306)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
     
     # 是否开启 SQL 调试日志
     debug: true
@@ -38,8 +38,8 @@ database:
 redis:
   default:
     # Redis 地址
-    # 连接本地 Docker Redis，端口映射到 127.0.0.1:637
-    address: "127.0.0.1:637"
+    # 容器内使用服务名 redis:6379，宿主机开发使用 127.0.0.1:637
+    address: "redis:6379"
     
     # Redis 密码
     pass: "root"
