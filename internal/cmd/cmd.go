@@ -3,7 +3,14 @@ package cmd
 import (
 	"context"
 
-	"server_go/internal/controller"
+	bagController "server_go/internal/controller/bag"
+	controlController "server_go/internal/controller/control"
+	gameController "server_go/internal/controller/game"
+	gridController "server_go/internal/controller/grid"
+	healthController "server_go/internal/controller/health"
+	otherController "server_go/internal/controller/other"
+	testController "server_go/internal/controller/test"
+	userController "server_go/internal/controller/user"
 	"server_go/internal/middleware"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -27,10 +34,11 @@ var (
 					middleware.Response,
 				)
 				group.Bind(
-					controller.User,
-					controller.Game,
-					controller.Bag,
-					controller.Grid,
+					userController.NewV1(),
+					gameController.NewV1(),
+					bagController.NewV1(),
+					gridController.NewV1(),
+					testController.NewV1(),
 				)
 			})
 
@@ -38,21 +46,21 @@ var (
 			s.Group("/other", func(group *ghttp.RouterGroup) {
 				group.Middleware(middleware.Response)
 				group.Bind(
-					controller.Other,
+					otherController.NewV1(),
 				)
 			})
 
 			// 健康检查路由（无中间件）
 			s.Group("/health", func(group *ghttp.RouterGroup) {
 				group.Bind(
-					controller.Health,
+					healthController.NewV1(),
 				)
 			})
 
 			// 内部控制路由（无中间件）
 			s.Group("/_internal/control", func(group *ghttp.RouterGroup) {
 				group.Bind(
-					controller.InternalControl,
+					controlController.NewV1(),
 				)
 			})
 

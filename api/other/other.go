@@ -1,15 +1,15 @@
+// =================================================================================
+// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// =================================================================================
+
 package other
 
 import (
-	"github.com/gogf/gf/v2/frame/g"
+	"context"
+
+	"server_go/api/other/v1"
 )
 
-type ResVersionReq struct {
-	g.Meta `path:"/res_version/{key}" method:"get,post" tags:"Other" summary:"获取资源版本号"`
-	Key    string `json:"key" in:"path" v:"required"`
-}
-type ResVersionRes struct {
-	Code int    `json:"code"`
-	Ver  string `json:"ver,omitempty"`
-	Msg  string `json:"msg,omitempty"`
+type IOtherV1 interface {
+	ResVersion(ctx context.Context, req *v1.ResVersionReq) (res *v1.ResVersionRes, err error)
 }

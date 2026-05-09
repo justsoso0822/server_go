@@ -1,21 +1,16 @@
+// =================================================================================
+// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// =================================================================================
+
 package game
 
 import (
-	"github.com/gogf/gf/v2/frame/g"
+	"context"
+
+	"server_go/api/game/v1"
 )
 
-type OnlineReq struct {
-	g.Meta  `path:"/game/online" method:"get,post" tags:"Game" summary:"记录在线时长"`
-	Uid     int64 `json:"uid" v:"required"`
-	Seconds int64 `json:"seconds" v:"required|min:0"`
-}
-type OnlineRes struct {
-	Now int64 `json:"now"`
-}
-
-type TimeReq struct {
-	g.Meta `path:"/game/time" method:"get,post" tags:"Game" summary:"获取服务器时间"`
-}
-type TimeRes struct {
-	Now int64 `json:"now"`
+type IGameV1 interface {
+	Online(ctx context.Context, req *v1.OnlineReq) (res *v1.OnlineRes, err error)
+	Time(ctx context.Context, req *v1.TimeReq) (res *v1.TimeRes, err error)
 }
