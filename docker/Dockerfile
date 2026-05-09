@@ -9,7 +9,6 @@ FROM alpine:3.20
 WORKDIR /app
 ENV TZ=Asia/Shanghai
 ENV GF_GCFG_FILE=config.docker.yaml
-RUN apk add --no-cache tzdata
 COPY --from=build /app/main .
 COPY manifest/config ./manifest/config
 COPY resource ./resource

@@ -19,5 +19,8 @@ redis:
     db: 20
 
 logger:
-  level: "warn"
+  level: "info"
   stdout: true
+  stdoutColorDisabled: true
+  writerColorEnable: false
+  ctxKeys: ["RequestId"]
