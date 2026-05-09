@@ -9,7 +9,6 @@ FROM alpine:3.20
 WORKDIR /app
 ENV TZ=Asia/Shanghai
 COPY --from=build /app/main .
-COPY manifest/config ./manifest/config
 COPY resource ./resource
 EXPOSE 7001
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 \

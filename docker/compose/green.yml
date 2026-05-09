@@ -18,6 +18,8 @@ services:
             options:
                 max-size: 20m
                 max-file: '5'
+        volumes:
+            - ../../manifest/config:/app/manifest/config:ro
         labels:
             - traefik.enable=true
             - traefik.docker.network=${APP_NAME:-server-go}-network
