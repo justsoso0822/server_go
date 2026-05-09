@@ -45,7 +45,7 @@ Commands:
   build <env> [version=xxx]    构建镜像
   push <env> [version=xxx]     推送镜像
   deploy <env> [version=xxx]   部署（自动检测颜色并切换，失败自动回滚）
-  status <env>                 查看状态
+  status                       查看容器状态
   start-local-db               启动本地数据库
   stop-local-db                停止本地数据库
 
@@ -55,15 +55,15 @@ Environment:
   production  生产环境
 
 Options:
-  version=xxx  指定版本标签（deploy 命令必须指定）
+  version=xxx  指定版本标签
 
 Examples:
   go run main.go                                         # 本地开发，自动使用 config.local.yaml
   go run cmd/deploy/main.go start-local-db               # 启动本地数据库
-  go run cmd/deploy/main.go build local                  # 构建本地镜像（自动使用 git hash）
+  go run cmd/deploy/main.go build local                  # 构建本地镜像
   go run cmd/deploy/main.go build test version=v1.2.3    # 构建测试镜像并指定版本
-  go run cmd/deploy/main.go deploy test version=v1.2.3   # 部署到测试环境（必须指定版本）
-  go run cmd/deploy/main.go deploy production version=v1.2.3  # 部署到生产环境`)
+  go run cmd/deploy/main.go deploy test version=v1.2.3   # 部署到测试环境
+  go run cmd/deploy/main.go status                       # 查看容器状态`)
 }
 
 func parseArgs() (string, map[string]string) {
@@ -387,30 +387,51 @@ func deploy() {
 	dashboardPort := getEnvVar(envFile, "TRAEFIK_DASHBOARD_PORT", "18080")
 	fmt.Printf("Gateway: http://localhost:%s\n", hostPort)
 	fmt.Printf("Traefik Dashboard: http://localhost:%s/dashboard/\n", dashboardPort)
+	
+	// 清理旧镜像，只保留最近 10 个
+	cleanupOldImages()
 }
 
 func status() {
-	env, _ := parseArgs()
-	if env == "" {
-		fmt.Println("Error: environment required")
-		printUsage()
-		os.Exit(1)
-	}
-
-	envFile := fmt.Sprintf(".env.%s", env)
-	if _, err := os.Stat(envFile); os.IsNotExist(err) {
-		fmt.Printf("Environment file not found: %s\n", envFile)
-		os.Exit(1)
-	}
-
-	appName := getEnvVar(envFile, "APP_NAME", "server-go")
-	fmt.Printf("=== Environment: %s ===\n\n", env)
+	appName := "server-go"
+	fmt.Printf("=== Container Status ===\n\n")
 	fmt.Println("Running containers:")
 	runCmd("docker", "ps", "--filter", fmt.Sprintf("name=%s", appName), "--format", "table {{.Names}}\t{{.Status}}\t{{.Ports}}")
 	fmt.Println("\nNetworks:")
 	runCmd("docker", "network", "ls", "--filter", fmt.Sprintf("name=%s", appName))
 	fmt.Println("\nVolumes:")
 	runCmd("docker", "volume", "ls", "--filter", fmt.Sprintf("name=%s", appName))
+}
+
+func cleanupOldImages() {
+	fmt.Println("\n[cleanup] Removing old images (keeping latest 10)...")
+	
+	output := getOutput("docker", "images", "--filter", "reference=*/server-go", "--format", "{{.ID}}|{{.Repository}}:{{.Tag}}|{{.CreatedAt}}", "--no-trunc")
+	if output == "" {
+		fmt.Println("[cleanup] No images found")
+		return
+	}
+	
+	lines := strings.Split(output, "\n")
+	if len(lines) <= 10 {
+		fmt.Printf("[cleanup] Found %d images, no cleanup needed\n", len(lines))
+		return
+	}
+	
+	toDelete := lines[10:]
+	deleted := 0
+	for _, line := range toDelete {
+		parts := strings.Split(line, "|")
+		if len(parts) >= 2 {
+			imageID := parts[0]
+			imageName := parts[1]
+			if err := runCmd("docker", "rmi", imageID); err == nil {
+				fmt.Printf("[cleanup] Removed: %s\n", imageName)
+				deleted++
+			}
+		}
+	}
+	fmt.Printf("[cleanup] Cleanup complete: removed %d old images\n", deleted)
 }
 
 func startLocalDB() {

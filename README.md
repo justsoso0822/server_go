@@ -189,32 +189,29 @@ go run cmd/deploy/main.go deploy production version=v1.2.3
    - 保持旧版本继续运行
    - 输出错误日志
 
+7. **镜像清理**
+   - 部署成功后自动清理旧镜像
+   - 只保留最近 10 个版本的镜像
+   - 避免磁盘空间占用过多
+
 ### 4. 查看状态 (status)
 
-查看指定环境的运行状态。
+查看当前机器上的容器运行状态。
 
-**命令组合：**
+**命令：**
 
 ```bash
-# 查看本地环境状态
-go run cmd/deploy/main.go status local
+# 查看容器状态（无需指定环境）
+go run cmd/deploy/main.go status
 # 显示：
-#   - 运行中的容器（blue/green/gateway）
+#   - 运行中的容器（blue/green/traefik）
 #   - 容器状态（运行时间、健康状态）
 #   - 端口映射
 #   - 网络信息
 #   - 数据卷信息
-
-# 查看测试环境状态
-go run cmd/deploy/main.go status test
-# 显示：测试服务器上的容器运行状态
-# 用途：确认当前运行的是哪个颜色，是否健康
-
-# 查看生产环境状态
-go run cmd/deploy/main.go status production
-# 显示：生产服务器上的容器运行状态
-# 用途：监控生产环境运行情况
 ```
+
+> **说明**：status 命令不需要指定环境参数，它会显示当前机器上所有 server-go 相关的容器。
 
 **输出示例：**
 ```
