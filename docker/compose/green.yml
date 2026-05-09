@@ -13,7 +13,7 @@ services:
             APP_COLOR: green
             APP_VERSION: ${APP_VERSION:-1.0.0}
             APP_CONTROL_TOKEN: ${APP_CONTROL_TOKEN:-PLEASE_CHANGE_ME}
-            GF_GCFG_FILE: ${GF_GCFG_FILE:-config.docker.yaml}
+            GF_GCFG_FILE: ${GF_GCFG_FILE:-config.local.yaml}
         logging:
             driver: json-file
             options:
@@ -37,3 +37,4 @@ services:
 networks:
     app-network:
         name: ${APP_NAME:-server-go}-network
+        external: true

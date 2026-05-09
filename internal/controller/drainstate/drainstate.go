@@ -8,6 +8,25 @@ type stateManager struct {
 	mu                   sync.RWMutex
 	draining             bool
 	rejectingNewRequests bool
+	activeRequests       int64
+}
+
+func IncActiveRequests() {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	manager.activeRequests++
+}
+
+func DecActiveRequests() {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	manager.activeRequests--
+}
+
+func GetActiveRequests() int64 {
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+	return manager.activeRequests
 }
 
 func IsTrafficShift() bool {

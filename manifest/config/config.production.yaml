@@ -1,26 +1,61 @@
+# 生产环境配置
+# 用于生产服务器部署
+
 server:
+  # HTTP 服务监听地址
   address: ":7001"
+  
+  # 优雅关闭
   graceful: true
+  
+  # 优雅关闭超时时间（秒）
   gracefulTimeout: 15
 
 app:
+  # 应用密钥，用于加密和签名
+  # 生产环境务必修改为强密钥
   keys:
     - "SzNg8LgHjEUgTAc4"
 
 database:
   default:
+    # 数据库连接字符串
+    # 连接生产环境的外部数据库
+    # 请修改为实际的数据库地址、用户名和密码
     link: "mysql:root:change_me@tcp(192.168.0.10:3219)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
+    
+    # 是否开启 SQL 调试日志
+    # 生产环境必须关闭
     debug: false
 
 redis:
   default:
+    # Redis 地址
+    # 连接生产环境的外部 Redis
+    # 请修改为实际的 Redis 地址
     address: "192.168.0.20:6379"
+    
+    # Redis 密码
+    # 请修改为实际密码
     pass: "change_me"
+    
+    # Redis 数据库编号
     db: 0
 
 logger:
+  # 日志级别
   level: "info"
+  
+  # 输出到标准输出
   stdout: true
+  
+  # 禁用颜色输出
+  # true = 纯文本，便于日志采集
   stdoutColorDisabled: true
+  
+  # 禁用颜色写入
   writerColorEnable: false
+  
+  # 日志中包含的上下文键
+  # RequestId 用于追踪请求链路
   ctxKeys: ["RequestId"]

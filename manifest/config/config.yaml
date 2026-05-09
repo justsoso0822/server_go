@@ -17,8 +17,10 @@ server:
   # 优雅关闭超时时间（秒）
   gracefulTimeout: 15
   
-  # 配置文件路径（GoFrame 自动加载）
-  gcfg: "manifest/config/config.local.yaml"
+  # 访问日志
+  logPath: "stdout"
+  logStdout: true
+  accessLogEnabled: true
 
 app:
   # 应用密钥，用于加密和签名

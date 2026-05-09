@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -23,16 +25,12 @@ func main() {
 		push()
 	case "deploy":
 		deploy()
-	case "rollback":
-		rollback()
 	case "status":
 		status()
-	case "cleanup":
-		cleanup()
-	case "start-local":
-		startLocal()
-	case "stop-local":
-		stopLocal()
+	case "start-local-db":
+		startLocalDB()
+	case "stop-local-db":
+		stopLocalDB()
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		printUsage()
@@ -41,29 +39,47 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println(`Usage: go run cmd/deploy/main.go <command> [args]
+	fmt.Println(`Usage: go run cmd/deploy/main.go <command> <env> [options]
 
 Commands:
-  build <env>              构建镜像 (local|test|production)
-  push <env>               推送镜像 (local|test|production)
-  deploy <env> <color>     蓝绿部署 (env: local|test|production, color: blue|green)
-  rollback <env>           回滚 (local|test|production)
-  status <env>             查看状态 (local|test|production)
-  cleanup <env>            清理环境 (local|test|production)
-  start-local              启动本地数据库
-  stop-local               停止本地数据库
+  build <env> [version=xxx]    构建镜像
+  push <env> [version=xxx]     推送镜像
+  deploy <env> [version=xxx]   部署（自动检测颜色并切换，失败自动回滚）
+  status <env>                 查看状态
+  start-local-db               启动本地数据库
+  stop-local-db                停止本地数据库
+
+Environment:
+  local       本地环境
+  test        测试环境
+  production  生产环境
+
+Options:
+  version=xxx  指定版本标签（deploy 命令必须指定）
 
 Examples:
-  go run cmd/deploy/main.go build local
-  go run cmd/deploy/main.go deploy local blue
-  go run cmd/deploy/main.go rollback local`)
+  go run main.go                                         # 本地开发，自动使用 config.local.yaml
+  go run cmd/deploy/main.go start-local-db               # 启动本地数据库
+  go run cmd/deploy/main.go build local                  # 构建本地镜像（自动使用 git hash）
+  go run cmd/deploy/main.go build test version=v1.2.3    # 构建测试镜像并指定版本
+  go run cmd/deploy/main.go deploy test version=v1.2.3   # 部署到测试环境（必须指定版本）
+  go run cmd/deploy/main.go deploy production version=v1.2.3  # 部署到生产环境`)
 }
 
-func getArg(index int, defaultVal string) string {
-	if len(os.Args) > index {
-		return os.Args[index]
+func parseArgs() (string, map[string]string) {
+	env := ""
+	if len(os.Args) > 2 {
+		env = os.Args[2]
 	}
-	return defaultVal
+
+	options := make(map[string]string)
+	for i := 3; i < len(os.Args); i++ {
+		parts := strings.SplitN(os.Args[i], "=", 2)
+		if len(parts) == 2 {
+			options[parts[0]] = parts[1]
+		}
+	}
+	return env, options
 }
 
 func getRegistry(env string) string {
@@ -81,20 +97,23 @@ func getRegistry(env string) string {
 	}
 }
 
-func getTag() string {
-	cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
-	output, err := cmd.Output()
-	if err != nil {
-		return "latest"
+func getVersion(options map[string]string, env string, required bool) string {
+	if version, ok := options["version"]; ok {
+		return version
 	}
-	tag := strings.TrimSpace(string(output))
+	
+	// 本地环境默认使用 1.0.0
+	if env == "local" {
+		return "1.0.0"
+	}
+	
+	if required {
+		fmt.Println("Error: version parameter is required for test/production environment")
+		fmt.Println("Usage: version=v1.2.3")
+		os.Exit(1)
+	}
 
-	cmd = exec.Command("git", "status", "--porcelain")
-	output, _ = cmd.Output()
-	if len(output) > 0 {
-		tag += ".dirty"
-	}
-	return tag
+	return "latest"
 }
 
 func runCmd(name string, args ...string) error {
@@ -141,13 +160,20 @@ func getEnvVar(envFile, key, defaultVal string) string {
 }
 
 func build() {
-	env := getArg(2, "local")
-	tag := getTag()
+	env, options := parseArgs()
+	if env == "" {
+		fmt.Println("Error: environment required")
+		printUsage()
+		os.Exit(1)
+	}
+
+	// 本地环境可选 version，其他环境必须指定
+	version := getVersion(options, env, env != "local")
 	registry := getRegistry(env)
-	image := fmt.Sprintf("%s/server-go:%s", registry, tag)
+	image := fmt.Sprintf("%s/server-go:%s", registry, version)
 	imageLatest := fmt.Sprintf("%s/server-go:latest", registry)
 
-	fmt.Printf("Building for environment: %s with tag: %s\n", env, tag)
+	fmt.Printf("Building for environment: %s with version: %s\n", env, version)
 	fmt.Printf("Building image: %s\n", image)
 
 	if err := runCmd("docker", "build", "-t", image, "-t", imageLatest, "-f", "docker/Dockerfile", "."); err != nil {
@@ -158,10 +184,16 @@ func build() {
 }
 
 func push() {
-	env := getArg(2, "local")
-	tag := getTag()
+	env, options := parseArgs()
+	if env == "" {
+		fmt.Println("Error: environment required")
+		printUsage()
+		os.Exit(1)
+	}
+
+	version := getVersion(options, env, env != "local")
 	registry := getRegistry(env)
-	image := fmt.Sprintf("%s/server-go:%s", registry, tag)
+	image := fmt.Sprintf("%s/server-go:%s", registry, version)
 	imageLatest := fmt.Sprintf("%s/server-go:latest", registry)
 
 	fmt.Printf("Pushing image: %s\n", image)
@@ -173,14 +205,14 @@ func push() {
 		fmt.Println("Push failed")
 		os.Exit(1)
 	}
-	fmt.Printf("Push completed: %s\n", image)
+	fmt.Printf("Push completed: %s and latest\n", image)
 }
 
 func deploy() {
-	env := getArg(2, "local")
-	color := getArg(3, "")
-	if color == "" || (color != "blue" && color != "green") {
-		fmt.Println("Color must be 'blue' or 'green'")
+	env, options := parseArgs()
+	if env == "" {
+		fmt.Println("Error: environment required")
+		printUsage()
 		os.Exit(1)
 	}
 
@@ -190,119 +222,194 @@ func deploy() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Deploying %s environment for %s\n", color, env)
 	appName := getEnvVar(envFile, "APP_NAME", "server-go")
+	imageSource := getEnvVar(envFile, "IMAGE_SOURCE", "remote")
+
+	// 本地环境且镜像来源是 local，自动构建
+	if env == "local" && imageSource == "local" {
+		fmt.Println("Local environment detected, building image first...")
+		version := getVersion(options, env, false)
+		registry := getRegistry(env)
+		image := fmt.Sprintf("%s/server-go:%s", registry, version)
+		imageLatest := fmt.Sprintf("%s/server-go:latest", registry)
+		
+		if err := runCmd("docker", "build", "-t", image, "-t", imageLatest, "-f", "docker/Dockerfile", "."); err != nil {
+			fmt.Println("Build failed")
+			os.Exit(1)
+		}
+		fmt.Printf("Build completed: %s\n", image)
+	}
+
+	// 获取版本号，默认使用 latest
+	version := "latest"
+	if v, ok := options["version"]; ok {
+		version = v
+	}
+
+	// 检测当前运行的颜色
+	currentColor := ""
+	targetColor := ""
+	blueRunning := strings.Contains(getOutput("docker", "ps", "--format", "{{.Names}}"), appName+"-blue")
+	greenRunning := strings.Contains(getOutput("docker", "ps", "--format", "{{.Names}}"), appName+"-green")
+
+	if blueRunning {
+		currentColor = "blue"
+		targetColor = "green"
+	} else if greenRunning {
+		currentColor = "green"
+		targetColor = "blue"
+	} else {
+		// 首次部署，默认部署到 blue
+		targetColor = "blue"
+		fmt.Println("No active deployment found, deploying to blue")
+	}
+
+	if currentColor != "" {
+		fmt.Printf("Current active: %s, deploying to: %s\n", currentColor, targetColor)
+	}
 
 	// 启动 traefik
+	fmt.Println("[release] [1/8] ensure traefik gateway")
 	if !strings.Contains(getOutput("docker", "ps", "--format", "{{.Names}}"), appName+"-gateway") {
-		fmt.Println("Starting Traefik gateway...")
 		runCmd("docker", "compose", "-f", "docker/compose/traefik.yml", "--env-file", envFile, "up", "-d")
 		time.Sleep(5 * time.Second)
 	}
 
 	// 部署新颜色
-	fmt.Printf("Starting %s service...\n", color)
-	composeFile := fmt.Sprintf("docker/compose/%s.yml", color)
+	fmt.Printf("[release] [3/8] start %s (version=%s)\n", targetColor, version)
+	composeFile := fmt.Sprintf("docker/compose/%s.yml", targetColor)
+	
+	// 设置镜像环境变量
+	registry := getRegistry(env)
+	os.Setenv("APP_IMAGE", fmt.Sprintf("%s/server-go:%s", registry, version))
+	
 	if err := runCmd("docker", "compose", "-f", composeFile, "--env-file", envFile, "up", "-d", "--build"); err != nil {
 		fmt.Println("Deployment failed")
 		os.Exit(1)
 	}
 
 	// 等待健康检查
-	fmt.Printf("Waiting for %s service to be healthy...\n", color)
+	fmt.Printf("[release] [4/8] wait for %s to be healthy (timeout=60s)\n", targetColor)
 	maxWait := 60
-	for i := 0; i < maxWait; i += 3 {
-		output := getOutput("docker", "ps", "--filter", fmt.Sprintf("name=%s-%s", appName, color), "--filter", "health=healthy", "--format", "{{.Names}}")
-		if strings.Contains(output, color) {
-			fmt.Printf("%s service is healthy\n", color)
+	healthy := false
+	for i := 0; i < maxWait; i++ {
+		output := getOutput("docker", "ps", "--filter", fmt.Sprintf("name=%s-%s", appName, targetColor), "--filter", "health=healthy", "--format", "{{.Names}}")
+		if strings.Contains(output, targetColor) {
+			fmt.Printf("[release] %s healthy\n", targetColor)
+			healthy = true
 			break
 		}
-		if i+3 >= maxWait {
-			fmt.Printf("ERROR: %s service failed to become healthy\n", color)
-			os.Exit(1)
+		if i+1 >= maxWait {
+			break
 		}
 		fmt.Printf("Waiting... (%d/%d seconds)\n", i, maxWait)
-		time.Sleep(3 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 
-	// 停止旧颜色
-	oldColor := "green"
-	if color == "green" {
-		oldColor = "blue"
+	if !healthy {
+		fmt.Printf("ERROR: %s service failed to become healthy, rolling back...\n", targetColor)
+		// 自动回滚：停止新部署的服务
+		runCmd("docker", "compose", "-f", composeFile, "--env-file", envFile, "down")
+		fmt.Println("Rollback completed, deployment failed")
+		os.Exit(1)
 	}
-	if strings.Contains(getOutput("docker", "ps", "--format", "{{.Names}}"), appName+"-"+oldColor) {
-		fmt.Printf("Stopping old %s service...\n", oldColor)
-		oldComposeFile := fmt.Sprintf("docker/compose/%s.yml", oldColor)
+
+	// 如果有旧容器，执行流量切换
+	if currentColor != "" {
+		controlToken := getEnvVar(envFile, "APP_CONTROL_TOKEN", "")
+		oldContainerName := fmt.Sprintf("%s-%s-1", appName, currentColor)
+		
+		// 检查旧容器是否可以调用控制接口
+		canControl := false
+		if controlToken != "" && controlToken != "PLEASE_CHANGE_ME" {
+			testScript := fmt.Sprintf(`wget -q -O- --timeout=2 --header="x-control-token: %s" --post-data="" http://127.0.0.1:7001/_internal/control/traffic-shift 2>&1`, controlToken)
+			output := getOutput("docker", "exec", oldContainerName, "sh", "-c", testScript)
+			canControl = strings.Contains(output, `"ok":true`)
+		}
+		
+		if canControl {
+			// 步骤 5: 调用 traffic-shift
+			fmt.Printf("[release] [5/8] http control -> %s: trigger traffic-shift, /health/lb now returns 503\n", currentColor)
+			script := fmt.Sprintf(`wget -q -O- --timeout=5 --header="x-control-token: %s" --post-data="" http://127.0.0.1:7001/_internal/control/traffic-shift`, controlToken)
+			runCmd("docker", "exec", oldContainerName, "sh", "-c", script)
+			
+			// 步骤 6: 确认切流完成
+			fmt.Printf("[release] [6/8] confirm gateway routes to %s (9 consecutive, timeout=30s)\n", targetColor)
+			hostPort := getEnvVar(envFile, "HOST_GATEWAY_PORT", "7001")
+			confirmed := false
+			consecutive := 0
+			deadline := time.Now().Add(30 * time.Second)
+			
+			for time.Now().Before(deadline) {
+				healthURL := fmt.Sprintf("http://localhost:%s/health", hostPort)
+				resp, err := http.Get(healthURL)
+				if err == nil {
+					body, _ := io.ReadAll(resp.Body)
+					resp.Body.Close()
+					if strings.Contains(string(body), fmt.Sprintf(`"color":"%s"`, targetColor)) {
+						consecutive++
+						fmt.Printf("[release] gateway -> %s (%d/9)\n", targetColor, consecutive)
+						if consecutive >= 9 {
+							fmt.Printf("[release] cutover confirmed: all traffic is on %s, safe to stop %s\n", targetColor, currentColor)
+							confirmed = true
+							break
+						}
+					} else {
+						if consecutive > 0 {
+							fmt.Printf("[release] probe reset (was %d)\n", consecutive)
+							consecutive = 0
+						}
+					}
+				}
+				time.Sleep(500 * time.Millisecond)
+			}
+			
+			if !confirmed {
+				fmt.Println("[release] Warning: cutover confirmation timeout")
+			}
+			
+			// 步骤 7: 排水旧容器
+			fmt.Printf("[release] [7/8] http control -> %s: reject any remaining new requests\n", currentColor)
+			script = fmt.Sprintf(`wget -q -O- --timeout=5 --header="x-control-token: %s" --post-data="" http://127.0.0.1:7001/_internal/control/reject-new-requests`, controlToken)
+			runCmd("docker", "exec", oldContainerName, "sh", "-c", script)
+			
+			fmt.Printf("[release] waiting %s in-flight requests (timeout=15s)\n", currentColor)
+			drainDeadline := time.Now().Add(15 * time.Second)
+			for time.Now().Before(drainDeadline) {
+				output := getOutput("docker", "exec", oldContainerName, "wget", "-q", "-O-", "--timeout=2", "http://127.0.0.1:7001/health/detail")
+				if strings.Contains(output, `"activeRequests":0`) {
+					fmt.Printf("[release] %s: no in-flight requests\n", currentColor)
+					break
+				}
+				time.Sleep(1 * time.Second)
+			}
+		} else {
+			// 旧容器无法控制，等待 Traefik 自动切流
+			fmt.Printf("[release] [5-7/8] old container cannot be controlled, waiting for Traefik auto-cutover (10s)...\n")
+			time.Sleep(10 * time.Second)
+		}
+		
+		// 步骤 8: 停止旧容器
+		fmt.Printf("[release] [8/8] %s: remove containers\n", currentColor)
+		oldComposeFile := fmt.Sprintf("docker/compose/%s.yml", currentColor)
 		runCmd("docker", "compose", "-f", oldComposeFile, "--env-file", envFile, "down")
 	}
 
-	fmt.Println("Deployment completed successfully!")
-	fmt.Printf("Active service: %s\n", color)
+	fmt.Printf("\n[release] SUCCESS: %s now served by %s (version=%s)\n", env, targetColor, version)
 	hostPort := getEnvVar(envFile, "HOST_GATEWAY_PORT", "7001")
 	dashboardPort := getEnvVar(envFile, "TRAEFIK_DASHBOARD_PORT", "18080")
 	fmt.Printf("Gateway: http://localhost:%s\n", hostPort)
 	fmt.Printf("Traefik Dashboard: http://localhost:%s/dashboard/\n", dashboardPort)
 }
 
-func rollback() {
-	env := getArg(2, "local")
-	envFile := fmt.Sprintf(".env.%s", env)
-	if _, err := os.Stat(envFile); os.IsNotExist(err) {
-		fmt.Printf("Environment file not found: %s\n", envFile)
-		os.Exit(1)
-	}
-
-	appName := getEnvVar(envFile, "APP_NAME", "server-go")
-	output := getOutput("docker", "ps", "--format", "{{.Names}}")
-
-	var currentColor, targetColor string
-	if strings.Contains(output, appName+"-blue") {
-		currentColor = "blue"
-		targetColor = "green"
-	} else if strings.Contains(output, appName+"-green") {
-		currentColor = "green"
-		targetColor = "blue"
-	} else {
-		fmt.Println("No active deployment found")
-		os.Exit(1)
-	}
-
-	fmt.Printf("Current active: %s\n", currentColor)
-	fmt.Printf("Rolling back to: %s\n", targetColor)
-
-	// 启动目标颜色
-	fmt.Printf("Starting %s service...\n", targetColor)
-	targetFile := fmt.Sprintf("docker/compose/%s.yml", targetColor)
-	runCmd("docker", "compose", "-f", targetFile, "--env-file", envFile, "up", "-d")
-
-	// 等待健康检查
-	fmt.Printf("Waiting for %s service to be healthy...\n", targetColor)
-	maxWait := 60
-	for i := 0; i < maxWait; i += 3 {
-		output := getOutput("docker", "ps", "--filter", fmt.Sprintf("name=%s-%s", appName, targetColor), "--filter", "health=healthy", "--format", "{{.Names}}")
-		if strings.Contains(output, targetColor) {
-			fmt.Printf("%s service is healthy\n", targetColor)
-			break
-		}
-		if i+3 >= maxWait {
-			fmt.Printf("ERROR: %s service failed to become healthy\n", targetColor)
-			os.Exit(1)
-		}
-		fmt.Printf("Waiting... (%d/%d seconds)\n", i, maxWait)
-		time.Sleep(3 * time.Second)
-	}
-
-	// 停止当前颜色
-	fmt.Printf("Stopping %s service...\n", currentColor)
-	currentFile := fmt.Sprintf("docker/compose/%s.yml", currentColor)
-	runCmd("docker", "compose", "-f", currentFile, "--env-file", envFile, "down")
-
-	fmt.Println("Rollback completed successfully!")
-	fmt.Printf("Active service: %s\n", targetColor)
-}
-
 func status() {
-	env := getArg(2, "local")
+	env, _ := parseArgs()
+	if env == "" {
+		fmt.Println("Error: environment required")
+		printUsage()
+		os.Exit(1)
+	}
+
 	envFile := fmt.Sprintf(".env.%s", env)
 	if _, err := os.Stat(envFile); os.IsNotExist(err) {
 		fmt.Printf("Environment file not found: %s\n", envFile)
@@ -319,46 +426,23 @@ func status() {
 	runCmd("docker", "volume", "ls", "--filter", fmt.Sprintf("name=%s", appName))
 }
 
-func cleanup() {
-	env := getArg(2, "local")
-	envFile := fmt.Sprintf(".env.%s", env)
-	if _, err := os.Stat(envFile); os.IsNotExist(err) {
-		fmt.Printf("Environment file not found: %s\n", envFile)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Stopping all services for environment: %s\n", env)
-	runCmd("docker", "compose", "-f", "docker/compose/blue.yml", "--env-file", envFile, "down")
-	runCmd("docker", "compose", "-f", "docker/compose/green.yml", "--env-file", envFile, "down")
-	runCmd("docker", "compose", "-f", "docker/compose/traefik.yml", "--env-file", envFile, "down")
-
-	if env == "local" {
-		runCmd("docker", "compose", "-f", "docker/compose/local.yml", "--env-file", envFile, "down")
-	}
-
-	fmt.Println("Cleanup completed")
-}
-
-func startLocal() {
-	fmt.Println("Starting local development environment...")
+func startLocalDB() {
+	fmt.Println("Starting local database services...")
 	if err := runCmd("docker", "compose", "-f", "docker/compose/local.yml", "--env-file", ".env.local", "up", "-d"); err != nil {
-		fmt.Println("Failed to start local services")
+		fmt.Println("Failed to start local database services")
 		os.Exit(1)
 	}
 
-	fmt.Println("Waiting for services to be ready...")
-	time.Sleep(10 * time.Second)
-
-	fmt.Println("Local services started:")
+	fmt.Println("Local database services started:")
 	fmt.Println("  MySQL: 127.0.0.1:330")
 	fmt.Println("  Redis: 127.0.0.1:637")
 	fmt.Println("")
 	fmt.Println("You can now run the application with:")
-	fmt.Println("  GF_GCFG_FILE=config.local.yaml go run main.go")
+	fmt.Println("  go run main.go")
 }
 
-func stopLocal() {
-	fmt.Println("Stopping local development environment...")
+func stopLocalDB() {
+	fmt.Println("Stopping local database services...")
 	runCmd("docker", "compose", "-f", "docker/compose/local.yml", "--env-file", ".env.local", "down")
-	fmt.Println("Local services stopped")
+	fmt.Println("Local database services stopped")
 }
