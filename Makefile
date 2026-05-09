@@ -11,12 +11,12 @@ include ./hack/hack.mk
 dev:
 	@go run main.go
 
-.PHONY: start-db
-start-db:
+.PHONY: start-local-db
+start-local-db:
 	@go run cmd/deploy/main.go start-local-db
 
-.PHONY: stop-db
-stop-db:
+.PHONY: stop-local-db
+stop-local-db:
 	@go run cmd/deploy/main.go stop-local-db
 
 # 构建和推送镜像

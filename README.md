@@ -17,13 +17,17 @@ go run cmd/deploy/main.go stop-local-db
 
 访问: http://localhost:7001
 
-### 使用 Makefile（可选）
+### 使用 Makefile（推荐）
+
+Makefile 提供了简化的命令封装：
 
 ```bash
-make start-db    # 启动数据库
-make dev         # 运行应用
-make stop-db     # 停止数据库
+make start-local-db    # 启动本地数据库（等同于 go run cmd/deploy/main.go start-local-db）
+make dev               # 运行应用（等同于 go run main.go）
+make stop-local-db     # 停止本地数据库（等同于 go run cmd/deploy/main.go stop-local-db）
 ```
+
+> **说明**：Makefile 命令与部署脚本命令完全一致，只是省略了 `go run cmd/deploy/main.go` 前缀。
 
 ---
 
@@ -62,11 +66,12 @@ go run cmd/deploy/main.go build production
 # 说明：构建镜像并推送到 ccr.ccs.tencentyun.com/justsoso-production/server-go
 # 标签：自动使用 git commit hash
 
-# 构建并指定版本号
+# 构建测试/生产环境镜像（必须指定版本）
 go run cmd/deploy/main.go build production version=v1.2.3
 # 说明：构建生产环境镜像，使用指定的版本号 v1.2.3 作为标签
 # 镜像：ccr.ccs.tencentyun.com/justsoso-production/server-go:v1.2.3
 # 同时打 latest 标签
+# 注意：test/production 环境必须指定 version 参数
 ```
 
 **构建过程：**
@@ -97,10 +102,11 @@ go run cmd/deploy/main.go push production
 # 说明：推送到 justsoso-production 命名空间
 # 用途：供生产服务器拉取部署
 
-# 推送指定版本
+# 推送测试/生产环境镜像（必须指定版本）
 go run cmd/deploy/main.go push production version=v1.2.3
 # 说明：推送指定版本号的镜像
-# 注意：必须先用相同的 version 参数执行 build 命令
+# 注意：test/production 环境必须指定 version 参数
+# 前提：必须先用相同的 version 参数执行 build 命令
 ```
 
 **推送过程：**
@@ -144,11 +150,11 @@ go run cmd/deploy/main.go deploy production
 # 数据库：连接生产环境的外部数据库
 # 特点：0 停机部署，失败自动回滚
 
-# 部署指定版本
+# 部署指定版本（可选）
 go run cmd/deploy/main.go deploy production version=v1.2.3
 # 说明：部署指定版本号的镜像到生产环境
 # 前提：该版本已经 build 和 push
-# 注意：deploy 命令必须指定 version 参数
+# 注意：version 参数可选，默认使用 latest
 ```
 
 **部署流程详解：**
@@ -524,10 +530,18 @@ docker compose -f docker/compose/green.yml --env-file .env.test logs -f
 docker logs server-go-blue-1 --tail=100
 ```
 
-### 访问 Traefik Dashboard
+### 访问 Traefik Dashboard（仅本地环境）
 
+本地环境默认开启 Dashboard：
 ```
-http://your-server:18080/dashboard/
+http://localhost:18080/dashboard/
+```
+
+测试/生产环境默认关闭 Dashboard。如需开启，修改对应 `.env` 文件：
+```bash
+TRAEFIK_API_ENABLED=true
+TRAEFIK_DASHBOARD_ENABLED=true
+TRAEFIK_DASHBOARD_PORT=18080
 ```
 
 ---
@@ -617,7 +631,7 @@ jobs:
 2. **限制服务器访问**
    - 使用防火墙限制端口访问
    - 只开放必要的端口（如 7001）
-   - Traefik Dashboard 端口（18080）不要对外开放
+   - 生产环境禁用 Traefik Dashboard（默认已关闭）
 
 3. **定期更新**
    - 定期更新 Docker 镜像
