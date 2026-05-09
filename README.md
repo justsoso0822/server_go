@@ -778,7 +778,7 @@ make deploy _ENV=develop TAG=develop
 
 `middleware.Sign` 的逻辑：
 
-1. 读取所有请求参数：`r.GetMap()`。
+1. 读取请求参数：`r.GetMap()`，并剔除路由路径参数 `r.GetRouterMap()`。
 2. 从参数 `sign`、Header `x-sign`、Header `x-signature` 中找签名。
 3. 调用 `signutil.BuildParams(params)` 拼接待签名字符串。
 4. 从配置 `app.keys` 读取密钥列表。

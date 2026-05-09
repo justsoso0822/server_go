@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"server_go/internal/dao"
-	"server_go/internal/logic/user"
 	"server_go/internal/service"
+	"server_go/utility/tools"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
@@ -30,7 +30,7 @@ func (s *sTask) InitTasks(ctx context.Context, uid int64) ([]map[string]interfac
 		confStr = "4"
 	}
 
-	serList := user.PickNumbers(confStr)
+	serList := tools.PickNumbers(confStr)
 	var arr []map[string]interface{}
 
 	for _, ser := range serList {

@@ -9,6 +9,7 @@ import (
 	gridController "server_go/internal/controller/grid"
 	healthController "server_go/internal/controller/health"
 	otherController "server_go/internal/controller/other"
+	resController "server_go/internal/controller/res"
 	testController "server_go/internal/controller/test"
 	userController "server_go/internal/controller/user"
 	"server_go/internal/middleware"
@@ -31,20 +32,20 @@ var (
 				group.Middleware(
 					middleware.Sign,
 					middleware.Verify,
-					middleware.Response,
+					ghttp.MiddlewareHandlerResponse,
 				)
 				group.Bind(
 					userController.NewV1(),
 					gameController.NewV1(),
 					bagController.NewV1(),
 					gridController.NewV1(),
-					testController.NewV1(),
+					resController.NewV1(),
 				)
 			})
 
 			// 其他路由（不校验签名和登录态）
 			s.Group("/other", func(group *ghttp.RouterGroup) {
-				group.Middleware(middleware.Response)
+				group.Middleware(ghttp.MiddlewareHandlerResponse)
 				group.Bind(
 					otherController.NewV1(),
 				)
@@ -61,6 +62,13 @@ var (
 			s.Group("/_internal/control", func(group *ghttp.RouterGroup) {
 				group.Bind(
 					controlController.NewV1(),
+				)
+			})
+
+			s.Group("/test", func(group *ghttp.RouterGroup) {
+				group.Middleware(ghttp.MiddlewareHandlerResponse)
+				group.Bind(
+					testController.NewV1(),
 				)
 			})
 

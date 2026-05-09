@@ -23,26 +23,3 @@ type LoginRes struct {
 	Config gdb.Result `json:"config,omitempty"`
 	Gm     int        `json:"gm"`
 }
-
-type AddTiliReq struct {
-	g.Meta `path:"/user/add_tili" method:"get,post" tags:"User" summary:"测试增加体力"`
-	Uid    int64 `json:"uid" v:"required"`
-}
-type AddTiliRes UpdateFieldRes
-
-type AddGoldReq struct {
-	g.Meta `path:"/user/add_gold" method:"get,post" tags:"User" summary:"测试增加金币"`
-	Uid    int64 `json:"uid" v:"required"`
-}
-type AddGoldRes UpdateFieldRes
-
-type AddDiamondReq struct {
-	g.Meta `path:"/user/add_diamond" method:"get,post" tags:"User" summary:"测试增加钻石"`
-	Uid    int64 `json:"uid" v:"required"`
-}
-type AddDiamondRes UpdateFieldRes
-
-type UpdateFieldRes struct {
-	Res      any   `json:"res"`
-	AddValue int64 `json:"add_value"`
-}

@@ -13,6 +13,9 @@ func Sign(r *ghttp.Request) {
 
 	// 收集所有参与签名的参数
 	params := r.GetMap()
+	for key := range r.GetRouterMap() {
+		delete(params, key)
+	}
 
 	// 从参数或请求头获取 sign
 	sign := r.Get("sign").String()
