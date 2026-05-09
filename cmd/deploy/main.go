@@ -316,77 +316,64 @@ func deploy() {
 
 	// 如果有旧容器，执行流量切换
 	if currentColor != "" {
-		controlToken := getEnvVar(envFile, "APP_CONTROL_TOKEN", "")
 		oldContainerName := fmt.Sprintf("%s-%s-1", appName, currentColor)
 		
-		// 检查旧容器是否可以调用控制接口
-		canControl := false
-		if controlToken != "" && controlToken != "PLEASE_CHANGE_ME" {
-			testScript := fmt.Sprintf(`wget -q -O- --timeout=2 --header="x-control-token: %s" --post-data="" http://127.0.0.1:7001/_internal/control/traffic-shift 2>&1`, controlToken)
-			output := getOutput("docker", "exec", oldContainerName, "sh", "-c", testScript)
-			canControl = strings.Contains(output, `"ok":true`)
+		// 步骤 5: 调用 traffic-shift
+		fmt.Printf("[release] [5/8] http control -> %s: trigger traffic-shift, /health/lb now returns 503\n", currentColor)
+		script := `wget -q -O- --timeout=5 --post-data="" http://127.0.0.1:7001/_internal/control/traffic-shift`
+		if err := runCmd("docker", "exec", oldContainerName, "sh", "-c", script); err != nil {
+			fmt.Printf("[release] Warning: failed to call traffic-shift: %v\n", err)
 		}
 		
-		if canControl {
-			// 步骤 5: 调用 traffic-shift
-			fmt.Printf("[release] [5/8] http control -> %s: trigger traffic-shift, /health/lb now returns 503\n", currentColor)
-			script := fmt.Sprintf(`wget -q -O- --timeout=5 --header="x-control-token: %s" --post-data="" http://127.0.0.1:7001/_internal/control/traffic-shift`, controlToken)
-			runCmd("docker", "exec", oldContainerName, "sh", "-c", script)
-			
-			// 步骤 6: 确认切流完成
-			fmt.Printf("[release] [6/8] confirm gateway routes to %s (9 consecutive, timeout=30s)\n", targetColor)
-			hostPort := getEnvVar(envFile, "HOST_GATEWAY_PORT", "7001")
-			confirmed := false
-			consecutive := 0
-			deadline := time.Now().Add(30 * time.Second)
-			
-			for time.Now().Before(deadline) {
-				healthURL := fmt.Sprintf("http://localhost:%s/health", hostPort)
-				resp, err := http.Get(healthURL)
-				if err == nil {
-					body, _ := io.ReadAll(resp.Body)
-					resp.Body.Close()
-					if strings.Contains(string(body), fmt.Sprintf(`"color":"%s"`, targetColor)) {
-						consecutive++
-						fmt.Printf("[release] gateway -> %s (%d/9)\n", targetColor, consecutive)
-						if consecutive >= 9 {
-							fmt.Printf("[release] cutover confirmed: all traffic is on %s, safe to stop %s\n", targetColor, currentColor)
-							confirmed = true
-							break
-						}
-					} else {
-						if consecutive > 0 {
-							fmt.Printf("[release] probe reset (was %d)\n", consecutive)
-							consecutive = 0
-						}
+		// 步骤 6: 确认切流完成
+		fmt.Printf("[release] [6/8] confirm gateway routes to %s (9 consecutive, timeout=30s)\n", targetColor)
+		hostPort := getEnvVar(envFile, "HOST_GATEWAY_PORT", "7001")
+		confirmed := false
+		consecutive := 0
+		deadline := time.Now().Add(30 * time.Second)
+		
+		for time.Now().Before(deadline) {
+			healthURL := fmt.Sprintf("http://localhost:%s/health", hostPort)
+			resp, err := http.Get(healthURL)
+			if err == nil {
+				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				if strings.Contains(string(body), fmt.Sprintf(`"color":"%s"`, targetColor)) {
+					consecutive++
+					fmt.Printf("[release] gateway -> %s (%d/9)\n", targetColor, consecutive)
+					if consecutive >= 9 {
+						fmt.Printf("[release] cutover confirmed: all traffic is on %s, safe to stop %s\n", targetColor, currentColor)
+						confirmed = true
+						break
+					}
+				} else {
+					if consecutive > 0 {
+						fmt.Printf("[release] probe reset (was %d)\n", consecutive)
+						consecutive = 0
 					}
 				}
-				time.Sleep(500 * time.Millisecond)
 			}
-			
-			if !confirmed {
-				fmt.Println("[release] Warning: cutover confirmation timeout")
+			time.Sleep(500 * time.Millisecond)
+		}
+		
+		if !confirmed {
+			fmt.Println("[release] Warning: cutover confirmation timeout")
+		}
+		
+		// 步骤 7: 排水旧容器
+		fmt.Printf("[release] [7/8] http control -> %s: reject any remaining new requests\n", currentColor)
+		script = `wget -q -O- --timeout=5 --post-data="" http://127.0.0.1:7001/_internal/control/reject-new-requests`
+		runCmd("docker", "exec", oldContainerName, "sh", "-c", script)
+		
+		fmt.Printf("[release] waiting %s in-flight requests (timeout=15s)\n", currentColor)
+		drainDeadline := time.Now().Add(15 * time.Second)
+		for time.Now().Before(drainDeadline) {
+			output := getOutput("docker", "exec", oldContainerName, "wget", "-q", "-O-", "--timeout=2", "http://127.0.0.1:7001/health/detail")
+			if strings.Contains(output, `"activeRequests":0`) {
+				fmt.Printf("[release] %s: no in-flight requests\n", currentColor)
+				break
 			}
-			
-			// 步骤 7: 排水旧容器
-			fmt.Printf("[release] [7/8] http control -> %s: reject any remaining new requests\n", currentColor)
-			script = fmt.Sprintf(`wget -q -O- --timeout=5 --header="x-control-token: %s" --post-data="" http://127.0.0.1:7001/_internal/control/reject-new-requests`, controlToken)
-			runCmd("docker", "exec", oldContainerName, "sh", "-c", script)
-			
-			fmt.Printf("[release] waiting %s in-flight requests (timeout=15s)\n", currentColor)
-			drainDeadline := time.Now().Add(15 * time.Second)
-			for time.Now().Before(drainDeadline) {
-				output := getOutput("docker", "exec", oldContainerName, "wget", "-q", "-O-", "--timeout=2", "http://127.0.0.1:7001/health/detail")
-				if strings.Contains(output, `"activeRequests":0`) {
-					fmt.Printf("[release] %s: no in-flight requests\n", currentColor)
-					break
-				}
-				time.Sleep(1 * time.Second)
-			}
-		} else {
-			// 旧容器无法控制，等待 Traefik 自动切流
-			fmt.Printf("[release] [5-7/8] old container cannot be controlled, waiting for Traefik auto-cutover (10s)...\n")
-			time.Sleep(10 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 		
 		// 步骤 8: 停止旧容器

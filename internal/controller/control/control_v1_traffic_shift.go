@@ -2,7 +2,6 @@ package control
 
 import (
 	"context"
-	"os"
 
 	"server_go/api/control/v1"
 	"server_go/internal/controller/drainstate"
@@ -22,20 +21,9 @@ func (c *ControllerV1) TrafficShift(ctx context.Context, req *v1.TrafficShiftReq
 }
 
 func ensureInternalAccess(r *ghttp.Request) bool {
-	expected := os.Getenv("APP_CONTROL_TOKEN")
-	if expected == "" || expected == "PLEASE_CHANGE_ME" {
-		r.Response.Status = 500
-		r.Response.WriteJson(g.Map{"ok": false, "msg": "APP_CONTROL_TOKEN not configured"})
-		return false
-	}
+	// 只允许容器内部调用，拒绝通过网关转发的请求
 	forwarded := r.GetHeader("x-forwarded-for")
 	if forwarded != "" {
-		r.Response.Status = 404
-		r.Response.WriteJson(g.Map{"ok": false})
-		return false
-	}
-	received := r.GetHeader("x-control-token")
-	if received != expected {
 		r.Response.Status = 404
 		r.Response.WriteJson(g.Map{"ok": false})
 		return false

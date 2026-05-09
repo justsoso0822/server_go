@@ -6,8 +6,8 @@ services:
         container_name: ${APP_NAME:-server-go}-gateway
         restart: unless-stopped
         command:
-            - --api=true
-            - --api.dashboard=true
+            - --api=${TRAEFIK_API_ENABLED:-true}
+            - --api.dashboard=${TRAEFIK_DASHBOARD_ENABLED:-true}
             - --entrypoints.web.address=:7001
             - --entrypoints.traefik.address=:8080
             - --providers.docker=true
