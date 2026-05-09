@@ -8,7 +8,7 @@
 # 1. 启动本地数据库（MySQL + Redis）
 go run cmd/deploy/main.go start-local-db
 
-# 2. 运行应用（自动使用 config.local.yaml）
+# 2. 运行应用（自动使用 config.yaml）
 go run main.go
 
 # 3. 停止数据库
@@ -54,31 +54,31 @@ go run cmd/deploy/main.go <command> <env> [options]
 # 构建本地环境镜像
 go run cmd/deploy/main.go build local
 # 说明：构建镜像并推送到 ccr.ccs.tencentyun.com/justsoso-local/server-go
-# 标签：使用 git commit hash（如 abc1234）或 abc1234.dirty（有未提交修改）
+# 标签：默认 1.0.0，可通过 version=xxx 覆盖
 
 # 构建测试环境镜像
-go run cmd/deploy/main.go build test
+go run cmd/deploy/main.go build test version=v1.2.3
 # 说明：构建镜像并推送到 ccr.ccs.tencentyun.com/justsoso-test/server-go
-# 标签：自动使用 git commit hash
+# 标签：必须显式指定 version，同时会打 latest 标签
 
 # 构建生产环境镜像
-go run cmd/deploy/main.go build production
+go run cmd/deploy/main.go build production version=v1.2.3
 # 说明：构建镜像并推送到 ccr.ccs.tencentyun.com/justsoso-production/server-go
-# 标签：自动使用 git commit hash
+# 标签：必须显式指定 version，同时会打 latest 标签
 
-# 构建测试/生产环境镜像（必须指定版本）
+# 构建测试/生产环境镜像（指定版本）
 go run cmd/deploy/main.go build production version=v1.2.3
 # 说明：构建生产环境镜像，使用指定的版本号 v1.2.3 作为标签
 # 镜像：ccr.ccs.tencentyun.com/justsoso-production/server-go:v1.2.3
 # 同时打 latest 标签
-# 注意：test/production 环境必须指定 version 参数
 ```
 
 **构建过程：**
-1. 读取 git commit hash 作为默认版本号（或使用 version 参数）
-2. 使用 `docker/Dockerfile` 构建镜像
-3. 打两个标签：指定版本号 + latest
-4. 镜像保存在本地，等待推送
+1. local 默认版本号使用 `1.0.0`，也可用 version 参数覆盖
+2. test/production 必须显式传入 version 参数
+3. 使用 `docker/Dockerfile` 构建镜像
+4. 打两个标签：指定版本号 + latest
+5. 镜像保存在本地，等待推送
 
 ### 2. 推送镜像 (push)
 
@@ -93,19 +93,18 @@ go run cmd/deploy/main.go push local
 # 推送：server-go:版本号 和 server-go:latest
 
 # 推送测试环境镜像
-go run cmd/deploy/main.go push test
+go run cmd/deploy/main.go push test version=v1.2.3
 # 说明：推送到 justsoso-test 命名空间
 # 用途：供测试服务器拉取部署
 
 # 推送生产环境镜像
-go run cmd/deploy/main.go push production
+go run cmd/deploy/main.go push production version=v1.2.3
 # 说明：推送到 justsoso-production 命名空间
 # 用途：供生产服务器拉取部署
 
 # 推送测试/生产环境镜像（必须指定版本）
 go run cmd/deploy/main.go push production version=v1.2.3
 # 说明：推送指定版本号的镜像
-# 注意：test/production 环境必须指定 version 参数
 # 前提：必须先用相同的 version 参数执行 build 命令
 ```
 
@@ -138,14 +137,14 @@ go run cmd/deploy/main.go deploy local
 # 部署到测试环境
 go run cmd/deploy/main.go deploy test
 # 说明：在测试服务器执行蓝绿部署
-# 前提：已执行 build test 和 push test
+# 前提：镜像已通过 push 上传到仓库
 # 配置：使用 .env.test 和 config.test.yaml
 # 数据库：连接测试环境的外部数据库
 
 # 部署到生产环境
 go run cmd/deploy/main.go deploy production
 # 说明：在生产服务器执行蓝绿部署
-# 前提：已执行 build production 和 push production
+# 前提：镜像已通过 push 上传到仓库
 # 配置：使用 .env.production 和 config.production.yaml
 # 数据库：连接生产环境的外部数据库
 # 特点：0 停机部署，失败自动回滚
@@ -170,6 +169,11 @@ go run cmd/deploy/main.go deploy production version=v1.2.3
 
 3. **部署阶段**
    - 使用 docker compose 启动目标颜色的容器
+   - `IMAGE_SOURCE=local` 时在部署机本地构建镜像后再蓝绿发布
+   - `IMAGE_SOURCE=remote` 时只使用仓库镜像；如果未传 version，默认拉取 latest
+   - 网关不存在时自动启动
+   - 网关已存在且宿主机映射端口与目标环境一致时直接复用
+   - 网关已存在但端口不一致时直接终止部署；只有传 `-f` 才会强制替换网关
    - 容器使用对应环境的配置文件
    - 容器自动注册到 Traefik
 
@@ -279,10 +283,32 @@ go run cmd/deploy/main.go start-local-db
 
 # 2. 运行应用
 go run main.go
-# 结果：应用自动使用 config.local.yaml，连接本地数据库
+# 结果：应用自动使用 config.yaml，连接本地数据库
 
 # 3. 停止数据库（开发结束后）
 go run cmd/deploy/main.go stop-local-db
+```
+
+### 场景 1.1：本地 Docker 蓝绿发布
+
+```bash
+# 1. 确认 .env.local 中 IMAGE_SOURCE=local
+# 结果：deploy local 会在本机先构建镜像，再执行蓝绿发布
+
+# 2. 首次发布
+ngo run cmd/deploy/main.go deploy local
+# 结果：
+#   - 默认使用 1.0.0 构建本地镜像
+#   - 同时打上 1.0.0 和 latest 标签
+#   - 启动 Traefik 网关
+#   - 首次发布到 blue
+
+# 3. 发布指定版本
+ngo run cmd/deploy/main.go deploy local version=v1.2.3
+# 结果：
+#   - 本机构建 v1.2.3 并同时打上 latest
+#   - 与当前运行颜色做蓝绿切换
+#   - 健康检查通过后切流
 ```
 
 ### 场景 2：测试环境首次部署
@@ -293,19 +319,19 @@ vim .env.test
 vim manifest/config/config.test.yaml
 
 # 2. 构建镜像（可在本地或服务器）
-go run cmd/deploy/main.go build test
-# 结果：构建镜像，标签为 git commit hash
+go run cmd/deploy/main.go build test version=v1.2.3
+# 结果：构建镜像并同时打上 v1.2.3 与 latest 标签
 
 # 3. 推送镜像
-go run cmd/deploy/main.go push test
+go run cmd/deploy/main.go push test version=v1.2.3
 # 结果：镜像推送到 justsoso-test 命名空间
 
 # 4. 部署（在服务器上）
-go run cmd/deploy/main.go deploy test
+go run cmd/deploy/main.go deploy test version=v1.2.3
 # 结果：
 #   - 检测到无运行容器，部署到 blue
 #   - 启动 Traefik 网关
-#   - 启动 blue 容器
+#   - 拉取并启动 blue 容器
 #   - 等待健康检查
 #   - 服务可访问
 
@@ -321,18 +347,18 @@ go run cmd/deploy/main.go status test
 git pull
 
 # 2. 构建新版本
-go run cmd/deploy/main.go build test
-# 结果：构建新的 commit hash 版本
+go run cmd/deploy/main.go build test version=def5678
+# 结果：构建 def5678，并同时打上 latest 标签
 
 # 3. 推送新版本
-go run cmd/deploy/main.go push test
+go run cmd/deploy/main.go push test version=def5678
 
 # 4. 部署新版本
 go run cmd/deploy/main.go deploy test version=def5678
 # 结果：
 #   - 检测到 blue 在运行
 #   - 部署到 green
-#   - 启动 green 容器
+#   - 拉取并启动 green 容器
 #   - 等待健康检查
 #   - 健康检查通过，流量切到 green
 #   - 停止 blue 容器
@@ -398,8 +424,8 @@ go run cmd/deploy/main.go deploy test
 
 | 环境 | 配置文件 | 说明 |
 |------|---------|------|
-| 本地开发 | `manifest/config/config.local.yaml` | 宿主机运行，连接本地 Docker 数据库 |
-| Docker 本地 | `manifest/config/config.docker.yaml` | 容器内运行 |
+| 本地开发 | `manifest/config/config.yaml` | 宿主机运行，连接本地 Docker 数据库 |
+| Docker 本地 | `manifest/config/config.local.yaml` | 容器内运行，连接 compose 服务名 |
 | 测试环境 | `manifest/config/config.test.yaml` | 外部数据库 |
 | 生产环境 | `manifest/config/config.production.yaml` | 外部数据库 |
 
@@ -427,11 +453,11 @@ vim .env.test
 vim manifest/config/config.test.yaml
 
 # 2. 构建并推送（可在本地或服务器执行）
-go run cmd/deploy/main.go build test
-go run cmd/deploy/main.go push test
+go run cmd/deploy/main.go build test version=v1.2.3
+go run cmd/deploy/main.go push test version=v1.2.3
 
 # 3. 部署（自动蓝绿切换）
-go run cmd/deploy/main.go deploy test
+go run cmd/deploy/main.go deploy test version=v1.2.3
 
 # 4. 查看状态
 go run cmd/deploy/main.go status test
@@ -445,11 +471,11 @@ vim .env.production
 vim manifest/config/config.production.yaml
 
 # 2. 构建并推送
-go run cmd/deploy/main.go build production
-go run cmd/deploy/main.go push production
+go run cmd/deploy/main.go build production version=v1.2.3
+go run cmd/deploy/main.go push production version=v1.2.3
 
 # 3. 部署
-go run cmd/deploy/main.go deploy production
+go run cmd/deploy/main.go deploy production version=v1.2.3
 
 # 4. 查看状态
 go run cmd/deploy/main.go status production
@@ -465,9 +491,9 @@ GOOS=linux GOARCH=amd64 go build -o deploy cmd/deploy/main.go
 scp deploy user@server:/path/to/server_go/
 
 # 服务器上运行
-./deploy build test
-./deploy push test
-./deploy deploy test
+./deploy build test version=v1.2.3
+./deploy push test version=v1.2.3
+./deploy deploy test version=v1.2.3
 ```
 
 ---
@@ -602,8 +628,8 @@ jobs:
       
       - name: Build and Push
         run: |
-          go run cmd/deploy/main.go build test
-          go run cmd/deploy/main.go push test
+          go run cmd/deploy/main.go build test version=${{ github.sha }}
+          go run cmd/deploy/main.go push test version=${{ github.sha }}
       
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
@@ -614,7 +640,7 @@ jobs:
           script: |
             cd /path/to/server_go
             git pull
-            go run cmd/deploy/main.go deploy test
+            go run cmd/deploy/main.go deploy test version=${{ github.sha }}
 ```
 
 ---

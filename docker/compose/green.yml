@@ -2,9 +2,6 @@ name: ${APP_NAME:-server-go}
 
 services:
     green:
-        build:
-            context: ../..
-            dockerfile: docker/Dockerfile
         image: ${APP_IMAGE:-server-go:1.0.0}
         restart: unless-stopped
         stop_grace_period: 15s

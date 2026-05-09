@@ -1,21 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: template-single
+  name: server-go
   labels:
-    app: template-single
+    app: server-go
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: template-single
+      app: server-go
   template:
     metadata:
       labels:
-        app: template-single
+        app: server-go
     spec:
       containers:
-        - name : main
-          image: template-single
+        - name: main
+          image: server-go
           imagePullPolicy: Always
-
+          ports:
+            - containerPort: 7001

@@ -42,12 +42,12 @@ func printUsage() {
 	fmt.Println(`Usage: go run cmd/deploy/main.go <command> <env> [options]
 
 Commands:
-  build <env> [version=xxx]    构建镜像
-  push <env> [version=xxx]     推送镜像
-  deploy <env> [version=xxx]   部署（自动检测颜色并切换，失败自动回滚）
-  status                       查看容器状态
-  start-local-db               启动本地数据库
-  stop-local-db                停止本地数据库
+  build <env> [version=xxx]         构建镜像
+  push <env> [version=xxx]          推送镜像
+  deploy <env> [version=xxx] [-f]   部署（自动检测颜色并切换，失败自动回滚）
+  status                            查看容器状态
+  start-local-db                    启动本地数据库
+  stop-local-db                     停止本地数据库
 
 Environment:
   local       本地环境
@@ -56,13 +56,17 @@ Environment:
 
 Options:
   version=xxx  指定版本标签
+  -f           网关端口冲突时强制替换网关
 
 Examples:
-  go run main.go                                         # 本地开发，自动使用 config.local.yaml
+  go run main.go                                         # 本地开发，自动使用 config.yaml
   go run cmd/deploy/main.go start-local-db               # 启动本地数据库
   go run cmd/deploy/main.go build local                  # 构建本地镜像
   go run cmd/deploy/main.go build test version=v1.2.3    # 构建测试镜像并指定版本
+  go run cmd/deploy/main.go push local                   # 推送本地镜像，默认 version=1.0.0
+  go run cmd/deploy/main.go push test version=v1.2.3     # 推送测试镜像并指定版本
   go run cmd/deploy/main.go deploy test version=v1.2.3   # 部署到测试环境
+  go run cmd/deploy/main.go deploy local -f              # 强制替换本地网关后部署
   go run cmd/deploy/main.go status                       # 查看容器状态`)
 }
 
@@ -74,6 +78,10 @@ func parseArgs() (string, map[string]string) {
 
 	options := make(map[string]string)
 	for i := 3; i < len(os.Args); i++ {
+		if os.Args[i] == "-f" {
+			options["force"] = "true"
+			continue
+		}
 		parts := strings.SplitN(os.Args[i], "=", 2)
 		if len(parts) == 2 {
 			options[parts[0]] = parts[1]
@@ -97,23 +105,54 @@ func getRegistry(env string) string {
 	}
 }
 
-func getVersion(options map[string]string, env string, required bool) string {
-	if version, ok := options["version"]; ok {
+func getBuildVersion(options map[string]string, env string) string {
+	if version, ok := options["version"]; ok && version != "" {
 		return version
 	}
-	
-	// 本地环境默认使用 1.0.0
+
 	if env == "local" {
 		return "1.0.0"
 	}
-	
-	if required {
-		fmt.Println("Error: version parameter is required for test/production environment")
-		fmt.Println("Usage: version=v1.2.3")
-		os.Exit(1)
+
+	fmt.Println("Error: version parameter is required for test/production build/push")
+	fmt.Println("Usage: version=v1.2.3")
+	os.Exit(1)
+	return ""
+}
+
+func getDeployVersion(options map[string]string) string {
+	if version, ok := options["version"]; ok && version != "" {
+		return version
 	}
 
 	return "latest"
+}
+
+func getGitVersion() string {
+	version := strings.TrimSpace(getOutput("git", "rev-parse", "--short", "HEAD"))
+	if version == "" {
+		return ""
+	}
+
+	dirty := strings.TrimSpace(getOutput("git", "status", "--porcelain")) != ""
+	if dirty {
+		version += ".dirty"
+	}
+	return version
+}
+
+func getAppName(envFile string) string {
+	if appName := os.Getenv("APP_NAME"); appName != "" {
+		return appName
+	}
+
+	for _, file := range []string{envFile, ".env.local", ".env.test", ".env.production"} {
+		if appName := getEnvVar(file, "APP_NAME", ""); appName != "" {
+			return appName
+		}
+	}
+
+	return "server-go"
 }
 
 func runCmd(name string, args ...string) error {
@@ -121,6 +160,50 @@ func runCmd(name string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func gatewayNeedsRecreate(appName, desiredHostPort string) bool {
+	containerName := fmt.Sprintf("%s-gateway", appName)
+	runningContainers := getOutput("docker", "ps", "--format", "{{.Names}}")
+	if !strings.Contains(runningContainers, containerName) {
+		return true
+	}
+
+	currentHostPort := getGatewayHostPort(appName, "")
+	if currentHostPort == "" {
+		return true
+	}
+
+	return desiredHostPort != "" && currentHostPort != desiredHostPort
+}
+
+func gatewayExists(appName string) bool {
+	containerName := fmt.Sprintf("%s-gateway", appName)
+	runningContainers := getOutput("docker", "ps", "--format", "{{.Names}}")
+	return strings.Contains(runningContainers, containerName)
+}
+
+func forceGatewayReplace(options map[string]string) bool {
+	return options["force"] == "true"
+}
+
+func getGatewayHostPort(appName, defaultPort string) string {
+	containerName := fmt.Sprintf("%s-gateway", appName)
+	output := getOutput("docker", "port", containerName, "7001/tcp")
+	if output == "" {
+		return defaultPort
+	}
+
+	parts := strings.Split(strings.TrimSpace(output), ":")
+	if len(parts) == 0 {
+		return defaultPort
+	}
+
+	port := strings.TrimSpace(parts[len(parts)-1])
+	if port == "" {
+		return defaultPort
+	}
+	return port
 }
 
 func getOutput(name string, args ...string) string {
@@ -167,8 +250,8 @@ func build() {
 		os.Exit(1)
 	}
 
-	// 本地环境可选 version，其他环境必须指定
-	version := getVersion(options, env, env != "local")
+	// local 默认 1.0.0；test/production 必须显式指定 version。
+	version := getBuildVersion(options, env)
 	registry := getRegistry(env)
 	image := fmt.Sprintf("%s/server-go:%s", registry, version)
 	imageLatest := fmt.Sprintf("%s/server-go:latest", registry)
@@ -191,7 +274,7 @@ func push() {
 		os.Exit(1)
 	}
 
-	version := getVersion(options, env, env != "local")
+	version := getBuildVersion(options, env)
 	registry := getRegistry(env)
 	image := fmt.Sprintf("%s/server-go:%s", registry, version)
 	imageLatest := fmt.Sprintf("%s/server-go:latest", registry)
@@ -228,11 +311,11 @@ func deploy() {
 	// 本地环境且镜像来源是 local，自动构建
 	if env == "local" && imageSource == "local" {
 		fmt.Println("Local environment detected, building image first...")
-		version := getVersion(options, env, false)
+		version := getBuildVersion(options, env)
 		registry := getRegistry(env)
 		image := fmt.Sprintf("%s/server-go:%s", registry, version)
 		imageLatest := fmt.Sprintf("%s/server-go:latest", registry)
-		
+
 		if err := runCmd("docker", "build", "-t", image, "-t", imageLatest, "-f", "docker/Dockerfile", "."); err != nil {
 			fmt.Println("Build failed")
 			os.Exit(1)
@@ -240,10 +323,9 @@ func deploy() {
 		fmt.Printf("Build completed: %s\n", image)
 	}
 
-	// 获取版本号，默认使用 latest
-	version := "latest"
-	if v, ok := options["version"]; ok {
-		version = v
+	version := getDeployVersion(options)
+	if env == "local" && imageSource == "local" {
+		version = getBuildVersion(options, env)
 	}
 
 	// 检测当前运行的颜色
@@ -268,22 +350,48 @@ func deploy() {
 		fmt.Printf("Current active: %s, deploying to: %s\n", currentColor, targetColor)
 	}
 
-	// 启动 traefik
+	// 启动或校验 traefik 网关
 	fmt.Println("[release] [1/8] ensure traefik gateway")
-	if !strings.Contains(getOutput("docker", "ps", "--format", "{{.Names}}"), appName+"-gateway") {
-		runCmd("docker", "compose", "-f", "docker/compose/traefik.yml", "--env-file", envFile, "up", "-d")
-		time.Sleep(5 * time.Second)
+	desiredGatewayHostPort := getEnvVar(envFile, "HOST_GATEWAY_PORT", "7001")
+	gatewayRunning := gatewayExists(appName)
+	currentGatewayHostPort := getGatewayHostPort(appName, "")
+	forceReplaceGateway := forceGatewayReplace(options)
+
+	switch {
+	case !gatewayRunning:
+		if err := runCmd("docker", "compose", "-f", "docker/compose/traefik.yml", "--env-file", envFile, "up", "-d"); err != nil {
+			fmt.Println("Failed to start traefik gateway")
+			os.Exit(1)
+		}
+		time.Sleep(2 * time.Second)
+	case currentGatewayHostPort == desiredGatewayHostPort:
+		fmt.Printf("[release] gateway already aligned on host port %s\n", desiredGatewayHostPort)
+	case forceReplaceGateway:
+		fmt.Printf("[release] gateway host port mismatch: current=%s desired=%s, force replacing gateway\n", currentGatewayHostPort, desiredGatewayHostPort)
+		if err := runCmd("docker", "compose", "-f", "docker/compose/traefik.yml", "--env-file", envFile, "up", "-d", "--force-recreate"); err != nil {
+			fmt.Println("Failed to force replace traefik gateway")
+			os.Exit(1)
+		}
+		time.Sleep(2 * time.Second)
+	default:
+		fmt.Printf("ERROR: gateway host port mismatch: current=%s desired=%s\n", currentGatewayHostPort, desiredGatewayHostPort)
+		fmt.Println("Refusing to replace gateway automatically. Re-run with -f to force replace the gateway.")
+		os.Exit(1)
 	}
 
 	// 部署新颜色
 	fmt.Printf("[release] [3/8] start %s (version=%s)\n", targetColor, version)
 	composeFile := fmt.Sprintf("docker/compose/%s.yml", targetColor)
-	
+
 	// 设置镜像环境变量
 	registry := getRegistry(env)
 	os.Setenv("APP_IMAGE", fmt.Sprintf("%s/server-go:%s", registry, version))
-	
-	if err := runCmd("docker", "compose", "-f", composeFile, "--env-file", envFile, "up", "-d", "--build"); err != nil {
+
+	composeArgs := []string{"compose", "-f", composeFile, "--env-file", envFile, "up", "-d"}
+	if env == "local" && imageSource == "local" {
+		composeArgs = append(composeArgs, "--build")
+	}
+	if err := runCmd("docker", composeArgs...); err != nil {
 		fmt.Println("Deployment failed")
 		os.Exit(1)
 	}
@@ -317,23 +425,23 @@ func deploy() {
 	// 如果有旧容器，执行流量切换
 	if currentColor != "" {
 		oldContainerName := fmt.Sprintf("%s-%s-1", appName, currentColor)
-		
+
 		// 步骤 5: 调用 traffic-shift
 		fmt.Printf("[release] [5/8] http control -> %s: trigger traffic-shift, /health/lb now returns 503\n", currentColor)
 		script := `wget -q -O- --timeout=5 --post-data="" http://127.0.0.1:7001/_internal/control/traffic-shift`
 		if err := runCmd("docker", "exec", oldContainerName, "sh", "-c", script); err != nil {
 			fmt.Printf("[release] Warning: failed to call traffic-shift: %v\n", err)
 		}
-		
+
 		// 步骤 6: 确认切流完成
 		fmt.Printf("[release] [6/8] confirm gateway routes to %s (9 consecutive, timeout=30s)\n", targetColor)
-		hostPort := getEnvVar(envFile, "HOST_GATEWAY_PORT", "7001")
+		gatewayHostPort := getGatewayHostPort(appName, getEnvVar(envFile, "HOST_GATEWAY_PORT", "7001"))
 		confirmed := false
 		consecutive := 0
 		deadline := time.Now().Add(30 * time.Second)
-		
+
 		for time.Now().Before(deadline) {
-			healthURL := fmt.Sprintf("http://localhost:%s/health", hostPort)
+			healthURL := fmt.Sprintf("http://localhost:%s/health", gatewayHostPort)
 			resp, err := http.Get(healthURL)
 			if err == nil {
 				body, _ := io.ReadAll(resp.Body)
@@ -355,16 +463,16 @@ func deploy() {
 			}
 			time.Sleep(500 * time.Millisecond)
 		}
-		
+
 		if !confirmed {
 			fmt.Println("[release] Warning: cutover confirmation timeout")
 		}
-		
+
 		// 步骤 7: 排水旧容器
 		fmt.Printf("[release] [7/8] http control -> %s: reject any remaining new requests\n", currentColor)
 		script = `wget -q -O- --timeout=5 --post-data="" http://127.0.0.1:7001/_internal/control/reject-new-requests`
 		runCmd("docker", "exec", oldContainerName, "sh", "-c", script)
-		
+
 		fmt.Printf("[release] waiting %s in-flight requests (timeout=15s)\n", currentColor)
 		drainDeadline := time.Now().Add(15 * time.Second)
 		for time.Now().Before(drainDeadline) {
@@ -375,7 +483,7 @@ func deploy() {
 			}
 			time.Sleep(1 * time.Second)
 		}
-		
+
 		// 步骤 8: 停止旧容器
 		fmt.Printf("[release] [8/8] %s: remove containers\n", currentColor)
 		oldComposeFile := fmt.Sprintf("docker/compose/%s.yml", currentColor)
@@ -383,17 +491,22 @@ func deploy() {
 	}
 
 	fmt.Printf("\n[release] SUCCESS: %s now served by %s (version=%s)\n", env, targetColor, version)
-	hostPort := getEnvVar(envFile, "HOST_GATEWAY_PORT", "7001")
+	gatewayHostPort := getGatewayHostPort(appName, getEnvVar(envFile, "HOST_GATEWAY_PORT", "7001"))
 	dashboardPort := getEnvVar(envFile, "TRAEFIK_DASHBOARD_PORT", "18080")
-	fmt.Printf("Gateway: http://localhost:%s\n", hostPort)
+	fmt.Printf("Gateway: http://localhost:%s\n", gatewayHostPort)
 	fmt.Printf("Traefik Dashboard: http://localhost:%s/dashboard/\n", dashboardPort)
-	
+
 	// 清理旧镜像，只保留最近 10 个
 	cleanupOldImages()
 }
 
 func status() {
-	appName := "server-go"
+	env, _ := parseArgs()
+	envFile := ""
+	if env != "" {
+		envFile = fmt.Sprintf(".env.%s", env)
+	}
+	appName := getAppName(envFile)
 	fmt.Printf("=== Container Status ===\n\n")
 	fmt.Println("Running containers:")
 	runCmd("docker", "ps", "--filter", fmt.Sprintf("name=%s", appName), "--format", "table {{.Names}}\t{{.Status}}\t{{.Ports}}")
@@ -405,19 +518,19 @@ func status() {
 
 func cleanupOldImages() {
 	fmt.Println("\n[cleanup] Removing old images (keeping latest 10)...")
-	
+
 	output := getOutput("docker", "images", "--filter", "reference=*/server-go", "--format", "{{.ID}}|{{.Repository}}:{{.Tag}}|{{.CreatedAt}}", "--no-trunc")
 	if output == "" {
 		fmt.Println("[cleanup] No images found")
 		return
 	}
-	
+
 	lines := strings.Split(output, "\n")
 	if len(lines) <= 10 {
 		fmt.Printf("[cleanup] Found %d images, no cleanup needed\n", len(lines))
 		return
 	}
-	
+
 	toDelete := lines[10:]
 	deleted := 0
 	for _, line := range toDelete {

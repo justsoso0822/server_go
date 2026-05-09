@@ -1,12 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: template-single
+  name: server-go
 spec:
   ports:
   - port: 80
     protocol: TCP
-    targetPort: 8000
+    targetPort: 7001
   selector:
-    app: template-single
-
+    app: server-go
