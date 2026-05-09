@@ -76,7 +76,7 @@ go run cmd/deploy/main.go build production version=v1.2.3
 **构建过程：**
 1. local 默认版本号使用 `1.0.0`，也可用 version 参数覆盖
 2. test/production 必须显式传入 version 参数
-3. 使用 `docker/Dockerfile` 构建镜像
+3. 使用 `manifest/docker/Dockerfile` 构建镜像
 4. 打两个标签：指定版本号 + latest
 5. 镜像保存在本地，等待推送
 
@@ -544,10 +544,10 @@ scp deploy user@server:/path/to/server_go/
 
 ```bash
 # 查看 blue 容器日志
-docker compose -f docker/compose/blue.yml --env-file .env.test logs -f
+docker compose -f manifest/docker/compose/blue.yml --env-file .env.test logs -f
 
 # 查看 green 容器日志
-docker compose -f docker/compose/green.yml --env-file .env.test logs -f
+docker compose -f manifest/docker/compose/green.yml --env-file .env.test logs -f
 
 # 查看最近 100 行
 docker logs server-go-blue-1 --tail=100

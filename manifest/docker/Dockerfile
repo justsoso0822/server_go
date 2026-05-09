@@ -1,16 +1,15 @@
-FROM loads/alpine:3.8
+FROM golang:1.23-alpine AS build
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w" -o main .
 
-###############################################################################
-#                                  安装
-###############################################################################
-
-ENV WORKDIR                 /app
-ADD resource                $WORKDIR/
-ADD ./temp/linux_amd64/main $WORKDIR/main
-RUN chmod +x $WORKDIR/main
-
-###############################################################################
-#                                  启动
-###############################################################################
-WORKDIR $WORKDIR
-CMD ./main
+FROM alpine:3.20
+WORKDIR /app
+ENV TZ=Asia/Shanghai
+COPY --from=build /app/main .
+EXPOSE 7001
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 \
+    CMD wget -q --spider http://127.0.0.1:7001/health/ready || exit 1
+ENTRYPOINT ["./main"]

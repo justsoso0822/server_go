@@ -259,7 +259,7 @@ func build() {
 	fmt.Printf("Building for environment: %s with version: %s\n", env, version)
 	fmt.Printf("Building image: %s\n", image)
 
-	if err := runCmd("docker", "build", "-t", image, "-t", imageLatest, "-f", "docker/Dockerfile", "."); err != nil {
+	if err := runCmd("docker", "build", "-t", image, "-t", imageLatest, "-f", "manifest/docker/Dockerfile", "."); err != nil {
 		fmt.Println("Build failed")
 		os.Exit(1)
 	}
@@ -308,21 +308,6 @@ func deploy() {
 	appName := getEnvVar(envFile, "APP_NAME", "server-go")
 	imageSource := getEnvVar(envFile, "IMAGE_SOURCE", "remote")
 
-	// 本地环境且镜像来源是 local，自动构建
-	if env == "local" && imageSource == "local" {
-		fmt.Println("Local environment detected, building image first...")
-		version := getBuildVersion(options, env)
-		registry := getRegistry(env)
-		image := fmt.Sprintf("%s/server-go:%s", registry, version)
-		imageLatest := fmt.Sprintf("%s/server-go:latest", registry)
-
-		if err := runCmd("docker", "build", "-t", image, "-t", imageLatest, "-f", "docker/Dockerfile", "."); err != nil {
-			fmt.Println("Build failed")
-			os.Exit(1)
-		}
-		fmt.Printf("Build completed: %s\n", image)
-	}
-
 	version := getDeployVersion(options)
 	if env == "local" && imageSource == "local" {
 		version = getBuildVersion(options, env)
@@ -359,7 +344,7 @@ func deploy() {
 
 	switch {
 	case !gatewayRunning:
-		if err := runCmd("docker", "compose", "-f", "docker/compose/traefik.yml", "--env-file", envFile, "up", "-d"); err != nil {
+		if err := runCmd("docker", "compose", "-f", "manifest/docker/compose/traefik.yml", "--env-file", envFile, "up", "-d"); err != nil {
 			fmt.Println("Failed to start traefik gateway")
 			os.Exit(1)
 		}
@@ -368,7 +353,7 @@ func deploy() {
 		fmt.Printf("[release] gateway already aligned on host port %s\n", desiredGatewayHostPort)
 	case forceReplaceGateway:
 		fmt.Printf("[release] gateway host port mismatch: current=%s desired=%s, force replacing gateway\n", currentGatewayHostPort, desiredGatewayHostPort)
-		if err := runCmd("docker", "compose", "-f", "docker/compose/traefik.yml", "--env-file", envFile, "up", "-d", "--force-recreate"); err != nil {
+		if err := runCmd("docker", "compose", "-f", "manifest/docker/compose/traefik.yml", "--env-file", envFile, "up", "-d", "--force-recreate"); err != nil {
 			fmt.Println("Failed to force replace traefik gateway")
 			os.Exit(1)
 		}
@@ -379,9 +364,23 @@ func deploy() {
 		os.Exit(1)
 	}
 
+	// 本地环境且镜像来源是 local，在网关校验通过后再本地构建
+	if env == "local" && imageSource == "local" {
+		fmt.Println("Local environment detected, building image after gateway check...")
+		registry := getRegistry(env)
+		image := fmt.Sprintf("%s/server-go:%s", registry, version)
+		imageLatest := fmt.Sprintf("%s/server-go:latest", registry)
+
+		if err := runCmd("docker", "build", "-t", image, "-t", imageLatest, "-f", "manifest/docker/Dockerfile", "."); err != nil {
+			fmt.Println("Build failed")
+			os.Exit(1)
+		}
+		fmt.Printf("Build completed: %s\n", image)
+	}
+
 	// 部署新颜色
 	fmt.Printf("[release] [3/8] start %s (version=%s)\n", targetColor, version)
-	composeFile := fmt.Sprintf("docker/compose/%s.yml", targetColor)
+	composeFile := fmt.Sprintf("manifest/docker/compose/%s.yml", targetColor)
 
 	// 设置镜像环境变量
 	registry := getRegistry(env)
@@ -486,7 +485,7 @@ func deploy() {
 
 		// 步骤 8: 停止旧容器
 		fmt.Printf("[release] [8/8] %s: remove containers\n", currentColor)
-		oldComposeFile := fmt.Sprintf("docker/compose/%s.yml", currentColor)
+		oldComposeFile := fmt.Sprintf("manifest/docker/compose/%s.yml", currentColor)
 		runCmd("docker", "compose", "-f", oldComposeFile, "--env-file", envFile, "down")
 	}
 
@@ -549,7 +548,7 @@ func cleanupOldImages() {
 
 func startLocalDB() {
 	fmt.Println("Starting local database services...")
-	if err := runCmd("docker", "compose", "-f", "docker/compose/local.yml", "--env-file", ".env.local", "up", "-d"); err != nil {
+	if err := runCmd("docker", "compose", "-f", "manifest/docker/compose/local.yml", "--env-file", ".env.local", "up", "-d"); err != nil {
 		fmt.Println("Failed to start local database services")
 		os.Exit(1)
 	}
@@ -564,6 +563,6 @@ func startLocalDB() {
 
 func stopLocalDB() {
 	fmt.Println("Stopping local database services...")
-	runCmd("docker", "compose", "-f", "docker/compose/local.yml", "--env-file", ".env.local", "down")
+	runCmd("docker", "compose", "-f", "manifest/docker/compose/local.yml", "--env-file", ".env.local", "down")
 	fmt.Println("Local database services stopped")
 }
