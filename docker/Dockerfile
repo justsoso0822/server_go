@@ -8,7 +8,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 FROM alpine:3.20
 WORKDIR /app
 ENV TZ=Asia/Shanghai
-ENV GF_GCFG_FILE=config.local.yaml
 COPY --from=build /app/main .
 COPY manifest/config ./manifest/config
 COPY resource ./resource
