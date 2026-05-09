@@ -8,7 +8,7 @@ import (
 	"server_go/internal/dao/internal"
 )
 
-// userResDao is the data access object for the table user_res.
+// userResDao 是表 user_res 的数据访问对象。
 // You can define custom methods on it to extend its functionality as needed.
 type userResDao struct {
 	*internal.UserResDao

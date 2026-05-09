@@ -1,5 +1,5 @@
 // =================================================================================
-// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
 // =================================================================================
 
 package entity
@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// User is the golang structure for table user.
+// User 是表 user 的 Go 结构体。
 type User struct {
 	Uid      uint        `json:"uid"      orm:"uid"      description:""`
 	Platform string      `json:"platform" orm:"platform" description:""`

@@ -11,8 +11,8 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// Verify checks login_key validity and prevents replay attacks.
-// Skipped for /user/login endpoint.
+// Verify 校验 login_key 有效性并防止重放攻击。
+// 跳过 /user/login 接口。
 func Verify(r *ghttp.Request) {
 	path := r.URL.Path
 	if strings.HasSuffix(path, "/user/login") {
@@ -33,21 +33,21 @@ func Verify(r *ghttp.Request) {
 		return
 	}
 
-	// Verify login_key from database using DAO
+	// 使用 DAO 从数据库校验 login_key
 	keyVal, err := dao.UserLoginkey.Ctx(ctx).Where("uid", uid).Value("key")
 	if err != nil || keyVal.IsEmpty() || keyVal.String() != loginKey {
 		r.Response.WriteJsonExit(g.Map{"code": -1035, "msg": "Verify: 该账号已在其他地方登陆"})
 		return
 	}
 
-	// Check tick time drift (±1800 seconds)
+	// 检查 tick 时间偏移（±1800 秒）
 	now := gtime.Timestamp()
 	if math.Abs(float64(now-tick)) > 1800 {
 		r.Response.WriteJsonExit(g.Map{"code": -1035, "msg": "Verify: 时间校验失败"})
 		return
 	}
 
-	// Anti-replay via Redis
+	// 通过 Redis 防重放
 	redis := g.Redis()
 	redisKey := "replay:" + g.NewVar(uid).String() + ":" + sign
 	exists, err := redis.Do(ctx, "EXISTS", redisKey)

@@ -1,5 +1,5 @@
 // =================================================================================
-// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
 // =================================================================================
 
 package do
@@ -9,7 +9,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// LogLogin is the golang structure of table _log_login for DAO operations like Where/Data.
+// LogLogin 是表 _log_login 的 Go 结构体，用于 Where/Data 等 DAO 操作。
 type LogLogin struct {
 	g.Meta   `orm:"table:_log_login, do:true"`
 	Id       any         //

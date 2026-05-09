@@ -8,7 +8,7 @@ import (
 	"server_go/internal/dao/internal"
 )
 
-// memConfigDao is the data access object for the table mem_config.
+// memConfigDao 是表 mem_config 的数据访问对象。
 // You can define custom methods on it to extend its functionality as needed.
 type memConfigDao struct {
 	*internal.MemConfigDao

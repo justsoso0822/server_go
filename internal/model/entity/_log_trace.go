@@ -1,5 +1,5 @@
 // =================================================================================
-// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
 // =================================================================================
 
 package entity
@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// LogTrace is the golang structure for table _log_trace.
+// LogTrace 是表 _log_trace 的 Go 结构体。
 type LogTrace struct {
 	Id     int64       `json:"id"     orm:"id"     description:""`
 	Uid    int         `json:"uid"    orm:"uid"    description:""`

@@ -1,10 +1,10 @@
 // =================================================================================
-// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
 // =================================================================================
 
 package entity
 
-// UserRes is the golang structure for table user_res.
+// UserRes 是表 user_res 的 Go 结构体。
 type UserRes struct {
 	Uid      int    `json:"uid"      orm:"uid"       description:""`
 	Gold     int    `json:"gold"     orm:"gold"      description:""`

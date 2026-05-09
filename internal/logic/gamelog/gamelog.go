@@ -10,7 +10,7 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 )
 
-// TraceRes records a resource change asynchronously.
+// TraceRes 异步记录资源变化。
 func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason string) {
 	if uid == 0 {
 		return
@@ -40,7 +40,7 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 	}()
 }
 
-// Log records a message asynchronously.
+// Log 异步记录消息。
 func Log(ctx context.Context, uid int64, msg string) {
 	bgCtx := gctx.NeverDone(ctx)
 	go func() {

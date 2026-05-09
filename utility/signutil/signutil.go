@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-// BuildParams sorts params by key and concatenates them as "k1=v1&k2=v2".
-// The "sign" key is excluded.
+// BuildParams 按键名排序参数，并拼接为 "k1=v1&k2=v2"。
+// 排除 "sign" 字段。
 func BuildParams(params map[string]interface{}) string {
 	keys := make([]string, 0, len(params))
 	for k := range params {
@@ -33,7 +33,7 @@ func BuildParams(params map[string]interface{}) string {
 	return strings.Join(parts, "&")
 }
 
-// SHA256Hex computes HMAC-SHA256 and returns lowercase hex string.
+// SHA256Hex 计算 HMAC-SHA256，并返回小写十六进制字符串。
 func SHA256Hex(payload, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(payload))

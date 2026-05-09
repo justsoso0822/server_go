@@ -1,5 +1,5 @@
 
-# Install/Update to the latest CLI tool.
+# 安装/更新到最新 CLI 工具。
 .PHONY: cli
 cli:
 	@set -e; \
@@ -10,7 +10,7 @@ cli:
 	rm ./gf
 
 
-# Check and install CLI tool.
+# 检查并安装 CLI 工具。
 .PHONY: cli.install
 cli.install:
 	@set -e; \

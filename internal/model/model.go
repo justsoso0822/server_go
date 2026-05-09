@@ -6,7 +6,7 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 )
 
-// --- User ---
+// --- 用户 ---
 
 type LoginInput struct {
 	Uid      int64  `json:"uid"`
@@ -44,14 +44,14 @@ type UpdateFieldOutput struct {
 	AddValue int64           `json:"add_value"`
 }
 
-// --- Game ---
+// --- 游戏 ---
 
 type OnlineInput struct {
 	Uid     int64 `json:"uid"`
 	Seconds int64 `json:"seconds"`
 }
 
-// --- Bag ---
+// --- 背包 ---
 
 type BagInput struct {
 	Uid     int64 `json:"uid"`
@@ -64,7 +64,7 @@ type BagOutput struct {
 	Bag     gdb.Result `json:"bag"`
 }
 
-// --- Grid ---
+// --- 格子 ---
 
 type GridOutput struct {
 	Bag   *BagOutput  `json:"bag,omitempty"`
@@ -72,7 +72,7 @@ type GridOutput struct {
 	Tasks interface{} `json:"tasks,omitempty"`
 }
 
-// --- Other ---
+// --- 其他 ---
 
 type ResVersionOutput struct {
 	Code int    `json:"code"`

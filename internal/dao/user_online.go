@@ -8,7 +8,7 @@ import (
 	"server_go/internal/dao/internal"
 )
 
-// userOnlineDao is the data access object for the table user_online.
+// userOnlineDao 是表 user_online 的数据访问对象。
 // You can define custom methods on it to extend its functionality as needed.
 type userOnlineDao struct {
 	*internal.UserOnlineDao

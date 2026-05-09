@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This shell is executed before docker build.
+# 此脚本在 docker build 前执行。
 
 
 

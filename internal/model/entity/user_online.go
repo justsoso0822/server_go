@@ -1,5 +1,5 @@
 // =================================================================================
-// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
 // =================================================================================
 
 package entity
@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// UserOnline is the golang structure for table user_online.
+// UserOnline 是表 user_online 的 Go 结构体。
 type UserOnline struct {
 	Uid      int         `json:"uid"      orm:"uid"       description:""`
 	Day      *gtime.Time `json:"day"      orm:"day"       description:""`

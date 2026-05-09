@@ -8,7 +8,7 @@ import (
 	"server_go/internal/dao/internal"
 )
 
-// LogLoginDao is the data access object for the table _log_login.
+// LogLoginDao 是表 _log_login 的数据访问对象。
 // You can define custom methods on it to extend its functionality as needed.
 type LogLoginDao struct {
 	*internal.LogLoginDao

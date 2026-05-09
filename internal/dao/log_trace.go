@@ -8,7 +8,7 @@ import (
 	"server_go/internal/dao/internal"
 )
 
-// LogTraceDao is the data access object for the table _log_trace.
+// LogTraceDao 是表 _log_trace 的数据访问对象。
 // You can define custom methods on it to extend its functionality as needed.
 type LogTraceDao struct {
 	*internal.LogTraceDao

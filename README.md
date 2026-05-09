@@ -1591,7 +1591,7 @@ var (
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
 			s := g.Server()
 
-			// Game API routes
+			// 游戏接口路由
 			s.Group("/api", func(group *ghttp.RouterGroup) {
 				group.Middleware(
 					middleware.Sign,
@@ -1606,7 +1606,7 @@ var (
 				)
 			})
 
-			// Other routes (no sign/verify)
+			// 其他路由（不校验签名和登录态）
 			s.Group("/", func(group *ghttp.RouterGroup) {
 				group.Middleware(middleware.Response)
 				group.Bind(
@@ -1614,7 +1614,7 @@ var (
 				)
 			})
 
-			// Health + internal control routes (no middleware)
+			// 健康检查和内部控制路由（无中间件）
 			s.Group("/", func(group *ghttp.RouterGroup) {
 				group.Bind(
 					controller.Health,
@@ -1651,7 +1651,7 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 )
 
-// --- User ---
+// --- 用户 ---
 
 type LoginInput struct {
 	Uid      int64  `json:"uid"`
@@ -1689,14 +1689,14 @@ type UpdateFieldOutput struct {
 	AddValue int64           `json:"add_value"`
 }
 
-// --- Game ---
+// --- 游戏 ---
 
 type OnlineInput struct {
 	Uid     int64 `json:"uid"`
 	Seconds int64 `json:"seconds"`
 }
 
-// --- Bag ---
+// --- 背包 ---
 
 type BagInput struct {
 	Uid     int64 `json:"uid"`
@@ -1709,7 +1709,7 @@ type BagOutput struct {
 	Bag     gdb.Result `json:"bag"`
 }
 
-// --- Grid ---
+// --- 格子 ---
 
 type GridOutput struct {
 	Bag   *BagOutput  `json:"bag,omitempty"`
@@ -1717,7 +1717,7 @@ type GridOutput struct {
 	Tasks interface{} `json:"tasks,omitempty"`
 }
 
-// --- Other ---
+// --- 其他 ---
 
 type ResVersionOutput struct {
 	Code int    `json:"code"`
@@ -2878,7 +2878,7 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 )
 
-// TraceRes records a resource change asynchronously.
+// TraceRes 异步记录资源变化。
 func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason string) {
 	if uid == 0 {
 		return
@@ -2908,7 +2908,7 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 	}()
 }
 
-// Log records a message asynchronously.
+// Log 异步记录消息。
 func Log(ctx context.Context, uid int64, msg string) {
 	bgCtx := gctx.NeverDone(ctx)
 	go func() {
@@ -3008,14 +3008,14 @@ func (s *sUser) Login(ctx context.Context, in *model.LoginInput) (*model.LoginOu
 		}
 	}
 
-	// Log login (fire-and-forget with recover)
+	// 记录登录日志（异步执行并 recover）
 	bgCtx := gctx.NeverDone(ctx)
 	go func() {
 		defer func() { recover() }()
 		_, _ = dao.LogLogin.Ctx(bgCtx).Data(g.Map{"uid": in.Uid, "platform": in.Platform}).Insert()
 	}()
 
-	// Upsert login key
+	// 写入或更新登录密钥
 	_, err = dao.UserLoginkey.Ctx(ctx).Data(g.Map{
 		"uid": in.Uid, "key": in.LoginKey, "ver": in.Version, "time": gtime.Timestamp(),
 	}).Save()
@@ -3145,7 +3145,7 @@ func updateResField(ctx context.Context, in *model.UpdateFieldInput, field, resN
 		return nil, err
 	}
 
-	// Update the struct
+	// 更新结构体
 	switch field {
 	case "diamond":
 		res.Diamond = int(newCnt)
@@ -3163,7 +3163,7 @@ func updateResField(ctx context.Context, in *model.UpdateFieldInput, field, resN
 	return &model.UpdateFieldOutput{Res: res, AddValue: newCnt - oldCnt}, nil
 }
 
-// --- Utility ---
+// --- 工具方法 ---
 
 func ParseRes(items interface{}) []consts.ResItem {
 	switch v := items.(type) {
@@ -3188,7 +3188,7 @@ func parseResString(s string) []consts.ResItem {
 	return result
 }
 
-// PickNumbers extracts all integers from a string.
+// PickNumbers 从字符串中提取所有整数。
 func PickNumbers(s string) []int {
 	var result []int
 	current := ""

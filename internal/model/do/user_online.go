@@ -1,5 +1,5 @@
 // =================================================================================
-// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
 // =================================================================================
 
 package do
@@ -9,7 +9,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// UserOnline is the golang structure of table user_online for DAO operations like Where/Data.
+// UserOnline 是表 user_online 的 Go 结构体，用于 Where/Data 等 DAO 操作。
 type UserOnline struct {
 	g.Meta   `orm:"table:user_online, do:true"`
 	Uid      any         //

@@ -7,7 +7,7 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
-// Response writes controller return values using GoFrame's handler response lifecycle.
+// Response 使用 GoFrame 的处理器响应生命周期写入控制器返回值。
 func Response(r *ghttp.Request) {
 	r.Middleware.Next()
 

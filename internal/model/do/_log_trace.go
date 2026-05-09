@@ -1,5 +1,5 @@
 // =================================================================================
-// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
 // =================================================================================
 
 package do
@@ -9,7 +9,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// LogTrace is the golang structure of table _log_trace for DAO operations like Where/Data.
+// LogTrace 是表 _log_trace 的 Go 结构体，用于 Where/Data 等 DAO 操作。
 type LogTrace struct {
 	g.Meta `orm:"table:_log_trace, do:true"`
 	Id     any         //

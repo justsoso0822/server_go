@@ -8,7 +8,7 @@ import (
 	"server_go/internal/dao/internal"
 )
 
-// userItemDao is the data access object for the table user_item.
+// userItemDao 是表 user_item 的数据访问对象。
 // You can define custom methods on it to extend its functionality as needed.
 type userItemDao struct {
 	*internal.UserItemDao

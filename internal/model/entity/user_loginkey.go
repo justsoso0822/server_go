@@ -1,10 +1,10 @@
 // =================================================================================
-// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
 // =================================================================================
 
 package entity
 
-// UserLoginkey is the golang structure for table user_loginkey.
+// UserLoginkey 是表 user_loginkey 的 Go 结构体。
 type UserLoginkey struct {
 	Uid  int    `json:"uid"  orm:"uid"  description:""`
 	Key  string `json:"key"  orm:"key"  description:""`

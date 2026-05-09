@@ -1,10 +1,10 @@
 // =================================================================================
-// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
 // =================================================================================
 
 package entity
 
-// PrfTask is the golang structure for table prf_task.
+// PrfTask 是表 prf_task 的 Go 结构体。
 type PrfTask struct {
 	Id        int    `json:"id"        orm:"id"         description:""`
 	Ser       int    `json:"ser"       orm:"ser"        description:"对应工厂的ser"`

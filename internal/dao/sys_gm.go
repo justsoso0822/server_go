@@ -8,7 +8,7 @@ import (
 	"server_go/internal/dao/internal"
 )
 
-// sysGmDao is the data access object for the table sys_gm.
+// sysGmDao 是表 sys_gm 的数据访问对象。
 // You can define custom methods on it to extend its functionality as needed.
 type sysGmDao struct {
 	*internal.SysGmDao

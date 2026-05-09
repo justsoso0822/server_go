@@ -7,14 +7,14 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
-// Sign validates the HMAC-SHA256 signature of the request.
+// Sign 校验请求的 HMAC-SHA256 签名。
 func Sign(r *ghttp.Request) {
 	errResp := g.Map{"code": -1, "msg": "非法调用"}
 
-	// Collect all params for signature
+	// 收集所有参与签名的参数
 	params := r.GetMap()
 
-	// Get sign from params or header
+	// 从参数或请求头获取 sign
 	sign := r.Get("sign").String()
 	if sign == "" {
 		sign = r.GetHeader("x-sign")
@@ -29,7 +29,7 @@ func Sign(r *ghttp.Request) {
 
 	payload := signutil.BuildParams(params)
 
-	// Read keys from config
+	// 从配置读取密钥
 	keysVar, _ := g.Cfg().Get(r.GetCtx(), "app.keys")
 	if keysVar.IsNil() {
 		r.Response.WriteJsonExit(errResp)
