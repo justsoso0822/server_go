@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// LogLogin 是表 _log_login 的 Go 结构体。
+// LogLogin 是表 log_login 的 Go 结构体。
 type LogLogin struct {
 	Id       int         `json:"id"       orm:"id"       description:""`
 	Uid      int         `json:"uid"      orm:"uid"      description:""`

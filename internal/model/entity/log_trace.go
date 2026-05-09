@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// LogTrace 是表 _log_trace 的 Go 结构体。
+// LogTrace 是表 log_trace 的 Go 结构体。
 type LogTrace struct {
 	Id     int64       `json:"id"     orm:"id"     description:""`
 	Uid    int         `json:"uid"    orm:"uid"    description:""`

@@ -667,7 +667,7 @@ gf gen dao
 `hack/config.yaml` 中配置了这些表：
 
 ```text
-user,user_res,user_item,user_loginkey,user_bag,user_bag_tp,user_data,user_task,user_online,prf_task,mem_config,sys_gm,_log_login,_log_trace,_log_msg
+user,user_res,user_item,user_loginkey,user_bag,user_bag_tp,user_data,user_task,user_online,prf_task,mem_config,sys_gm,log_login,log_trace,log_msg
 ```
 
 ### 7.4 生成 Controller
@@ -938,7 +938,7 @@ curl "http://127.0.0.1:7001/api/user/login?uid=1001&login_key=abc&openid=test-op
 4. 如果没有用户，开启事务：
    - 插入 `user`。
    - 插入初始 `user_res`，默认金币 200、钻石 100、体力 100、等级 1。
-5. 异步写 `_log_login` 登录日志。
+5. 异步写 `log_login` 登录日志。
 6. 保存或更新 `user_loginkey`。
 7. 查询 `user_data`。
 8. 查询是否 GM。
@@ -1002,7 +1002,7 @@ GET/POST /api/user/add_diamond
 6. 如果新值小于 0，修正为 0。
 7. 更新数据库字段。
 8. 更新内存中的 `entity.UserRes`。
-9. 写资源流水日志 `_log_trace`。
+9. 写资源流水日志 `log_trace`。
 10. 返回最新资源和实际变化值。
 
 ### 12.6 记录在线时长
@@ -1223,9 +1223,9 @@ curl -H "x-control-token: your-token" http://127.0.0.1:7001/_internal/control/tr
 | prf_task | 任务配置 |
 | mem_config | 内存配置/版本配置 |
 | sys_gm | GM 用户配置 |
-| _log_login | 登录日志 |
-| _log_trace | 资源流水日志 |
-| _log_msg | 普通消息日志 |
+| log_login | 登录日志 |
+| log_trace | 资源流水日志 |
+| log_msg | 普通消息日志 |
 
 DAO 文件命名和表名基本一致，例如：
 
@@ -2929,7 +2929,7 @@ func Log(ctx context.Context, uid int64, msg string) {
 - 增加资源时类型前加 `+`，减少资源时类型前加 `-`。
 - `gctx.NeverDone(ctx)` 避免请求结束后异步日志 context 被取消。
 - goroutine 内部使用 `recover`，避免日志写入 panic 影响主流程。
-- `Log` 用于写普通消息日志 `_log_msg`。
+- `Log` 用于写普通消息日志 `log_msg`。
 
 #### `internal/logic/user/user.go`
 
@@ -3226,7 +3226,7 @@ func init() {
 - `Login` 是用户登录主流程。
 - 已存在用户时校验 `platform/openid`，防止同一 uid 被不同账号复用。
 - 新用户创建时使用事务，同时插入 `user` 和 `user_res`。
-- 登录日志异步写入 `_log_login`，不阻塞主流程。
+- 登录日志异步写入 `log_login`，不阻塞主流程。
 - `UserLoginkey.Save()` 保存当前登录 key，供 `Verify` 中间件校验。
 - `GetUserRes` 会检查跨天逻辑，如果 `DayTime` 不是今天，就重置 `day_conf` 并更新 `day_time`。
 - `updateResField` 是资源更新通用方法，负责加锁、读旧值、计算新值、更新数据库、写资源流水。

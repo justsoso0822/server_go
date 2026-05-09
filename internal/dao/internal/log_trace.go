@@ -11,15 +11,15 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// LogTraceDao 是表 _log_trace 的数据访问对象。
+// LogTraceDao is the data access object for the table log_trace.
 type LogTraceDao struct {
-	table    string             // table 是 DAO 底层表名。
-	group    string             // group 是当前 DAO 的数据库配置分组名称。
-	columns  LogTraceColumns    // columns 包含表的所有列名，便于使用。
-	handlers []gdb.ModelHandler // handlers 用于自定义模型修改。
+	table    string             // table is the underlying table name of the DAO.
+	group    string             // group is the database configuration group name of the current DAO.
+	columns  LogTraceColumns    // columns contains all the column names of Table for convenient usage.
+	handlers []gdb.ModelHandler // handlers for customized model modification.
 }
 
-// LogTraceColumns 定义并存储表 _log_trace 的列名。
+// LogTraceColumns defines and stores column names for the table log_trace.
 type LogTraceColumns struct {
 	Id     string //
 	Uid    string //
@@ -31,8 +31,8 @@ type LogTraceColumns struct {
 	Time   string //
 }
 
-// logTraceColumnsVar 保存表 _log_trace 的列信息。
-var logTraceColumnsVar = LogTraceColumns{
+// logTraceColumns holds the columns for the table log_trace.
+var logTraceColumns = LogTraceColumns{
 	Id:     "id",
 	Uid:    "uid",
 	Type:   "type",
@@ -43,37 +43,37 @@ var logTraceColumnsVar = LogTraceColumns{
 	Time:   "time",
 }
 
-// NewLogTraceDao 创建并返回用于表数据访问的新 DAO 对象。
+// NewLogTraceDao creates and returns a new DAO object for table data access.
 func NewLogTraceDao(handlers ...gdb.ModelHandler) *LogTraceDao {
 	return &LogTraceDao{
 		group:    "default",
-		table:    "_log_trace",
-		columns:  logTraceColumnsVar,
+		table:    "log_trace",
+		columns:  logTraceColumns,
 		handlers: handlers,
 	}
 }
 
-// DB 获取并返回当前 DAO 底层的原始数据库管理对象。
+// DB retrieves and returns the underlying raw database management object of the current DAO.
 func (dao *LogTraceDao) DB() gdb.DB {
 	return g.DB(dao.group)
 }
 
-// Table 返回当前 DAO 的表名。
+// Table returns the table name of the current DAO.
 func (dao *LogTraceDao) Table() string {
 	return dao.table
 }
 
-// Columns 返回当前 DAO 的所有列名。
+// Columns returns all column names of the current DAO.
 func (dao *LogTraceDao) Columns() LogTraceColumns {
 	return dao.columns
 }
 
-// Group 返回当前 DAO 的数据库配置分组名称。
+// Group returns the database configuration group name of the current DAO.
 func (dao *LogTraceDao) Group() string {
 	return dao.group
 }
 
-// Ctx 为当前 DAO 创建并返回 Model，并自动设置当前操作的上下文。
+// Ctx creates and returns a Model for the current DAO. It automatically sets the context for the current operation.
 func (dao *LogTraceDao) Ctx(ctx context.Context) *gdb.Model {
 	model := dao.DB().Model(dao.table)
 	for _, handler := range dao.handlers {
@@ -82,12 +82,12 @@ func (dao *LogTraceDao) Ctx(ctx context.Context) *gdb.Model {
 	return model.Safe().Ctx(ctx)
 }
 
-// Transaction 使用函数 f 包装事务逻辑。
-// 如果函数 f 返回非 nil 错误，则回滚事务并返回该错误。
-// 如果函数 f 返回 nil，则提交事务并返回 nil。
+// Transaction wraps the transaction logic using function f.
+// It rolls back the transaction and returns the error if function f returns a non-nil error.
+// It commits the transaction and returns nil if function f returns nil.
 //
-// 注意：不要在函数 f 中提交或回滚事务，
-// 因为本函数会自动处理。
+// Note: Do not commit or roll back the transaction in function f,
+// as it is automatically handled by this function.
 func (dao *LogTraceDao) Transaction(ctx context.Context, f func(ctx context.Context, tx gdb.TX) error) (err error) {
 	return dao.Ctx(ctx).Transaction(ctx, f)
 }

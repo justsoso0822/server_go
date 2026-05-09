@@ -11,15 +11,15 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// UserTaskDao 是表 user_task 的数据访问对象。
+// UserTaskDao is the data access object for the table user_task.
 type UserTaskDao struct {
-	table    string             // table 是 DAO 底层表名。
-	group    string             // group 是当前 DAO 的数据库配置分组名称。
-	columns  UserTaskColumns    // columns 包含表的所有列名，便于使用。
-	handlers []gdb.ModelHandler // handlers 用于自定义模型修改。
+	table    string             // table is the underlying table name of the DAO.
+	group    string             // group is the database configuration group name of the current DAO.
+	columns  UserTaskColumns    // columns contains all the column names of Table for convenient usage.
+	handlers []gdb.ModelHandler // handlers for customized model modification.
 }
 
-// UserTaskColumns 定义并存储表 user_task 的列名。
+// UserTaskColumns defines and stores column names for the table user_task.
 type UserTaskColumns struct {
 	Uid    string //
 	Taskid string //
@@ -28,7 +28,7 @@ type UserTaskColumns struct {
 	Donetm string // 完成时间
 }
 
-// userTaskColumns 保存表 user_task 的列信息。
+// userTaskColumns holds the columns for the table user_task.
 var userTaskColumns = UserTaskColumns{
 	Uid:    "uid",
 	Taskid: "taskid",
@@ -37,7 +37,7 @@ var userTaskColumns = UserTaskColumns{
 	Donetm: "donetm",
 }
 
-// NewUserTaskDao 创建并返回用于表数据访问的新 DAO 对象。
+// NewUserTaskDao creates and returns a new DAO object for table data access.
 func NewUserTaskDao(handlers ...gdb.ModelHandler) *UserTaskDao {
 	return &UserTaskDao{
 		group:    "default",
@@ -47,27 +47,27 @@ func NewUserTaskDao(handlers ...gdb.ModelHandler) *UserTaskDao {
 	}
 }
 
-// DB 获取并返回当前 DAO 底层的原始数据库管理对象。
+// DB retrieves and returns the underlying raw database management object of the current DAO.
 func (dao *UserTaskDao) DB() gdb.DB {
 	return g.DB(dao.group)
 }
 
-// Table 返回当前 DAO 的表名。
+// Table returns the table name of the current DAO.
 func (dao *UserTaskDao) Table() string {
 	return dao.table
 }
 
-// Columns 返回当前 DAO 的所有列名。
+// Columns returns all column names of the current DAO.
 func (dao *UserTaskDao) Columns() UserTaskColumns {
 	return dao.columns
 }
 
-// Group 返回当前 DAO 的数据库配置分组名称。
+// Group returns the database configuration group name of the current DAO.
 func (dao *UserTaskDao) Group() string {
 	return dao.group
 }
 
-// Ctx 为当前 DAO 创建并返回 Model，并自动设置当前操作的上下文。
+// Ctx creates and returns a Model for the current DAO. It automatically sets the context for the current operation.
 func (dao *UserTaskDao) Ctx(ctx context.Context) *gdb.Model {
 	model := dao.DB().Model(dao.table)
 	for _, handler := range dao.handlers {
@@ -76,12 +76,12 @@ func (dao *UserTaskDao) Ctx(ctx context.Context) *gdb.Model {
 	return model.Safe().Ctx(ctx)
 }
 
-// Transaction 使用函数 f 包装事务逻辑。
-// 如果函数 f 返回非 nil 错误，则回滚事务并返回该错误。
-// 如果函数 f 返回 nil，则提交事务并返回 nil。
+// Transaction wraps the transaction logic using function f.
+// It rolls back the transaction and returns the error if function f returns a non-nil error.
+// It commits the transaction and returns nil if function f returns nil.
 //
-// 注意：不要在函数 f 中提交或回滚事务，
-// 因为本函数会自动处理。
+// Note: Do not commit or roll back the transaction in function f,
+// as it is automatically handled by this function.
 func (dao *UserTaskDao) Transaction(ctx context.Context, f func(ctx context.Context, tx gdb.TX) error) (err error) {
 	return dao.Ctx(ctx).Transaction(ctx, f)
 }

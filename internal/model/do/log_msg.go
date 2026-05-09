@@ -9,15 +9,11 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// LogTrace 是表 _log_trace 的 Go 结构体，用于 Where/Data 等 DAO 操作。
-type LogTrace struct {
-	g.Meta `orm:"table:_log_trace, do:true"`
+// LogMsg 是表 log_msg 的 Go 结构体，用于 Where/Data 等 DAO 操作。
+type LogMsg struct {
+	g.Meta `orm:"table:log_msg, do:true"`
 	Id     any         //
 	Uid    any         //
-	Type   any         //
-	Num    any         //
-	Before any         //
-	After  any         //
-	Reason any         //
+	Msg    any         //
 	Time   *gtime.Time //
 }

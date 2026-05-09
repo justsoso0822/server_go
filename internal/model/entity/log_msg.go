@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// LogMsg 是表 _log_msg 的 Go 结构体。
+// LogMsg 是表 log_msg 的 Go 结构体。
 type LogMsg struct {
 	Id   int         `json:"id"   orm:"id"   description:""`
 	Uid  int         `json:"uid"  orm:"uid"  description:""`
