@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"server_go/internal/dao"
+	"server_go/internal/logic/lock"
 	"server_go/internal/model"
 	"server_go/internal/model/entity"
 	"server_go/internal/service"
@@ -26,10 +27,20 @@ func (s *sUser) Login(ctx context.Context, in *model.LoginInput) (*model.LoginOu
 		return nil, fmt.Errorf("参数错误: openid 必填")
 	}
 
+	lockKey := fmt.Sprintf("user_login:%d", in.Uid)
+	token, err := lock.Lock(ctx, lockKey)
+	if err != nil {
+		return nil, err
+	}
+	if token == "" {
+		return nil, fmt.Errorf("系统繁忙，请稍后再试")
+	}
+	defer func() { _ = lock.Unlock(ctx, lockKey, token) }()
+
 	out := &model.LoginOutput{Uid: in.Uid}
 
 	var user *entity.User
-	err := dao.User.Ctx(ctx).Where("uid", in.Uid).Scan(&user)
+	err = dao.User.Ctx(ctx).Where("uid", in.Uid).Scan(&user)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +82,7 @@ func (s *sUser) Login(ctx context.Context, in *model.LoginInput) (*model.LoginOu
 		_, _ = dao.LogLogin.Ctx(bgCtx).Data(g.Map{"uid": in.Uid, "platform": in.Platform}).Insert()
 	}()
 
-	// 写入或更新登录密钥
+	// 写入或更新登录密钥。串行化登录后，最后完成的一次登录会成为唯一有效客户端。
 	_, err = dao.UserLoginkey.Ctx(ctx).Data(g.Map{
 		"uid": in.Uid, "key": in.LoginKey, "ver": in.Version, "time": gtime.Timestamp(),
 	}).Save()

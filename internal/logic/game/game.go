@@ -2,7 +2,6 @@ package game
 
 import (
 	"context"
-	"fmt"
 
 	"server_go/internal/dao"
 	"server_go/internal/model"
@@ -20,14 +19,14 @@ func init() {
 
 func (s *sGame) Online(ctx context.Context, in *model.OnlineInput) error {
 	now := gtime.Now()
-	dayStr := fmt.Sprintf("%d-%02d-%02d, %02d:00:00", now.Year(), now.Month(), now.Day(), now.Hour())
+	dayStr := now.Format("Y-m-d, H:00:00")
 
 	row, err := dao.UserOnline.Ctx(ctx).Where("uid", in.Uid).Where("day", dayStr).One()
 	if err != nil {
 		return err
 	}
 
-	nowTime := gtime.Now().Format("Y-m-d H:i:s")
+	nowTime := now.Format("Y-m-d H:i:s")
 	seconds := in.Seconds
 	if !row.IsEmpty() {
 		seconds += row["tm_online"].Int64()

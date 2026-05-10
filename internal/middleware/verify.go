@@ -47,15 +47,18 @@ func Verify(r *ghttp.Request) {
 		return
 	}
 
-	// 通过 Redis 防重放
+	// 使用原子 SET NX EX 防重放。
 	redis := g.Redis()
 	redisKey := "replay:" + g.NewVar(uid).String() + ":" + sign
-	exists, err := redis.Do(ctx, "EXISTS", redisKey)
-	if err == nil && exists.Int() > 0 {
+	res, err := redis.Do(ctx, "SET", redisKey, "1", "EX", 300, "NX")
+	if err != nil {
+		r.Response.WriteJsonExit(g.Map{"code": -1, "msg": "Verify: 系统繁忙"})
+		return
+	}
+	if res.IsNil() || res.String() != "OK" {
 		r.Response.WriteJsonExit(g.Map{"code": -1036, "msg": "Verify: 不能重复调用"})
 		return
 	}
-	_, _ = redis.Do(ctx, "SET", redisKey, "1", "EX", 300)
 
 	r.Middleware.Next()
 }

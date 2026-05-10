@@ -33,12 +33,16 @@ func Sign(r *ghttp.Request) {
 	payload := signutil.BuildParams(params)
 
 	// 从配置读取密钥
-	keysVar, _ := g.Cfg().Get(r.GetCtx(), "app.keys")
-	if keysVar.IsNil() {
-		r.Response.WriteJsonExit(errResp)
+	keysVar, err := g.Cfg().Get(r.GetCtx(), "app.keys")
+	if err != nil || keysVar.IsNil() {
+		r.Response.WriteJsonExit(g.Map{"code": -1, "msg": "签名配置错误"})
 		return
 	}
 	keys := keysVar.Strings()
+	if len(keys) == 0 {
+		r.Response.WriteJsonExit(g.Map{"code": -1, "msg": "签名配置错误"})
+		return
+	}
 
 	pass := false
 	for _, secret := range keys {
