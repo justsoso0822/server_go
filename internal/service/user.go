@@ -3,12 +3,13 @@ package service
 import (
 	"context"
 
-	"server_go/internal/model"
 	"server_go/internal/model/entity"
+
+	"github.com/gogf/gf/v2/frame/g"
 )
 
 type IUser interface {
-	Login(ctx context.Context, in *model.LoginInput) (*model.LoginOutput, error)
+	Login(ctx context.Context, uid int64, loginKey, openid, platform, version string) (g.Map, error)
 	GetUser(ctx context.Context, uid int64) (*entity.User, error)
 	GetUserRes(ctx context.Context, uid int64) (*entity.UserRes, error)
 }

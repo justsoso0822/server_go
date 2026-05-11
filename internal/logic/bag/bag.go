@@ -4,8 +4,9 @@ import (
 	"context"
 
 	"server_go/internal/dao"
-	"server_go/internal/model"
 	"server_go/internal/service"
+
+	"github.com/gogf/gf/v2/frame/g"
 )
 
 type sBag struct{}
@@ -14,18 +15,18 @@ func init() {
 	service.RegisterBag(&sBag{})
 }
 
-func (s *sBag) GetUserBag(ctx context.Context, in *model.BagInput) (*model.BagOutput, error) {
-	rows, err := dao.UserBag.Ctx(ctx).Where("uid", in.Uid).Where("chapter", in.Chapter).All()
+func (s *sBag) GetUserBag(ctx context.Context, uid int64, chapter int) (g.Map, error) {
+	rows, err := dao.UserBag.Ctx(ctx).Where("uid", uid).Where("chapter", chapter).All()
 	if err != nil {
 		return nil, err
 	}
-	return &model.BagOutput{Uid: in.Uid, Chapter: in.Chapter, Bag: rows}, nil
+	return g.Map{"uid": uid, "chapter": chapter, "bag": rows}, nil
 }
 
-func (s *sBag) GetUserBagTp(ctx context.Context, in *model.BagInput) (*model.BagOutput, error) {
-	rows, err := dao.UserBagTp.Ctx(ctx).Where("uid", in.Uid).Where("chapter", in.Chapter).All()
+func (s *sBag) GetUserBagTp(ctx context.Context, uid int64, chapter int) (g.Map, error) {
+	rows, err := dao.UserBagTp.Ctx(ctx).Where("uid", uid).Where("chapter", chapter).All()
 	if err != nil {
 		return nil, err
 	}
-	return &model.BagOutput{Uid: in.Uid, Chapter: in.Chapter, Bag: rows}, nil
+	return g.Map{"uid": uid, "chapter": chapter, "bag": rows}, nil
 }

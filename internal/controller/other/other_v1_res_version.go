@@ -13,8 +13,8 @@ func (c *ControllerV1) ResVersion(ctx context.Context, req *v1.ResVersionReq) (r
 		return nil, err
 	}
 	return &v1.ResVersionRes{
-		Code: out.Code,
-		Ver:  out.Ver,
-		Msg:  out.Msg,
+		Code: out["code"].(int),
+		Ver:  out["ver"].(string),
+		Msg:  out["msg"].(string),
 	}, nil
 }

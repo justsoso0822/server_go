@@ -7,7 +7,6 @@ import (
 	"server_go/internal/dao"
 	"server_go/internal/logic/gamelog"
 	"server_go/internal/logic/lock"
-	"server_go/internal/model"
 	"server_go/internal/model/entity"
 	"server_go/internal/service"
 
@@ -20,28 +19,28 @@ func init() {
 	service.RegisterRes(&sRes{})
 }
 
-func (s *sRes) UpdateDiamond(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
-	return updateResField(ctx, in, "diamond", "钻石")
+func (s *sRes) UpdateDiamond(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
+	return updateResField(ctx, uid, cnt, reason, "diamond", "钻石")
 }
 
-func (s *sRes) UpdateGold(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
-	return updateResField(ctx, in, "gold", "金币")
+func (s *sRes) UpdateGold(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
+	return updateResField(ctx, uid, cnt, reason, "gold", "金币")
 }
 
-func (s *sRes) UpdateTili(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
-	return updateResField(ctx, in, "tili", "体力")
+func (s *sRes) UpdateTili(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
+	return updateResField(ctx, uid, cnt, reason, "tili", "体力")
 }
 
-func (s *sRes) UpdateExp(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
-	return updateResField(ctx, in, "exp", "经验")
+func (s *sRes) UpdateExp(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
+	return updateResField(ctx, uid, cnt, reason, "exp", "经验")
 }
 
-func (s *sRes) UpdateStar(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error) {
-	return updateResField(ctx, in, "star", "星星")
+func (s *sRes) UpdateStar(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
+	return updateResField(ctx, uid, cnt, reason, "star", "星星")
 }
 
-func updateResField(ctx context.Context, in *model.UpdateFieldInput, field, resName string) (*model.UpdateFieldOutput, error) {
-	lockKey := fmt.Sprintf("update_%s:%d", field, in.Uid)
+func updateResField(ctx context.Context, uid int64, cnt int64, reason string, field, resName string) (g.Map, error) {
+	lockKey := fmt.Sprintf("update_%s:%d", field, uid)
 	token, err := lock.Lock(ctx, lockKey)
 	if err != nil {
 		return nil, err
@@ -52,7 +51,7 @@ func updateResField(ctx context.Context, in *model.UpdateFieldInput, field, resN
 	defer func() { _ = lock.Unlock(ctx, lockKey, token) }()
 
 	var res *entity.UserRes
-	err = dao.UserRes.Ctx(ctx).Where("uid", in.Uid).Scan(&res)
+	err = dao.UserRes.Ctx(ctx).Where("uid", uid).Scan(&res)
 	if err != nil {
 		return nil, err
 	}
@@ -74,17 +73,17 @@ func updateResField(ctx context.Context, in *model.UpdateFieldInput, field, resN
 		oldCnt = int64(res.Star)
 	}
 
-	newCnt := oldCnt + in.Cnt
+	newCnt := oldCnt + cnt
 	if newCnt < 0 {
 		newCnt = 0
 	}
 	if newCnt == oldCnt {
-		return &model.UpdateFieldOutput{Res: res, AddValue: 0}, nil
+		return g.Map{"res": res, "add_value": 0}, nil
 	}
 
-	_, err = dao.UserRes.Ctx(ctx).Where("uid", in.Uid).Data(g.Map{field: newCnt}).Update()
+	_, err = dao.UserRes.Ctx(ctx).Where("uid", uid).Data(g.Map{field: newCnt}).Update()
 	if err != nil {
-		gamelog.Log(ctx, in.Uid, fmt.Sprintf("更新用户资源失败 %s %d %s %v", field, in.Cnt, in.Reason, err))
+		gamelog.Log(ctx, uid, fmt.Sprintf("更新用户资源失败 %s %d %s %v", field, cnt, reason, err))
 		return nil, err
 	}
 
@@ -101,6 +100,6 @@ func updateResField(ctx context.Context, in *model.UpdateFieldInput, field, resN
 		res.Star = int(newCnt)
 	}
 
-	gamelog.TraceRes(ctx, in.Uid, oldCnt, newCnt, resName, in.Reason)
-	return &model.UpdateFieldOutput{Res: res, AddValue: newCnt - oldCnt}, nil
+	gamelog.TraceRes(ctx, uid, oldCnt, newCnt, resName, reason)
+	return g.Map{"res": res, "add_value": newCnt - oldCnt}, nil
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"server_go/internal/dao"
-	"server_go/internal/model"
 	"server_go/internal/service"
 	"server_go/utility/secretutil"
 
@@ -18,7 +17,7 @@ func init() {
 	service.RegisterOther(&sOther{})
 }
 
-func (s *sOther) GetResVersion(ctx context.Context, key string) (*model.ResVersionOutput, error) {
+func (s *sOther) GetResVersion(ctx context.Context, key string) (g.Map, error) {
 	redis := g.Redis()
 	rkey := fmt.Sprintf("res_version.%s", key)
 
@@ -27,12 +26,12 @@ func (s *sOther) GetResVersion(ctx context.Context, key string) (*model.ResVersi
 		return nil, err
 	}
 	if exists.Int() > 0 {
-		return &model.ResVersionOutput{Code: -1036, Msg: "get_res_version: 不能重复调用"}, nil
+		return g.Map{"code": -1036, "msg": "get_res_version: 不能重复调用"}, nil
 	}
 	_, _ = redis.Do(ctx, "SET", rkey, "1", "EX", 3600)
 
 	if !secretutil.CheckSecret(key) {
-		return &model.ResVersionOutput{Code: -1, Msg: "参数错误"}, nil
+		return g.Map{"code": -1, "msg": "参数错误"}, nil
 	}
 
 	ver, err := dao.MemConfig.Ctx(ctx).Where("id", 50).Value("value")
@@ -40,5 +39,5 @@ func (s *sOther) GetResVersion(ctx context.Context, key string) (*model.ResVersi
 		return nil, err
 	}
 
-	return &model.ResVersionOutput{Code: 0, Ver: ver.String()}, nil
+	return g.Map{"code": 0, "ver": ver.String()}, nil
 }

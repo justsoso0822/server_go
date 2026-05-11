@@ -2,12 +2,10 @@ package service
 
 import (
 	"context"
-
-	"server_go/internal/model"
 )
 
 type IGame interface {
-	Online(ctx context.Context, in *model.OnlineInput) error
+	Online(ctx context.Context, uid int64, seconds int64) error
 }
 
 var localGame IGame

@@ -1,22 +1,18 @@
-// ================================================================================
-// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
-// You can delete these comments if you wish manually maintain this interface file.
-// ================================================================================
-
 package service
 
 import (
 	"context"
-	"server_go/internal/model"
+
+	"github.com/gogf/gf/v2/frame/g"
 )
 
 type (
 	IRes interface {
-		UpdateDiamond(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error)
-		UpdateGold(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error)
-		UpdateTili(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error)
-		UpdateExp(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error)
-		UpdateStar(ctx context.Context, in *model.UpdateFieldInput) (*model.UpdateFieldOutput, error)
+		UpdateDiamond(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error)
+		UpdateGold(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error)
+		UpdateTili(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error)
+		UpdateExp(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error)
+		UpdateStar(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error)
 	}
 )
 
