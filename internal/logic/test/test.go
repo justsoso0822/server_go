@@ -28,5 +28,10 @@ func (s *sTest) Index(ctx context.Context) (any, error) {
 }
 
 func (s *sTest) TestDb(ctx context.Context) (any, error) {
-	return 123, nil
+	// ret, err := g.DB().GetAll(ctx, "select * from user where uid = ?", 13081)
+	ret, err := g.DB().GetOne(ctx, "select * from user where uid = ?", 13081)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
