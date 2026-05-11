@@ -61,9 +61,9 @@ services:
 
 volumes:
     local-mysql-data:
-        name: ${APP_NAME:-server-go}-mysql-data
+        name: local-mysql-data
     local-redis-data:
-        name: ${APP_NAME:-server-go}-redis-data
+        name: local-redis-data
 
 networks:
     app-network:
