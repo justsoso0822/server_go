@@ -12,6 +12,7 @@ import (
 type (
 	ITest interface {
 		Index(ctx context.Context) (any, error)
+		TestDb(ctx context.Context) (any, error)
 	}
 )
 

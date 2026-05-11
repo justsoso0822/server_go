@@ -12,4 +12,5 @@ import (
 
 type ITestV1 interface {
 	Index(ctx context.Context, req *v1.IndexReq) (res *v1.IndexRes, err error)
+	TestDb(ctx context.Context, req *v1.TestDbReq) (res *v1.TestDbRes, err error)
 }

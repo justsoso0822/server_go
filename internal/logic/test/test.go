@@ -3,6 +3,8 @@ package test
 import (
 	"context"
 	"server_go/internal/service"
+
+	"github.com/gogf/gf/v2/frame/g"
 )
 
 type sTest struct{}
@@ -12,5 +14,19 @@ func init() {
 }
 
 func (s *sTest) Index(ctx context.Context) (any, error) {
-	return "test", nil
+	ret, err := g.Model("user u").
+		Ctx(ctx).
+		LeftJoin("log_login log", "u.uid=log.uid").
+		Fields("u.uid, u.openid, log.time").
+		Where("u.uid", 13081).
+		Order("log.time desc").
+		All()
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (s *sTest) TestDb(ctx context.Context) (any, error) {
+	return 123, nil
 }
