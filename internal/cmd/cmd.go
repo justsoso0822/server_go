@@ -16,7 +16,10 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/os/gcache"
 	"github.com/gogf/gf/v2/os/gcmd"
+
+	"server_go/utility/dbcache"
 )
 
 var (
@@ -25,6 +28,13 @@ var (
 		Usage: "main",
 		Brief: "start http server",
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
+			// 根据配置决定是否启用 ORM 查询缓存
+			if g.Cfg().MustGet(ctx, "database.default.cache").Bool() {
+				g.DB().GetCache().SetAdapter(gcache.NewAdapterRedis(g.Redis()))
+			} else {
+				g.DB().GetCache().SetAdapter(&dbcache.NoopAdapter{})
+			}
+
 			s := g.Server()
 
 			// 游戏接口路由

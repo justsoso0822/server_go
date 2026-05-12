@@ -27,6 +27,9 @@ database:
     # 是否开启 SQL 调试日志
     # 生产环境必须关闭
     debug: false
+    
+    # 启用 ORM 查询缓存
+    cache: true
 
 redis:
   default:
