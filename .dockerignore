@@ -1,0 +1,28 @@
+# Git
+.git/
+.gitattributes
+
+# IDE / tools
+.claude/
+.cursor/
+hack/
+
+# Env files (sensitive, not needed in image)
+.env.*
+
+# Logs
+stdout/
+*.log
+
+# Config files (mounted as volume at runtime)
+manifest/config/
+
+# Docker & deploy manifests (not needed in image)
+manifest/docker/
+manifest/deploy/
+
+# Dev-only commands (not the main binary)
+cmd/
+
+# Docs
+README.md
