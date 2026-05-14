@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"server_go/api/health/v1"
+	v1 "server_go/api/health/v1"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"

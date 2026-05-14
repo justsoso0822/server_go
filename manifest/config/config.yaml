@@ -18,7 +18,7 @@ server:
   gracefulTimeout: 15
   
   # 访问日志
-  logPath: "stdout"
+  # logPath: "stdout"
   logStdout: true
   accessLogEnabled: true
 
@@ -51,7 +51,7 @@ redis:
 
 logger:
   # 日志级别: debug | info | warn | error
-  level: "info"
+  level: "debug"
   
   # 输出到标准输出
   stdout: true
