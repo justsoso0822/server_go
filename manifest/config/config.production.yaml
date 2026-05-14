@@ -30,6 +30,13 @@ database:
     
     # 启用 ORM 查询缓存
     cache: true
+    
+    # 最大空闲连接数
+    maxIdle: 10
+    # 最大打开连接数，不能超过 MySQL max_connections / 实例数
+    maxOpen: 100
+    # 连接最大存活时间（秒），建议小于 MySQL wait_timeout（默认 28800）
+    maxLifetime: 3600
 
 redis:
   default:
