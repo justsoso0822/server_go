@@ -1,14 +1,14 @@
 // 蓝绿部署工具
 //
 // 部署流程：
-//   1. 确保 Traefik 网关运行
-//   2. 构建镜像（仅 local + IMAGE_SOURCE=local）
-//   3. 启动目标颜色容器（blue/green）
-//   4. 等待新容器健康检查通过
-//   5. 通知旧容器触发 traffic-shift（/health/lb 返回 503，Traefik 自动摘流）
-//   6. 轮询网关确认流量已切至新容器
-//   7. 通知旧容器拒绝新请求
-//   8. 等待旧容器排空存量请求后移除
+//  1. 确保 Traefik 网关运行
+//  2. 构建镜像（仅 local + IMAGE_SOURCE=local）
+//  3. 启动目标颜色容器（blue/green）
+//  4. 等待新容器健康检查通过
+//  5. 通知旧容器触发 traffic-shift（/health/lb 返回 503，Traefik 自动摘流）
+//  6. 轮询网关确认流量已切至新容器
+//  7. 通知旧容器拒绝新请求
+//  8. 等待旧容器排空存量请求后移除
 package main
 
 import (
@@ -18,9 +18,13 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -42,6 +46,7 @@ const (
 	defaultDockerfile            = "manifest/docker/Dockerfile"
 	defaultLocalDBComposeFile    = "manifest/docker/compose/local.yml"
 	defaultComposeDir            = "manifest/docker/compose"
+	defaultLockTimeoutMinutes    = 30
 )
 
 var registryByEnv = map[string]string{
@@ -49,6 +54,9 @@ var registryByEnv = map[string]string{
 	"test":       "ccr.ccs.tencentyun.com/justsoso-test",
 	"production": "ccr.ccs.tencentyun.com/justsoso-production",
 }
+
+// activeLockFile 记录当前持有的锁文件路径，用于异常退出时自动清理。
+var activeLockFile string
 
 type deployConfig struct {
 	Env                     string
@@ -376,9 +384,14 @@ func push() {
 
 // deploy 执行蓝绿部署：启动新颜色 -> 健康检查 -> 切流 -> 排水 -> 移除旧颜色。
 // 首次部署（无活跃容器）时跳过切流和排水步骤。
+// 通过文件锁防止同一环境的并发部署。
 func deploy() {
 	env, options := parseArgs()
 	cfg := loadDeployConfig(env, options)
+
+	acquireDeployLock(cfg.Env)
+	defer releaseDeployLock()
+	setupSignalHandler()
 
 	currentColor, targetColor := detectDeploymentColors(cfg)
 	if currentColor == "" {
@@ -415,6 +428,118 @@ func deploy() {
 	fmt.Printf("Traefik Dashboard: http://localhost:%s/dashboard/\n", cfg.DashboardPort)
 
 	cleanupOldImages(cfg)
+}
+
+// lockFilePath 返回指定环境的锁文件路径（位于项目根目录）。
+func lockFilePath(env string) string {
+	return filepath.Join(".", fmt.Sprintf(".deploy.%s.lock", env))
+}
+
+// acquireDeployLock 获取部署文件锁。
+// 如果锁已被其他进程持有且未过期，则 fatal 退出；过期锁会被自动清理。
+func acquireDeployLock(env string) {
+	lockFile := lockFilePath(env)
+
+	// 检查是否已有锁文件
+	if info, err := os.Stat(lockFile); err == nil {
+		content, readErr := os.ReadFile(lockFile)
+		if readErr == nil {
+			ownerPID, startTime := parseLockContent(string(content))
+			// 检查锁是否过期
+			if time.Since(startTime) > time.Duration(defaultLockTimeoutMinutes)*time.Minute {
+				fmt.Printf("[lock] Stale lock detected (pid=%s, started=%s), removing...\n", ownerPID, startTime.Format(time.RFC3339))
+				os.Remove(lockFile)
+			} else if isProcessAlive(ownerPID) {
+				fatalf("ERROR: Another deployment is in progress for environment '%s'\n  Lock holder: PID %s (started %s ago)\n  Lock file: %s\n\nIf you believe this is stale, delete the lock file manually:\n  rm %s",
+					env, ownerPID, time.Since(startTime).Truncate(time.Second), lockFile, lockFile)
+			} else {
+				fmt.Printf("[lock] Lock holder (pid=%s) is no longer running, removing stale lock...\n", ownerPID)
+				os.Remove(lockFile)
+			}
+		} else {
+			// 无法读取锁文件内容，检查修改时间判断是否过期
+			if time.Since(info.ModTime()) > time.Duration(defaultLockTimeoutMinutes)*time.Minute {
+				fmt.Println("[lock] Stale lock detected (unreadable, expired), removing...")
+				os.Remove(lockFile)
+			} else {
+				fatalf("ERROR: Lock file exists but cannot be read: %s\nAnother deployment may be in progress for '%s'.", lockFile, env)
+			}
+		}
+	}
+
+	// 写入锁文件
+	lockContent := fmt.Sprintf("pid=%d\nstarted=%s\n", os.Getpid(), time.Now().Format(time.RFC3339))
+	if err := os.WriteFile(lockFile, []byte(lockContent), 0644); err != nil {
+		fatalf("ERROR: Failed to create lock file %s: %v", lockFile, err)
+	}
+
+	activeLockFile = lockFile
+	fmt.Printf("[lock] Acquired deploy lock for environment '%s' (pid=%d)\n", env, os.Getpid())
+}
+
+// releaseDeployLock 释放当前持有的部署锁。
+func releaseDeployLock() {
+	if activeLockFile == "" {
+		return
+	}
+	os.Remove(activeLockFile)
+	fmt.Printf("[lock] Released deploy lock: %s\n", activeLockFile)
+	activeLockFile = ""
+}
+
+// setupSignalHandler 注册信号处理器，确保进程被中断时释放锁文件。
+// 使用 os.Interrupt 兼容 Windows 和 Unix。
+func setupSignalHandler() {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	go func() {
+		sig := <-sigCh
+		fmt.Printf("\n[lock] Caught signal %v, releasing lock...\n", sig)
+		releaseDeployLock()
+		os.Exit(1)
+	}()
+}
+
+// parseLockContent 解析锁文件内容，提取 PID 和启动时间。
+func parseLockContent(content string) (string, time.Time) {
+	pid := "unknown"
+	started := time.Time{}
+
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "pid=") {
+			pid = strings.TrimPrefix(line, "pid=")
+		} else if strings.HasPrefix(line, "started=") {
+			if t, err := time.Parse(time.RFC3339, strings.TrimPrefix(line, "started=")); err == nil {
+				started = t
+			}
+		}
+	}
+	return pid, started
+}
+
+// isProcessAlive 检查指定 PID 的进程是否仍在运行。
+// Windows 通过 tasklist 命令查询，Unix 通过 kill -0 探测。
+func isProcessAlive(pidStr string) bool {
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		return false
+	}
+
+	if runtime.GOOS == "windows" {
+		output, err := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/NH").Output()
+		if err != nil {
+			return false
+		}
+		return strings.Contains(string(output), strconv.Itoa(pid))
+	}
+
+	// Unix: 发送信号 0 探测进程是否存在
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	return process.Signal(syscall.Signal(0)) == nil
 }
 
 // buildImage 执行 docker build，注入 APP_PORT 构建参数，同时打 version 和 latest tag。
@@ -786,11 +911,13 @@ func fatalUsage(message string) {
 }
 
 // fatalf 格式化输出错误信息后以状态码 1 退出。
+// 退出前会释放部署锁（os.Exit 会跳过 defer，因此需要显式调用）。
 func fatalf(format string, args ...any) {
 	message := fmt.Sprintf(format, args...)
 	if !strings.HasSuffix(message, "\n") {
 		message += "\n"
 	}
 	fmt.Print(message)
+	releaseDeployLock()
 	os.Exit(1)
 }
