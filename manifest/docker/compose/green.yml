@@ -3,6 +3,7 @@ name: ${APP_NAME:-server-go}
 services:
     green:
         image: ${APP_IMAGE:-server-go:1.0.0}
+        container_name: ${APP_NAME:-server-go}-green
         restart: unless-stopped
         stop_grace_period: 15s
         environment:
@@ -23,7 +24,7 @@ services:
             - traefik.http.routers.${APP_NAME:-server-go}.entrypoints=web
             - "traefik.http.routers.${APP_NAME:-server-go}.rule=PathPrefix(`/`)"
             - traefik.http.routers.${APP_NAME:-server-go}.service=${APP_NAME:-server-go}
-            - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.server.port=7001
+            - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.server.port=${APP_INTERNAL_PORT:-7001}
             - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.healthcheck.path=/health/lb
             - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.healthcheck.interval=3s
             - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.healthcheck.timeout=3s

@@ -8,7 +8,7 @@ services:
         command:
             - --api=${TRAEFIK_API_ENABLED:-true}
             - --api.dashboard=${TRAEFIK_DASHBOARD_ENABLED:-true}
-            - --entrypoints.web.address=:7001
+            - --entrypoints.web.address=:${GATEWAY_INTERNAL_PORT:-7001}
             - --entrypoints.traefik.address=:8080
             - --providers.docker=true
             - --providers.docker.endpoint=unix:///var/run/docker.sock
@@ -20,7 +20,7 @@ services:
             - --log.level=INFO
             - --ping=true
         ports:
-            - '${HOST_GATEWAY_PORT:-7001}:7001'
+            - '${HOST_GATEWAY_PORT:-7001}:${GATEWAY_INTERNAL_PORT:-7001}'
             - '${TRAEFIK_DASHBOARD_PORT:-18080}:8080'
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock:ro
