@@ -1,39 +1,60 @@
+# 绿色部署槽位
+# 与 blue.yml 结构完全对称，仅颜色标识不同。
+# 网络声明为 external，依赖 traefik.yml 先创建。
 name: ${APP_NAME:-server-go}
 
 services:
     green:
+        # 由 writeReleaseEnvFile 注入实际镜像地址
         image: ${APP_IMAGE:-server-go:1.0.0}
         container_name: ${APP_NAME:-server-go}-green
         restart: unless-stopped
+        # 停止前等待 15s，配合排水超时
         stop_grace_period: 15s
         environment:
+            # 应用名称（运行时读取）
             APP_NAME: ${APP_NAME:-server-go}
+            # 部署颜色标识（/health 响应中返回）
             APP_COLOR: green
+            # 版本号（/health 响应中返回）
             APP_VERSION: ${APP_VERSION:-1.0.0}
+            # GoFrame 配置文件
             GF_GCFG_FILE: ${GF_GCFG_FILE:-config.local.yaml}
         logging:
             driver: json-file
             options:
+                # 单个日志文件最大 20MB
                 max-size: 20m
+                # 最多保留 5 个日志文件
                 max-file: '5'
         volumes:
+            # 挂载配置文件目录（只读）
             - ../../config:/app/manifest/config:ro
+        # Traefik 服务发现 label
         labels:
+            # 允许 Traefik 发现此容器
             - traefik.enable=true
             - traefik.docker.network=${APP_NAME:-server-go}-network
+            # 绑定 web 入口
             - traefik.http.routers.${APP_NAME:-server-go}.entrypoints=web
+            # 匹配所有路径
             - "traefik.http.routers.${APP_NAME:-server-go}.rule=PathPrefix(`/`)"
             - traefik.http.routers.${APP_NAME:-server-go}.service=${APP_NAME:-server-go}
             - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.server.port=${APP_INTERNAL_PORT:-7001}
+            # 健康检查路径
             - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.healthcheck.path=/health/lb
+            # 每 3s 检查一次
             - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.healthcheck.interval=3s
             - traefik.http.services.${APP_NAME:-server-go}.loadbalancer.healthcheck.timeout=3s
         networks:
             app-network:
                 aliases:
+                    # 网络别名，便于调试时直连
                     - ${APP_NAME:-server-go}-green
 
+# 引用 traefik.yml 创建的网络
 networks:
     app-network:
         name: ${APP_NAME:-server-go}-network
+        # 网络由 traefik.yml 创建和管理
         external: true

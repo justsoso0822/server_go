@@ -1,21 +1,34 @@
+# 本地开发数据库服务
+# MySQL 8.4 (宿主机端口 330 -> 容器 3306) + Redis 7.4 (宿主机端口 637 -> 容器 6379)
+# 使用非标准端口避免与宿主机已有服务冲突。
+# 数据通过 named volume 持久化，compose down 不会丢失数据（需 docker volume rm 才会删除）。
 name: ${APP_NAME:-server-go}
 
 services:
     mysql:
+        # MySQL 8.4 LTS
         image: mysql:8.4
         container_name: ${APP_NAME:-server-go}-mysql
+        # 异常退出自动重启，手动 stop 不重启
         restart: unless-stopped
         environment:
+            # 容器时区
             TZ: Asia/Shanghai
+            # root 密码（仅本地开发）
             MYSQL_ROOT_PASSWORD: root
         command:
+            # 默认字符集
             - --character-set-server=utf8mb4
+            # 默认排序规则
             - --collation-server=utf8mb4_unicode_ci
             - --sql-mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
         ports:
+            # 宿主机 330 -> 容器 3306
             - '330:3306'
         volumes:
+            # 数据持久化
             - local-mysql-data:/var/lib/mysql
+            # 初始化 SQL 脚本（首次启动执行）
             - ../mysql/init:/docker-entrypoint-initdb.d:ro
         healthcheck:
             test:
@@ -26,13 +39,16 @@ services:
             interval: 10s
             timeout: 5s
             retries: 10
+            # MySQL 初始化较慢，给 30s 启动时间
             start_period: 30s
         networks:
             app-network:
                 aliases:
+                    # 应用通过 mysql:3306 连接
                     - mysql
 
     redis:
+        # Redis 7.4 轻量版
         image: redis:7.4-alpine
         container_name: ${APP_NAME:-server-go}-redis
         restart: unless-stopped
@@ -40,13 +56,17 @@ services:
             [
                 'redis-server',
                 '--requirepass',
+                # 访问密码（仅本地开发）
                 'root',
                 '--appendonly',
+                # 开启 AOF 持久化
                 'yes',
             ]
         ports:
+            # 宿主机 637 -> 容器 6379
             - '637:6379'
         volumes:
+            # AOF/RDB 持久化目录
             - local-redis-data:/data
         healthcheck:
             test: ['CMD', 'redis-cli', '-a', 'root', 'ping']
@@ -57,14 +77,17 @@ services:
         networks:
             app-network:
                 aliases:
+                    # 应用通过 redis:6379 连接
                     - redis
 
+# 命名卷，compose down 不会删除
 volumes:
     local-mysql-data:
         name: local-mysql-data
     local-redis-data:
         name: local-redis-data
 
+# 与应用部署共享同一网络，便于本地 deploy 后应用直连数据库
 networks:
     app-network:
         name: ${APP_NAME:-server-go}-network
