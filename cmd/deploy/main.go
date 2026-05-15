@@ -13,6 +13,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -187,6 +188,10 @@ func build() {
 	env, options := parseArgs()
 	cfg := loadDeployConfig(env, options)
 
+	acquireDeployLock(cfg.Env)
+	defer releaseDeployLock()
+	setupSignalHandler()
+
 	fmt.Printf("Building for environment: %s with version: %s\n", env, cfg.Version)
 	buildImage(cfg, cfg.Version)
 	fmt.Printf("Build completed: %s\n", imageRef(cfg, cfg.Version))
@@ -196,6 +201,10 @@ func build() {
 func push() {
 	env, options := parseArgs()
 	cfg := loadDeployConfig(env, options)
+
+	acquireDeployLock(cfg.Env)
+	defer releaseDeployLock()
+	setupSignalHandler()
 
 	image := imageRef(cfg, cfg.Version)
 	imageLatest := imageRef(cfg, "latest")
@@ -253,7 +262,7 @@ func deploy() {
 	cleanupOldImages(cfg)
 }
 
-// status 显示与应用相关的容器、网络、卷的运行状态。
+// status 显示容器健康状态、镜像版本、当前活跃颜色等运行信息。
 func status() {
 	env, _ := parseArgs()
 	envFile := ""
@@ -261,12 +270,53 @@ func status() {
 		envFile = fmt.Sprintf(".env.%s", env)
 	}
 	appName := getAppName(envFile)
-	fmt.Printf("=== Container Status ===\n\n")
-	fmt.Println("Running containers:")
-	mustRun("docker", "ps", "--filter", fmt.Sprintf("name=%s", appName), "--format", "table {{.Names}}\t{{.Status}}\t{{.Ports}}")
-	fmt.Println("\nNetworks:")
+
+	fmt.Printf("=== Deploy Status ===\n")
+	if env != "" {
+		fmt.Printf("Environment: %s\n\n", env)
+	} else {
+		fmt.Println("Environment: auto-detect\n")
+	}
+
+	// 容器状态（含镜像版本）
+	fmt.Println("[Containers]")
+	mustRun("docker", "ps", "--filter", fmt.Sprintf("name=%s", appName),
+		"--format", "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}")
+
+	// 容器内 APP_VERSION / APP_COLOR
+	containerNames := getContainerNames(appName)
+	if len(containerNames) > 0 {
+		fmt.Println("\n[Versions]")
+		for _, name := range containerNames {
+			version := getContainerEnv(name, "APP_VERSION")
+			color := getContainerEnv(name, "APP_COLOR")
+			if version == "" {
+				version = "unknown"
+			}
+			if color == "" {
+				color = "-"
+			}
+			fmt.Printf("  %-30s  color=%-5s  version=%s\n", name, color, version)
+		}
+	}
+
+	// 网关路由目标
+	fmt.Println("\n[Gateway Route]")
+	gatewayPort := defaultGatewayHostPort
+	if env != "" {
+		gatewayPort = getEnvVar(fmt.Sprintf(".env.%s", env), "HOST_GATEWAY_PORT", defaultGatewayHostPort)
+	}
+	activeColor, err := gatewayActiveColorByPort(gatewayPort)
+	if err != nil {
+		fmt.Printf("  Gateway not reachable or color unknown: %v\n", err)
+	} else {
+		fmt.Printf("  Active color: %s (via http://localhost:%s/health)\n", activeColor, gatewayPort)
+	}
+
+	fmt.Println("\n[Networks]")
 	mustRun("docker", "network", "ls", "--filter", fmt.Sprintf("name=%s", appName))
-	fmt.Println("\nVolumes:")
+
+	fmt.Println("\n[Volumes]")
 	mustRun("docker", "volume", "ls", "--filter", fmt.Sprintf("name=%s", appName))
 }
 
@@ -476,7 +526,8 @@ func postControl(containerName, appPort, action string) error {
 	return runCmd("docker", "exec", containerName, "wget", "-q", "-O-", "--timeout=5", "--post-data=", url)
 }
 
-// cleanupOldImages 按创建时间降序排列本地镜像，保留最新的 N 个，删除其余。
+// cleanupOldImages 按创建时间降序排列本地镜像，保留最新的 N 个 tag，删除其余。
+// 通过完整 tag 引用（registry/name:tag）删除，避免多 tag 共享 image ID 导致的删除失败。
 func cleanupOldImages(cfg deployConfig) {
 	if cfg.KeepImages <= 0 {
 		return
@@ -484,7 +535,10 @@ func cleanupOldImages(cfg deployConfig) {
 	fmt.Printf("\n[cleanup] Removing old images (keeping latest %d)...\n", cfg.KeepImages)
 
 	reference := fmt.Sprintf("%s/%s", cfg.Registry, cfg.ImageName)
-	output, err := getOutput("docker", "images", "--filter", fmt.Sprintf("reference=%s:*", reference), "--format", "{{.ID}}|{{.Repository}}:{{.Tag}}|{{.CreatedAt}}", "--no-trunc")
+	output, err := getOutput("docker", "images",
+		"--filter", fmt.Sprintf("reference=%s:*", reference),
+		"--format", "{{.Repository}}:{{.Tag}}|{{.CreatedAt}}",
+		"--no-trunc")
 	if err != nil {
 		fmt.Printf("[cleanup] Warning: failed to list images: %v\n", err)
 		return
@@ -494,30 +548,34 @@ func cleanupOldImages(cfg deployConfig) {
 		return
 	}
 
-	lines := strings.Split(output, "\n")
-	sort.Slice(lines, func(i, j int) bool {
-		pi := strings.Split(lines[i], "|")
-		pj := strings.Split(lines[j], "|")
-		if len(pi) < 3 || len(pj) < 3 {
-			return false
+	type imageLine struct {
+		ref       string
+		createdAt string
+	}
+	var images []imageLine
+	for _, line := range strings.Split(output, "\n") {
+		parts := strings.SplitN(line, "|", 2)
+		if len(parts) == 2 {
+			images = append(images, imageLine{ref: parts[0], createdAt: parts[1]})
 		}
-		return pi[2] > pj[2]
+	}
+
+	sort.Slice(images, func(i, j int) bool {
+		return images[i].createdAt > images[j].createdAt
 	})
-	if len(lines) <= cfg.KeepImages {
-		fmt.Printf("[cleanup] Found %d images, no cleanup needed\n", len(lines))
+
+	if len(images) <= cfg.KeepImages {
+		fmt.Printf("[cleanup] Found %d images, no cleanup needed\n", len(images))
 		return
 	}
+
 	deleted := 0
-	seen := map[string]bool{}
-	for _, line := range lines[cfg.KeepImages:] {
-		parts := strings.Split(line, "|")
-		if len(parts) < 2 || seen[parts[0]] {
-			continue
-		}
-		seen[parts[0]] = true
-		if err := runCmd("docker", "rmi", parts[0]); err == nil {
-			fmt.Printf("[cleanup] Removed: %s\n", parts[1])
+	for _, img := range images[cfg.KeepImages:] {
+		if err := runCmd("docker", "rmi", img.ref); err == nil {
+			fmt.Printf("[cleanup] Removed: %s\n", img.ref)
 			deleted++
+		} else {
+			fmt.Printf("[cleanup] Warning: failed to remove %s\n", img.ref)
 		}
 	}
 	fmt.Printf("[cleanup] Cleanup complete: removed %d old images\n", deleted)
@@ -835,9 +893,21 @@ func getOutput(name string, args ...string) (string, error) {
 	}
 	return strings.TrimSpace(string(output)), nil
 }
+// healthResponse 解析 /health 接口返回的 JSON。
+type healthResponse struct {
+	Color   string `json:"color"`
+	Version string `json:"version"`
+}
+
 // gatewayActiveColor 通过网关 /health 接口解析当前活跃的部署颜色。
 func gatewayActiveColor(cfg deployConfig) (string, error) {
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%s/health", cfg.GatewayHostPort))
+	return gatewayActiveColorByPort(cfg.GatewayHostPort)
+}
+
+// gatewayActiveColorByPort 通过指定端口访问网关 /health 接口，返回活跃颜色。
+// 使用 encoding/json 反序列化，避免字符串匹配误判。
+func gatewayActiveColorByPort(port string) (string, error) {
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%s/health", port))
 	if err != nil {
 		return "", err
 	}
@@ -846,15 +916,14 @@ func gatewayActiveColor(cfg deployConfig) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	content := string(body)
-	switch {
-	case strings.Contains(content, `"color":"blue"`):
-		return "blue", nil
-	case strings.Contains(content, `"color":"green"`):
-		return "green", nil
-	default:
-		return "", fmt.Errorf("/health response does not contain deployment color: %s", strings.TrimSpace(content))
+	var hr healthResponse
+	if err := json.Unmarshal(body, &hr); err != nil {
+		return "", fmt.Errorf("parse /health response: %w", err)
 	}
+	if hr.Color == "" {
+		return "", fmt.Errorf("/health response missing color field")
+	}
+	return hr.Color, nil
 }
 
 // containerExists 检查指定名称的容器是否正在运行。
@@ -874,6 +943,24 @@ func hasLine(output, expected string) bool {
 		}
 	}
 	return false
+}
+
+// getContainerNames 返回匹配 appName 的运行中容器名称列表。
+func getContainerNames(appName string) []string {
+	output, err := getOutput("docker", "ps", "--filter", fmt.Sprintf("name=%s", appName), "--format", "{{.Names}}")
+	if err != nil || output == "" {
+		return nil
+	}
+	return strings.Split(output, "\n")
+}
+
+// getContainerEnv 从容器环境变量中读取指定 key 的值。
+func getContainerEnv(containerName, key string) string {
+	output, err := getOutput("docker", "exec", containerName, "printenv", key)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(output)
 }
 
 // gatewayContainerName 返回网关容器名称：{appName}-gateway。
