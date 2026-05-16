@@ -52,6 +52,7 @@ const (
 	defaultGoSumDB               = "sum.golang.org"
 	defaultGoPrivate             = ""
 )
+
 var registryByEnv = map[string]string{
 	"local":      "ccr.ccs.tencentyun.com/justsoso-local",
 	"test":       "ccr.ccs.tencentyun.com/justsoso-test",
@@ -113,12 +114,15 @@ func main() {
 		startLocalDB()
 	case "stop-local-db":
 		stopLocalDB()
+	case "test":
+		test()
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		printUsage()
 		os.Exit(1)
 	}
 }
+
 // printUsage 输出命令行帮助信息。
 func printUsage() {
 	fmt.Println(`Usage: go run cmd/deploy/main.go <command> <env> [options]
@@ -348,6 +352,7 @@ func stopLocalDB() {
 	mustRun("docker", "compose", "-f", cfg.LocalDBComposeFile, "--env-file", cfg.EnvFile, "down")
 	fmt.Println("Local database services stopped")
 }
+
 // ============================================================================
 // Deploy Steps
 // ============================================================================
@@ -468,6 +473,7 @@ func waitForHealthy(cfg deployConfig, color string) error {
 	fmt.Println()
 	return fmt.Errorf("%s service failed to become healthy", color)
 }
+
 // cutover 执行流量切换：通知旧容器摘流 -> 确认网关路由到新容器 -> 排水 -> 移除旧容器。
 // 任何步骤失败都会保留旧容器，避免服务中断。
 func cutover(cfg deployConfig, currentColor, targetColor string) {
@@ -519,6 +525,7 @@ func confirmCutover(cfg deployConfig, targetColor string) error {
 	}
 	return fmt.Errorf("gateway did not route to %s for %d consecutive probes before timeout", targetColor, cfg.CutoverConfirmations)
 }
+
 // waitForDrain 等待旧容器排空存量请求。
 // 通过 /health/detail 的 activeRequests 字段判断；容器不可达时视为已排空。
 func waitForDrain(containerName, appPort string, timeout time.Duration) error {
@@ -712,6 +719,7 @@ func isProcessAlive(pidStr string) bool {
 	}
 	return process.Signal(syscall.Signal(0)) == nil
 }
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -765,6 +773,7 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 		ForceGatewayReplacement: options["force"] == "true",
 	}
 }
+
 // defaultRegistry 根据环境名返回对应的腾讯云镜像仓库地址。
 func defaultRegistry(env string) string {
 	registry, ok := registryByEnv[env]
@@ -848,6 +857,7 @@ func loadEnv(envFile string) map[string]string {
 	}
 	return env
 }
+
 // cleanEnvValue 清理 env 值：去除首尾引号、行内注释（未被引号包裹时）。
 func cleanEnvValue(value string) string {
 	value = strings.TrimSpace(value)
@@ -981,6 +991,7 @@ func getOutput(name string, args ...string) (string, error) {
 	}
 	return strings.TrimSpace(string(output)), nil
 }
+
 // healthResponse 解析 /health 接口返回的 JSON。
 type healthResponse struct {
 	Color   string `json:"color"`
