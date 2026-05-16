@@ -1,7 +1,12 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func main() {
-	fmt.Println("Hello, World!")
+	str := "1001,1,1002,0"
+	parts := strings.SplitN(str, ",", -1)
+	fmt.Println(parts)
 }
