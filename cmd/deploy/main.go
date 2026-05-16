@@ -282,7 +282,7 @@ func status() {
 	if env != "" {
 		fmt.Printf("Environment: %s\n\n", env)
 	} else {
-		fmt.Println("Environment: auto-detect\n")
+		fmt.Println("Environment: auto-detect")
 	}
 
 	// 容器状态（含镜像版本）
