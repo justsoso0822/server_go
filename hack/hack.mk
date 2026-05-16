@@ -49,21 +49,6 @@ image.push: cli.install
 	@make image PUSH=-p;
 
 
-# 将镜像和 yaml 部署到当前 kubectl 环境。
-.PHONY: deploy
-deploy: cli.install
-	$(eval _TAG = $(if ${TAG},  ${TAG}, develop))
-
-	@set -e; \
-	mkdir -p $(ROOT_DIR)/temp/kustomize;\
-	cd $(ROOT_DIR)/manifest/deploy/kustomize/overlays/${_ENV};\
-	kustomize build > $(ROOT_DIR)/temp/kustomize.yaml;\
-	kubectl   apply -f $(ROOT_DIR)/temp/kustomize.yaml; \
-	if [ $(DEPLOY_NAME) != "" ]; then \
-		kubectl patch -n $(NAMESPACE) deployment/$(DEPLOY_NAME) -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"date\":\"$(shell date +%s)\"}}}}}"; \
-	fi;
-
-
 # 解析 protobuf 文件并生成 Go 文件。
 .PHONY: pb
 pb: cli.install

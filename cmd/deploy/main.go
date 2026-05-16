@@ -48,6 +48,9 @@ const (
 	defaultLocalDBComposeFile    = "manifest/docker/compose/local.yml"
 	defaultComposeDir            = "manifest/docker/compose"
 	defaultLockTimeoutMinutes    = 30
+	defaultGoProxy               = "https://proxy.golang.org,direct"
+	defaultGoSumDB               = "sum.golang.org"
+	defaultGoPrivate             = ""
 )
 var registryByEnv = map[string]string{
 	"local":      "ccr.ccs.tencentyun.com/justsoso-local",
@@ -57,6 +60,9 @@ var registryByEnv = map[string]string{
 
 // activeLockFile 记录当前持有的锁文件路径，用于异常退出时自动清理。
 var activeLockFile string
+
+// projectRootDir 缓存自动探测到的项目根目录。
+var projectRootDir string
 
 type deployConfig struct {
 	Env                     string
@@ -179,6 +185,7 @@ func parseArgs() (string, map[string]string) {
 	}
 	return env, options
 }
+
 // ============================================================================
 // Commands
 // ============================================================================
@@ -267,7 +274,7 @@ func status() {
 	env, _ := parseArgs()
 	envFile := ""
 	if env != "" {
-		envFile = fmt.Sprintf(".env.%s", env)
+		envFile = projectPath(fmt.Sprintf(".env.%s", env))
 	}
 	appName := getAppName(envFile)
 
@@ -304,7 +311,7 @@ func status() {
 	fmt.Println("\n[Gateway Route]")
 	gatewayPort := defaultGatewayHostPort
 	if env != "" {
-		gatewayPort = getEnvVar(fmt.Sprintf(".env.%s", env), "HOST_GATEWAY_PORT", defaultGatewayHostPort)
+		gatewayPort = getEnvVar(projectPath(fmt.Sprintf(".env.%s", env)), "HOST_GATEWAY_PORT", defaultGatewayHostPort)
 	}
 	activeColor, err := gatewayActiveColorByPort(gatewayPort)
 	if err != nil {
@@ -369,9 +376,20 @@ func ensureGateway(cfg deployConfig) {
 	}
 }
 
-// buildImage 执行 docker build，注入 APP_PORT 构建参数，同时打 version 和 latest tag。
+// buildImage 执行 docker build，注入 APP_PORT 和 Go 模块代理参数，同时打 version 和 latest tag。
 func buildImage(cfg deployConfig, version string) {
-	mustRun("docker", "build", "--build-arg", fmt.Sprintf("APP_PORT=%s", cfg.AppInternalPort), "-t", imageRef(cfg, version), "-t", imageRef(cfg, "latest"), "-f", cfg.Dockerfile, ".")
+	buildArgs := []string{
+		"build",
+		"--build-arg", fmt.Sprintf("APP_PORT=%s", cfg.AppInternalPort),
+		"--build-arg", fmt.Sprintf("GOPROXY=%s", getEnvWithDefault("GOPROXY", defaultGoProxy)),
+		"--build-arg", fmt.Sprintf("GOSUMDB=%s", getEnvWithDefault("GOSUMDB", defaultGoSumDB)),
+		"--build-arg", fmt.Sprintf("GOPRIVATE=%s", getEnvWithDefault("GOPRIVATE", defaultGoPrivate)),
+		"-t", imageRef(cfg, version),
+		"-t", imageRef(cfg, "latest"),
+		"-f", cfg.Dockerfile,
+		".",
+	}
+	mustRun("docker", buildArgs...)
 }
 
 // startColor 生成包含运行时变量的临时 env 文件，启动指定颜色的 compose 服务。
@@ -587,7 +605,7 @@ func cleanupOldImages(cfg deployConfig) {
 
 // lockFilePath 返回指定环境的锁文件路径（位于项目根目录）。
 func lockFilePath(env string) string {
-	return filepath.Join(".", fmt.Sprintf(".deploy.%s.lock", env))
+	return projectPath(fmt.Sprintf(".deploy.%s.lock", env))
 }
 
 // acquireDeployLock 获取部署文件锁。
@@ -706,7 +724,7 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 		fatalUsage("Error: environment required")
 	}
 
-	envFile := fmt.Sprintf(".env.%s", env)
+	envFile := projectPath(fmt.Sprintf(".env.%s", env))
 	if _, err := os.Stat(envFile); os.IsNotExist(err) {
 		fatalf("Environment file not found: %s", envFile)
 	}
@@ -740,10 +758,10 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 		CutoverConfirmations:    intConfig(envVars, "DEPLOY_CUTOVER_CONFIRMATIONS", defaultCutoverConfirmations),
 		DrainTimeout:            secondsConfig(envVars, "DEPLOY_DRAIN_TIMEOUT_SECONDS", defaultDrainTimeoutSeconds),
 		KeepImages:              intConfig(envVars, "DEPLOY_KEEP_IMAGES", defaultKeepImages),
-		TraefikComposeFile:      getConfigValue(envVars, "TRAEFIK_COMPOSE_FILE", defaultTraefikComposeFile),
-		Dockerfile:              getConfigValue(envVars, "DOCKERFILE", defaultDockerfile),
-		ComposeDir:              getConfigValue(envVars, "COMPOSE_DIR", defaultComposeDir),
-		LocalDBComposeFile:      getConfigValue(envVars, "LOCAL_DB_COMPOSE_FILE", defaultLocalDBComposeFile),
+		TraefikComposeFile:      projectPath(getConfigValue(envVars, "TRAEFIK_COMPOSE_FILE", defaultTraefikComposeFile)),
+		Dockerfile:              projectPath(getConfigValue(envVars, "DOCKERFILE", defaultDockerfile)),
+		ComposeDir:              projectPath(getConfigValue(envVars, "COMPOSE_DIR", defaultComposeDir)),
+		LocalDBComposeFile:      projectPath(getConfigValue(envVars, "LOCAL_DB_COMPOSE_FILE", defaultLocalDBComposeFile)),
 		ForceGatewayReplacement: options["force"] == "true",
 	}
 }
@@ -777,6 +795,14 @@ func getConfigValue(env map[string]string, key, defaultVal string) string {
 	}
 	if val := os.Getenv(key); strings.TrimSpace(val) != "" {
 		return strings.TrimSpace(val)
+	}
+	return defaultVal
+}
+
+// getEnvWithDefault 从系统环境读取值，未设置时返回默认值。
+func getEnvWithDefault(key, defaultVal string) string {
+	if val := strings.TrimSpace(os.Getenv(key)); val != "" {
+		return val
 	}
 	return defaultVal
 }
@@ -847,7 +873,11 @@ func getAppName(envFile string) string {
 	if envFile != "" {
 		return getEnvVar(envFile, "APP_NAME", defaultAppName)
 	}
-	for _, file := range []string{".env.local", ".env.test", ".env.production"} {
+	for _, file := range []string{
+		projectPath(".env.local"),
+		projectPath(".env.test"),
+		projectPath(".env.production"),
+	} {
 		if appName := getEnvVar(file, "APP_NAME", ""); appName != "" {
 			return appName
 		}
@@ -858,6 +888,62 @@ func getAppName(envFile string) string {
 // ============================================================================
 // Helpers
 // ============================================================================
+
+// projectRoot 返回项目根目录，允许在项目内移动脚本或从不同目录执行。
+func projectRoot() string {
+	if projectRootDir != "" {
+		return projectRootDir
+	}
+
+	candidates := make([]string, 0, 3)
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append(candidates, wd)
+	}
+	if exePath, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Dir(exePath))
+	}
+	if _, currentFile, _, ok := runtime.Caller(0); ok {
+		candidates = append(candidates, filepath.Dir(currentFile))
+	}
+
+	for _, start := range candidates {
+		if root, ok := findProjectRoot(start); ok {
+			projectRootDir = root
+			return projectRootDir
+		}
+	}
+
+	fatalf("Failed to locate project root from current working directory, executable path, or source file path")
+	return ""
+}
+
+// findProjectRoot 从起始目录向上查找项目根目录。
+func findProjectRoot(start string) (string, bool) {
+	current := start
+	for {
+		if fileExists(filepath.Join(current, "go.mod")) && fileExists(filepath.Join(current, "manifest", "docker", "Dockerfile")) {
+			return current, true
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", false
+		}
+		current = parent
+	}
+}
+
+// projectPath 将项目相对路径解析为基于项目根目录的绝对路径。
+func projectPath(parts ...string) string {
+	segments := append([]string{projectRoot()}, parts...)
+	return filepath.Join(segments...)
+}
+
+// fileExists 判断文件或目录是否存在。
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
 
 // imageRef 拼接完整镜像引用：registry/image:tag。
 func imageRef(cfg deployConfig, tag string) string {
@@ -872,6 +958,7 @@ func composeFile(cfg deployConfig, color string) string {
 // runCmd 执行外部命令，stdout/stderr 直接输出到终端。
 func runCmd(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
+	cmd.Dir = projectRoot()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -887,6 +974,7 @@ func mustRun(name string, args ...string) {
 // getOutput 执行外部命令并捕获 stdout 输出。
 func getOutput(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
+	cmd.Dir = projectRoot()
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
