@@ -28,6 +28,20 @@
       ]
     },
     {
+      "name": "Launch deploy test",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/deploy/",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "GO111MODULE": "on"
+      },
+      "args": [
+        "test"
+      ]
+    },
+    {
       "name": "Debug scratch main",
       "type": "go",
       "request": "launch",
