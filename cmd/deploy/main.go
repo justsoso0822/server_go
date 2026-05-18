@@ -620,39 +620,78 @@ func lockFilePath(env string) string {
 func acquireDeployLock(env string) {
 	lockFile := lockFilePath(env)
 
-	// 检查是否已有锁文件
-	if info, err := os.Stat(lockFile); err == nil {
-		content, readErr := os.ReadFile(lockFile)
-		if readErr == nil {
-			ownerPID, startTime := parseLockContent(string(content))
-			// 检查锁是否过期
-			if time.Since(startTime) > time.Duration(defaultLockTimeoutMinutes)*time.Minute {
-				fmt.Printf("[lock] Stale lock detected (pid=%s, started=%s), removing...\n", ownerPID, startTime.Format(time.RFC3339))
-				os.Remove(lockFile)
-			} else if isProcessAlive(ownerPID) {
-				fatalf("ERROR: Another deployment is in progress for environment '%s'\n  Lock holder: PID %s (started %s ago)\n  Lock file: %s\n\nIf you believe this is stale, delete the lock file manually:\n  rm %s",
-					env, ownerPID, time.Since(startTime).Truncate(time.Second), lockFile, lockFile)
-			} else {
-				fmt.Printf("[lock] Lock holder (pid=%s) is no longer running, removing stale lock...\n", ownerPID)
-				os.Remove(lockFile)
-			}
-		} else {
-			if time.Since(info.ModTime()) > time.Duration(defaultLockTimeoutMinutes)*time.Minute {
-				fmt.Println("[lock] Stale lock detected (unreadable, expired), removing...")
-				os.Remove(lockFile)
-			} else {
-				fatalf("ERROR: Lock file exists but cannot be read: %s\nAnother deployment may be in progress for '%s'.", lockFile, env)
-			}
+	for {
+		startedAt := time.Now()
+		if err := createDeployLockFile(lockFile, startedAt); err == nil {
+			activeLockFile = lockFile
+			fmt.Printf("[lock] Acquired deploy lock for environment '%s' (pid=%d)\n", env, os.Getpid())
+			return
+		} else if !os.IsExist(err) {
+			fatalf("ERROR: Failed to create lock file %s: %v", lockFile, err)
+		}
+
+		if !handleExistingDeployLock(env, lockFile) {
+			return
 		}
 	}
-	// 写入锁文件
-	lockContent := fmt.Sprintf("pid=%d\nstarted=%s\n", os.Getpid(), time.Now().Format(time.RFC3339))
-	if err := os.WriteFile(lockFile, []byte(lockContent), 0644); err != nil {
-		fatalf("ERROR: Failed to create lock file %s: %v", lockFile, err)
+}
+
+func createDeployLockFile(lockFile string, startedAt time.Time) error {
+	file, err := os.OpenFile(lockFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	lockContent := fmt.Sprintf("pid=%d\nstarted=%s\n", os.Getpid(), startedAt.Format(time.RFC3339))
+	if _, err := file.WriteString(lockContent); err != nil {
+		_ = os.Remove(lockFile)
+		return err
+	}
+	return nil
+}
+
+func handleExistingDeployLock(env, lockFile string) bool {
+	info, err := os.Stat(lockFile)
+	if os.IsNotExist(err) {
+		return true
+	}
+	if err != nil {
+		fatalf("ERROR: Failed to inspect lock file %s: %v", lockFile, err)
 	}
 
-	activeLockFile = lockFile
-	fmt.Printf("[lock] Acquired deploy lock for environment '%s' (pid=%d)\n", env, os.Getpid())
+	content, readErr := os.ReadFile(lockFile)
+	if readErr == nil {
+		ownerPID, startTime := parseLockContent(string(content))
+		if !startTime.IsZero() && time.Since(startTime) > time.Duration(defaultLockTimeoutMinutes)*time.Minute {
+			fmt.Printf("[lock] Stale lock detected (pid=%s, started=%s), removing...\n", ownerPID, startTime.Format(time.RFC3339))
+			if err := os.Remove(lockFile); err == nil || os.IsNotExist(err) {
+				return true
+			}
+			fatalf("ERROR: Failed to remove stale lock file %s: %v", lockFile, err)
+		}
+		if isProcessAlive(ownerPID) {
+			fatalf("ERROR: Another deployment is in progress for environment '%s'\n  Lock holder: PID %s (started %s ago)\n  Lock file: %s\n\nIf you believe this is stale, delete the lock file manually:\n  rm %s",
+				env, ownerPID, time.Since(startTime).Truncate(time.Second), lockFile, lockFile)
+		}
+
+		fmt.Printf("[lock] Lock holder (pid=%s) is no longer running, removing stale lock...\n", ownerPID)
+		if err := os.Remove(lockFile); err == nil || os.IsNotExist(err) {
+			return true
+		}
+		fatalf("ERROR: Failed to remove stale lock file %s: %v", lockFile, err)
+	}
+
+	if time.Since(info.ModTime()) > time.Duration(defaultLockTimeoutMinutes)*time.Minute {
+		fmt.Println("[lock] Stale lock detected (unreadable, expired), removing...")
+		if err := os.Remove(lockFile); err == nil || os.IsNotExist(err) {
+			return true
+		}
+		fatalf("ERROR: Failed to remove stale lock file %s: %v", lockFile, err)
+	}
+
+	fatalf("ERROR: Lock file exists but cannot be read: %s\nAnother deployment may be in progress for '%s'.", lockFile, env)
+	return false
 }
 
 // releaseDeployLock 释放当前持有的部署锁。
