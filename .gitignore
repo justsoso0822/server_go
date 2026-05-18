@@ -44,3 +44,4 @@ docker/redis/data/
 
 # Claude
 .claude
+/.claude
