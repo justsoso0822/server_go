@@ -114,8 +114,6 @@ func main() {
 		startLocalDB()
 	case "stop-local-db":
 		stopLocalDB()
-	case "test":
-		test()
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		printUsage()
