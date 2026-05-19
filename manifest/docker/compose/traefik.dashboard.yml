@@ -1,0 +1,30 @@
+# Traefik Dashboard override.
+# 部署脚本仅在 TRAEFIK_DASHBOARD_ENABLED=true 时追加此 compose 文件。
+name: ${APP_NAME:-server-go}
+
+services:
+    traefik:
+        command:
+            - --api=${TRAEFIK_API_ENABLED:-true}
+            - --api.dashboard=${TRAEFIK_DASHBOARD_ENABLED:-true}
+            - --entrypoints.web.address=:${GATEWAY_INTERNAL_PORT:-7001}
+            - --entrypoints.traefik.address=:8080
+            - --providers.docker=true
+            - --providers.docker.endpoint=unix:///var/run/docker.sock
+            - --providers.docker.exposedbydefault=false
+            - --providers.docker.network=${APP_NAME:-server-go}-network
+            - --providers.docker.constraints=Label(`traefik.enable`,`true`)
+            - --accesslog=true
+            - --accesslog.format=${TRAEFIK_ACCESSLOG_FORMAT:-json}
+            - --log.level=INFO
+            - --ping=true
+        ports:
+            - '${HOST_GATEWAY_PORT:-7001}:${GATEWAY_INTERNAL_PORT:-7001}'
+            - '${TRAEFIK_DASHBOARD_PORT:-18080}:8080'
+        labels:
+            - traefik.enable=true
+            - traefik.docker.network=${APP_NAME:-server-go}-network
+            - traefik.http.routers.${APP_NAME:-server-go}-dashboard.entrypoints=traefik
+            - "traefik.http.routers.${APP_NAME:-server-go}-dashboard.rule=PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
+            - traefik.http.routers.${APP_NAME:-server-go}-dashboard.priority=1000
+            - traefik.http.routers.${APP_NAME:-server-go}-dashboard.service=api@internal

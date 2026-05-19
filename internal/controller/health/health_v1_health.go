@@ -15,10 +15,12 @@ import (
 
 func (c *ControllerV1) Health(ctx context.Context, req *v1.HealthReq) (res *v1.HealthRes, err error) {
 	color := genv.Get("APP_COLOR", "unknown").String()
+	version := genv.Get("APP_VERSION", "unknown").String()
 
 	ghttp.RequestFromCtx(ctx).Response.WriteJson(g.Map{
 		"status":    "ok",
 		"color":     color,
+		"version":   version,
 		"pid":       os.Getpid(),
 		"uptime":    int(time.Since(startTime).Seconds()),
 		"timestamp": gtime.Now().Format("Y/m/d H:i:s"),

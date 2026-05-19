@@ -46,6 +46,7 @@ const (
 	defaultKeepImages            = 10
 	defaultImageSource           = "remote"
 	defaultTraefikComposeFile    = "manifest/docker/compose/traefik.yml"
+	defaultTraefikDashboardFile  = "manifest/docker/compose/traefik.dashboard.yml"
 	defaultDockerfile            = "manifest/docker/Dockerfile"
 	defaultLocalDBComposeFile    = "manifest/docker/compose/local.yml"
 	defaultComposeDir            = "manifest/docker/compose"
@@ -91,12 +92,14 @@ type deployConfig struct {
 	GatewayInternalPort     string
 	AppInternalPort         string
 	DashboardPort           string
+	DashboardEnabled        bool
 	HealthTimeout           time.Duration
 	CutoverTimeout          time.Duration
 	CutoverConfirmations    int
 	DrainTimeout            time.Duration
 	KeepImages              int
 	TraefikComposeFile      string
+	TraefikDashboardFile    string
 	Dockerfile              string
 	ComposeDir              string
 	LocalDBComposeFile      string
@@ -259,15 +262,15 @@ func deploy() {
 	acquireDeployLock(cfg.Env)
 	defer releaseDeployLock()
 
+	fmt.Println("[release] [1/8] ensure traefik gateway")
+	ensureGateway(cfg)
+
 	currentColor, targetColor := detectDeploymentColors(cfg)
 	if currentColor == "" {
 		fmt.Printf("No active deployment found, deploying to %s\n", targetColor)
 	} else {
 		fmt.Printf("Current active: %s, deploying to: %s\n", currentColor, targetColor)
 	}
-
-	fmt.Println("[release] [1/8] ensure traefik gateway")
-	ensureGateway(cfg)
 
 	if cfg.Env == "local" && cfg.ImageSource == "local" {
 		fmt.Println("[release] [2/8] local image source detected, building image")
@@ -290,7 +293,9 @@ func deploy() {
 
 	fmt.Printf("\n[release] SUCCESS: %s now served by %s (version=%s)\n", cfg.Env, targetColor, cfg.Version)
 	fmt.Printf("Gateway: http://localhost:%s\n", cfg.GatewayHostPort)
-	fmt.Printf("Traefik Dashboard: http://localhost:%s/dashboard/\n", cfg.DashboardPort)
+	if cfg.DashboardEnabled {
+		fmt.Printf("Traefik Dashboard: http://localhost:%s/dashboard/\n", cfg.DashboardPort)
+	}
 
 	cleanupOldImages(cfg)
 }
@@ -387,19 +392,25 @@ func ensureGateway(cfg deployConfig) {
 		fatalf("Failed to inspect gateway: %v", err)
 	}
 	currentGatewayHostPort := getGatewayHostPort(cfg)
+	currentDashboardHostPort := getContainerHostPort(gatewayContainerName(cfg.AppName), "8080")
+	args := traefikComposeArgs(cfg)
+	dashboardAligned := (!cfg.DashboardEnabled && currentDashboardHostPort == "") ||
+		(cfg.DashboardEnabled && currentDashboardHostPort == cfg.DashboardPort)
 
 	switch {
 	case !gatewayRunning:
-		mustRun("docker", "compose", "-f", cfg.TraefikComposeFile, "--env-file", cfg.EnvFile, "up", "-d")
+		mustRun("docker", append(args, "up", "-d")...)
 		waitForGatewayHealthy(cfg)
-	case currentGatewayHostPort == cfg.GatewayHostPort:
+	case currentGatewayHostPort == cfg.GatewayHostPort && dashboardAligned:
 		fmt.Printf("[release] gateway already aligned on host port %s\n", cfg.GatewayHostPort)
 	case cfg.ForceGatewayReplacement:
-		fmt.Printf("[release] gateway host port mismatch: current=%s desired=%s, force replacing gateway\n", currentGatewayHostPort, cfg.GatewayHostPort)
-		mustRun("docker", "compose", "-f", cfg.TraefikComposeFile, "--env-file", cfg.EnvFile, "up", "-d", "--force-recreate")
+		fmt.Printf("[release] gateway config mismatch: current gateway=%s dashboard=%s, desired gateway=%s dashboard=%s, force replacing gateway\n",
+			currentGatewayHostPort, displayDisabledPort(currentDashboardHostPort), cfg.GatewayHostPort, desiredDashboardPort(cfg))
+		mustRun("docker", append(args, "up", "-d", "--force-recreate")...)
 		waitForGatewayHealthy(cfg)
 	default:
-		fatalf("ERROR: gateway host port mismatch: current=%s desired=%s\nRefusing to replace gateway automatically. Re-run with -f to force replace the gateway.", currentGatewayHostPort, cfg.GatewayHostPort)
+		fatalf("ERROR: gateway config mismatch: current gateway=%s dashboard=%s, desired gateway=%s dashboard=%s\nRefusing to replace gateway automatically. Re-run with -f to force replace the gateway.",
+			currentGatewayHostPort, displayDisabledPort(currentDashboardHostPort), cfg.GatewayHostPort, desiredDashboardPort(cfg))
 	}
 }
 
@@ -447,7 +458,14 @@ func buildImage(cfg deployConfig, version string) {
 func startColor(cfg deployConfig, color string) {
 	releaseEnvFile := writeReleaseEnvFile(cfg)
 	defer os.Remove(releaseEnvFile)
-	composeArgs := []string{"compose", "-f", composeFile(cfg, color), "--env-file", releaseEnvFile, "up", "-d"}
+	composeArgs := []string{"compose", "-f", composeFile(cfg, color), "--env-file", releaseEnvFile}
+	if cfg.ImageSource == "remote" {
+		mustRun("docker", append(composeArgs, "pull")...)
+	}
+	composeArgs = append(composeArgs, "up", "-d")
+	if cfg.ImageSource == "remote" {
+		composeArgs = append(composeArgs, "--pull", "always")
+	}
 	mustRun("docker", composeArgs...)
 }
 
@@ -539,7 +557,11 @@ func cutover(cfg deployConfig, currentColor, targetColor string) {
 
 	fmt.Printf("[release] [6/8] confirm gateway routes to %s (%d consecutive, timeout=%s)\n", targetColor, cfg.CutoverConfirmations, cfg.CutoverTimeout)
 	if err := confirmCutover(cfg, targetColor); err != nil {
-		fatalf("Cutover confirmation failed: %v. Keeping old container running.", err)
+		resumeErr := postControl(oldContainerName, cfg.AppInternalPort, "resume-traffic")
+		if resumeErr != nil {
+			fatalf("Cutover confirmation failed: %v. Failed to resume old container traffic: %v. Manual intervention required.", err, resumeErr)
+		}
+		fatalf("Cutover confirmation failed: %v. Resumed old container traffic and kept it running.", err)
 	}
 
 	fmt.Printf("[release] [7/8] http control -> %s: reject any remaining new requests\n", currentColor)
@@ -562,10 +584,10 @@ func confirmCutover(cfg deployConfig, targetColor string) error {
 	confirmed := 0
 	deadline := time.Now().Add(cfg.CutoverTimeout)
 	for time.Now().Before(deadline) {
-		active, err := gatewayActiveColor(cfg)
-		if err == nil && active == targetColor {
+		health, err := gatewayHealth(cfg)
+		if err == nil && health.Color == targetColor && health.Version == cfg.Version {
 			confirmed++
-			fmt.Printf("[release] gateway -> %s (%d/%d)\n", targetColor, confirmed, cfg.CutoverConfirmations)
+			fmt.Printf("[release] gateway -> %s version=%s (%d/%d)\n", targetColor, health.Version, confirmed, cfg.CutoverConfirmations)
 			if confirmed >= cfg.CutoverConfirmations {
 				fmt.Printf("[release] cutover confirmed: all sampled traffic is on %s\n", targetColor)
 				return nil
@@ -576,7 +598,7 @@ func confirmCutover(cfg deployConfig, targetColor string) error {
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("gateway did not route to %s for %d consecutive probes before timeout", targetColor, cfg.CutoverConfirmations)
+	return fmt.Errorf("gateway did not route to %s version=%s for %d consecutive probes before timeout", targetColor, cfg.Version, cfg.CutoverConfirmations)
 }
 
 // waitForDrain 等待旧容器排空存量请求。
@@ -589,7 +611,13 @@ func waitForDrain(containerName, appPort string, timeout time.Duration) error {
 			fmt.Printf("[release] %s: container unreachable, treating as drained\n", containerName)
 			return nil
 		}
-		if strings.Contains(output, `"activeRequests":0`) {
+		var detail struct {
+			ActiveRequests int64 `json:"activeRequests"`
+		}
+		if err := json.Unmarshal([]byte(output), &detail); err != nil {
+			return fmt.Errorf("parse %s /health/detail response: %w", containerName, err)
+		}
+		if detail.ActiveRequests == 0 {
 			fmt.Printf("[release] %s: no in-flight requests\n", containerName)
 			return nil
 		}
@@ -892,6 +920,7 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 	envVars := loadEnv(envFile)
 	registry := getConfigValue(envVars, "IMAGE_REGISTRY", defaultRegistry(env))
 	imageSource := getConfigValue(envVars, "IMAGE_SOURCE", defaultImageSource)
+	dashboardEnabled := boolConfig(envVars, "TRAEFIK_DASHBOARD_ENABLED", env == "local")
 
 	version := getVersion(options, env)
 
@@ -907,12 +936,14 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 		GatewayInternalPort:     getConfigValue(envVars, "GATEWAY_INTERNAL_PORT", defaultGatewayInternalPort),
 		AppInternalPort:         getConfigValue(envVars, "APP_INTERNAL_PORT", defaultAppInternalPort),
 		DashboardPort:           getConfigValue(envVars, "TRAEFIK_DASHBOARD_PORT", defaultDashboardPort),
+		DashboardEnabled:        dashboardEnabled,
 		HealthTimeout:           secondsConfig(envVars, "DEPLOY_HEALTH_TIMEOUT_SECONDS", defaultHealthTimeoutSeconds),
 		CutoverTimeout:          secondsConfig(envVars, "DEPLOY_CUTOVER_TIMEOUT_SECONDS", defaultCutoverTimeoutSeconds),
 		CutoverConfirmations:    intConfig(envVars, "DEPLOY_CUTOVER_CONFIRMATIONS", defaultCutoverConfirmations),
 		DrainTimeout:            secondsConfig(envVars, "DEPLOY_DRAIN_TIMEOUT_SECONDS", defaultDrainTimeoutSeconds),
 		KeepImages:              intConfig(envVars, "DEPLOY_KEEP_IMAGES", defaultKeepImages),
 		TraefikComposeFile:      projectPath(getConfigValue(envVars, "TRAEFIK_COMPOSE_FILE", defaultTraefikComposeFile)),
+		TraefikDashboardFile:    projectPath(getConfigValue(envVars, "TRAEFIK_DASHBOARD_COMPOSE_FILE", defaultTraefikDashboardFile)),
 		Dockerfile:              projectPath(getConfigValue(envVars, "DOCKERFILE", defaultDockerfile)),
 		ComposeDir:              projectPath(getConfigValue(envVars, "COMPOSE_DIR", defaultComposeDir)),
 		LocalDBComposeFile:      projectPath(getConfigValue(envVars, "LOCAL_DB_COMPOSE_FILE", defaultLocalDBComposeFile)),
@@ -977,6 +1008,27 @@ func intConfig(env map[string]string, key string, defaultVal int) int {
 		fatalf("Invalid %s=%q, expected positive integer", key, value)
 	}
 	return parsed
+}
+
+// boolConfig 读取布尔配置值，支持 true/false、1/0、yes/no、on/off。
+func boolConfig(env map[string]string, key string, defaultVal bool) bool {
+	value := getConfigValue(env, key, "")
+	if value == "" {
+		return defaultVal
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err == nil {
+		return parsed
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "yes", "on":
+		return true
+	case "no", "off":
+		return false
+	default:
+		fatalf("Invalid %s=%q, expected boolean", key, value)
+		return false
+	}
 }
 
 // loadEnv 解析 .env 文件，支持 # 注释、引号包裹值、export 前缀。
@@ -1114,6 +1166,15 @@ func composeFile(cfg deployConfig, color string) string {
 	return fmt.Sprintf("%s/%s.yml", strings.TrimRight(cfg.ComposeDir, "/\\"), color)
 }
 
+// traefikComposeArgs 返回 Traefik compose 基础参数；Dashboard 仅在显式开启时挂载端口和路由。
+func traefikComposeArgs(cfg deployConfig) []string {
+	args := []string{"compose", "-f", cfg.TraefikComposeFile}
+	if cfg.DashboardEnabled {
+		args = append(args, "-f", cfg.TraefikDashboardFile)
+	}
+	return append(args, "--env-file", cfg.EnvFile)
+}
+
 // runCmd 执行外部命令，stdout/stderr 直接输出到终端。
 // 同时把当前 *exec.Cmd 注册为全局 currentChild，便于信号处理器中断时转发信号给子进程。
 func runCmd(name string, args ...string) error {
@@ -1171,30 +1232,49 @@ type healthResponse struct {
 
 // gatewayActiveColor 通过网关 /health 接口解析当前活跃的部署颜色。
 func gatewayActiveColor(cfg deployConfig) (string, error) {
-	return gatewayActiveColorByPort(cfg.GatewayHostPort)
+	health, err := gatewayHealth(cfg)
+	if err != nil {
+		return "", err
+	}
+	return health.Color, nil
 }
 
 // gatewayActiveColorByPort 通过指定端口访问网关 /health 接口，返回活跃颜色。
 // 使用 encoding/json 反序列化，避免字符串匹配误判；通过带超时的 httpClient 防止
 // 网关挂死时无限阻塞 confirmCutover 的轮询循环。
 func gatewayActiveColorByPort(port string) (string, error) {
-	resp, err := httpClient.Get(fmt.Sprintf("http://localhost:%s/health", port))
+	health, err := gatewayHealthByPort(port)
 	if err != nil {
 		return "", err
 	}
+	return health.Color, nil
+}
+
+func gatewayHealth(cfg deployConfig) (healthResponse, error) {
+	return gatewayHealthByPort(cfg.GatewayHostPort)
+}
+
+func gatewayHealthByPort(port string) (healthResponse, error) {
+	resp, err := httpClient.Get(fmt.Sprintf("http://localhost:%s/health", port))
+	if err != nil {
+		return healthResponse{}, err
+	}
 	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return healthResponse{}, fmt.Errorf("/health returned HTTP %d", resp.StatusCode)
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return healthResponse{}, err
 	}
 	var hr healthResponse
 	if err := json.Unmarshal(body, &hr); err != nil {
-		return "", fmt.Errorf("parse /health response: %w", err)
+		return healthResponse{}, fmt.Errorf("parse /health response: %w", err)
 	}
 	if hr.Color == "" {
-		return "", fmt.Errorf("/health response missing color field")
+		return healthResponse{}, fmt.Errorf("/health response missing color field")
 	}
-	return hr.Color, nil
+	return hr, nil
 }
 
 // containerExists 检查指定名称的容器是否正在运行。
@@ -1259,7 +1339,11 @@ func oppositeColor(color string) string {
 
 // getGatewayHostPort 通过 docker port 查询网关容器实际映射的宿主机端口。
 func getGatewayHostPort(cfg deployConfig) string {
-	output, err := getOutput("docker", "port", gatewayContainerName(cfg.AppName), fmt.Sprintf("%s/tcp", cfg.GatewayInternalPort))
+	return getContainerHostPort(gatewayContainerName(cfg.AppName), cfg.GatewayInternalPort)
+}
+
+func getContainerHostPort(containerName, containerPort string) string {
+	output, err := getOutput("docker", "port", containerName, fmt.Sprintf("%s/tcp", containerPort))
 	if err != nil || output == "" {
 		return ""
 	}
@@ -1268,6 +1352,22 @@ func getGatewayHostPort(cfg deployConfig) string {
 		return ""
 	}
 	return strings.TrimSpace(parts[len(parts)-1])
+}
+
+// desiredDashboardPort 返回期望的 Dashboard 端口展示值，用于网关配置差异提示。
+func desiredDashboardPort(cfg deployConfig) string {
+	if !cfg.DashboardEnabled {
+		return "disabled"
+	}
+	return cfg.DashboardPort
+}
+
+// displayDisabledPort 将空端口展示为 disabled，用于网关配置差异提示。
+func displayDisabledPort(port string) string {
+	if port == "" {
+		return "disabled"
+	}
+	return port
 }
 
 // ============================================================================

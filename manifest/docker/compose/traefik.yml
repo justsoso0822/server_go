@@ -1,6 +1,7 @@
-# Traefik 反向代理网关
+# Traefik 反向代理网关。
 # 职责：接收外部流量，根据 Docker label 自动发现后端服务并路由。
 # 蓝绿部署中通过 Traefik 的健康检查（/health/lb）自动摘除不健康的后端。
+# Dashboard 端口和 api@internal 路由在 traefik.dashboard.yml 中按需开启。
 # 网络：创建 app-network，blue/green 容器以 external 方式加入。
 name: ${APP_NAME:-server-go}
 
@@ -11,14 +12,11 @@ services:
         container_name: ${APP_NAME:-server-go}-gateway
         restart: unless-stopped
         command:
-            # 启用 API（dashboard 依赖）
-            - --api=${TRAEFIK_API_ENABLED:-true}
-            # 启用 Web Dashboard
-            - --api.dashboard=${TRAEFIK_DASHBOARD_ENABLED:-true}
+            # Dashboard/API 默认关闭，避免非本地环境暴露或占用 8080/18080
+            - --api=false
+            - --api.dashboard=false
             # 业务流量入口
             - --entrypoints.web.address=:${GATEWAY_INTERNAL_PORT:-7001}
-            # Dashboard/API 入口
-            - --entrypoints.traefik.address=:8080
             # 启用 Docker 服务发现
             - --providers.docker=true
             - --providers.docker.endpoint=unix:///var/run/docker.sock
@@ -36,8 +34,6 @@ services:
         ports:
             # 业务流量端口映射
             - '${HOST_GATEWAY_PORT:-7001}:${GATEWAY_INTERNAL_PORT:-7001}'
-            # Dashboard 端口映射
-            - '${TRAEFIK_DASHBOARD_PORT:-18080}:8080'
         volumes:
             # Docker socket（只读，用于服务发现）
             - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -55,14 +51,9 @@ services:
             timeout: 3s
             retries: 5
             start_period: 10s
-        # Dashboard 路由配置（通过 label 自注册）
         labels:
             - traefik.enable=true
             - traefik.docker.network=${APP_NAME:-server-go}-network
-            - traefik.http.routers.${APP_NAME:-server-go}-dashboard.entrypoints=traefik
-            - "traefik.http.routers.${APP_NAME:-server-go}-dashboard.rule=PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
-            - traefik.http.routers.${APP_NAME:-server-go}-dashboard.priority=1000
-            - traefik.http.routers.${APP_NAME:-server-go}-dashboard.service=api@internal
         networks:
             - app-network
 
