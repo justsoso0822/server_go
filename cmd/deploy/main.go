@@ -892,6 +892,10 @@ func loadEnv(envFile string) map[string]string {
 			env[strings.TrimSpace(parts[0])] = cleanEnvValue(parts[1])
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		file.Close()
+		fatalf("Failed to read env file %s: %v", envFile, err)
+	}
 	return env
 }
 
