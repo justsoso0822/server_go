@@ -41,6 +41,8 @@ docker/redis/data/
 
 # Deploy lock files
 .deploy.*.lock
+# Deploy 临时 env 文件目录
+.deploy.tmp/
 
 # Claude
 .claude
