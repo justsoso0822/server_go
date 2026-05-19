@@ -918,25 +918,20 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 	}
 
 	envVars := loadEnv(envFile)
-	registry := getConfigValue(envVars, "IMAGE_REGISTRY", defaultRegistry(env))
-	imageSource := getConfigValue(envVars, "IMAGE_SOURCE", defaultImageSource)
-	dashboardEnabled := boolConfig(envVars, "TRAEFIK_DASHBOARD_ENABLED", env == "local")
-
-	version := getVersion(options, env)
 
 	return deployConfig{
 		Env:                     env,
 		EnvFile:                 envFile,
 		AppName:                 getConfigValue(envVars, "APP_NAME", defaultAppName),
 		ImageName:               getConfigValue(envVars, "IMAGE_NAME", defaultImageName),
-		ImageSource:             imageSource,
-		Registry:                registry,
-		Version:                 version,
+		ImageSource:             getConfigValue(envVars, "IMAGE_SOURCE", defaultImageSource),
+		Registry:                getConfigValue(envVars, "IMAGE_REGISTRY", defaultRegistry(env)),
+		Version:                 getVersion(options, env),
 		GatewayHostPort:         getConfigValue(envVars, "HOST_GATEWAY_PORT", defaultGatewayHostPort),
 		GatewayInternalPort:     getConfigValue(envVars, "GATEWAY_INTERNAL_PORT", defaultGatewayInternalPort),
 		AppInternalPort:         getConfigValue(envVars, "APP_INTERNAL_PORT", defaultAppInternalPort),
 		DashboardPort:           getConfigValue(envVars, "TRAEFIK_DASHBOARD_PORT", defaultDashboardPort),
-		DashboardEnabled:        dashboardEnabled,
+		DashboardEnabled:        boolConfig(envVars, "TRAEFIK_DASHBOARD_ENABLED", env == "local"),
 		HealthTimeout:           secondsConfig(envVars, "DEPLOY_HEALTH_TIMEOUT_SECONDS", defaultHealthTimeoutSeconds),
 		CutoverTimeout:          secondsConfig(envVars, "DEPLOY_CUTOVER_TIMEOUT_SECONDS", defaultCutoverTimeoutSeconds),
 		CutoverConfirmations:    intConfig(envVars, "DEPLOY_CUTOVER_CONFIRMATIONS", defaultCutoverConfirmations),
