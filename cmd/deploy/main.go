@@ -463,9 +463,6 @@ func startColor(cfg deployConfig, color string) {
 		mustRun("docker", append(composeArgs, "pull")...)
 	}
 	composeArgs = append(composeArgs, "up", "-d")
-	if cfg.ImageSource == "remote" {
-		composeArgs = append(composeArgs, "--pull", "always")
-	}
 	mustRun("docker", composeArgs...)
 }
 
