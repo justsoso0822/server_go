@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"os"
+	"strings"
 
 	bagController "server_go/internal/controller/bag"
 	controlController "server_go/internal/controller/control"
@@ -36,6 +38,9 @@ var (
 			}
 
 			s := g.Server()
+			if appPort := strings.TrimSpace(os.Getenv("APP_PORT")); appPort != "" {
+				s.SetAddr(":" + strings.TrimPrefix(appPort, ":"))
+			}
 
 			// 游戏接口路由
 			s.Group("/api", func(group *ghttp.RouterGroup) {

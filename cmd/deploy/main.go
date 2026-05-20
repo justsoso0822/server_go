@@ -37,7 +37,7 @@ const (
 	defaultLocalVersion          = "1.0.0"
 	defaultGatewayHostPort       = "7001"
 	defaultGatewayInternalPort   = "7001"
-	defaultAppInternalPort       = "7001"
+	defaultAppPort               = "7001"
 	defaultDashboardPort         = "18080"
 	defaultHealthTimeoutSeconds  = 60
 	defaultCutoverTimeoutSeconds = 30
@@ -64,7 +64,10 @@ var registryByEnv = map[string]string{
 }
 
 // activeLockFile 记录当前持有的锁文件路径，用于异常退出时自动清理。
-var activeLockFile string
+var (
+	activeLockFile   string
+	activeLockFileMu sync.Mutex
+)
 
 // projectRootDir 缓存自动探测到的项目根目录。
 var projectRootDir string
@@ -88,7 +91,7 @@ type deployConfig struct {
 	Version                 string
 	GatewayHostPort         string
 	GatewayInternalPort     string
-	AppInternalPort         string
+	AppPort                 string
 	DashboardPort           string
 	DashboardEnabled        bool
 	HealthTimeout           time.Duration
@@ -165,7 +168,7 @@ Common config from .env.<env>:
   IMAGE_SOURCE                     local 或 remote
   HOST_GATEWAY_PORT                网关宿主机端口
   GATEWAY_INTERNAL_PORT            Traefik 容器内入口端口
-  APP_INTERNAL_PORT                应用容器内 HTTP 端口
+  APP_PORT                         应用容器内 HTTP 端口
   DEPLOY_HEALTH_TIMEOUT_SECONDS    新实例健康检查超时
   DEPLOY_CUTOVER_TIMEOUT_SECONDS   切流确认超时
   DEPLOY_CUTOVER_CONFIRMATIONS     连续命中新颜色次数
@@ -363,7 +366,9 @@ func startLocalDB() {
 	mustRun("docker", "compose", "-f", cfg.LocalDBComposeFile, "--env-file", cfg.EnvFile, "up", "-d")
 
 	fmt.Println("Local database services started:")
+	// 330:3306 宿主机端口:容器端口
 	fmt.Println("  MySQL: 127.0.0.1:330")
+	// 637:6379 宿主机端口:容器端口
 	fmt.Println("  Redis: 127.0.0.1:637")
 	fmt.Println("")
 	fmt.Println("You can now run the application with:")
@@ -440,7 +445,7 @@ func waitForGatewayHealthy(cfg deployConfig) {
 func buildImage(cfg deployConfig, version string) {
 	buildArgs := []string{
 		"build",
-		"--build-arg", fmt.Sprintf("APP_PORT=%s", cfg.AppInternalPort),
+		"--build-arg", fmt.Sprintf("APP_PORT=%s", cfg.AppPort),
 		"--build-arg", fmt.Sprintf("GOPROXY=%s", getEnvWithDefault("GOPROXY", defaultGoProxy)),
 		"--build-arg", fmt.Sprintf("GOSUMDB=%s", getEnvWithDefault("GOSUMDB", defaultGoSumDB)),
 		"--build-arg", fmt.Sprintf("GOPRIVATE=%s", getEnvWithDefault("GOPRIVATE", defaultGoPrivate)),
@@ -487,7 +492,7 @@ func writeReleaseEnvFile(cfg deployConfig) string {
 	if _, err := file.Write(content); err != nil {
 		fatalf("Failed to write release env file: %v", err)
 	}
-	if _, err := fmt.Fprintf(file, "\nAPP_IMAGE=%s\nAPP_VERSION=%s\nAPP_INTERNAL_PORT=%s\nGATEWAY_INTERNAL_PORT=%s\n", formatImageName(cfg, cfg.Version), cfg.Version, cfg.AppInternalPort, cfg.GatewayInternalPort); err != nil {
+	if _, err := fmt.Fprintf(file, "\nAPP_IMAGE=%s\nAPP_VERSION=%s\nAPP_PORT=%s\nGATEWAY_INTERNAL_PORT=%s\n", formatImageName(cfg, cfg.Version), cfg.Version, cfg.AppPort, cfg.GatewayInternalPort); err != nil {
 		fatalf("Failed to append release env values: %v", err)
 	}
 	return file.Name()
@@ -546,13 +551,13 @@ func cutover(cfg deployConfig, currentColor, targetColor string) {
 	oldContainerName := colorContainerName(cfg.AppName, currentColor)
 
 	fmt.Printf("[release] [5/8] http control -> %s: trigger traffic-shift, /health/lb now returns 503\n", currentColor)
-	if err := postControl(oldContainerName, cfg.AppInternalPort, "traffic-shift"); err != nil {
+	if err := postControl(oldContainerName, cfg.AppPort, "traffic-shift"); err != nil {
 		fatalf("Failed to call traffic-shift on %s: %v. Keeping old container running.", currentColor, err)
 	}
 
 	fmt.Printf("[release] [6/8] confirm gateway routes to %s (%d consecutive, timeout=%s)\n", targetColor, cfg.CutoverConfirmations, cfg.CutoverTimeout)
 	if err := confirmCutover(cfg, targetColor); err != nil {
-		resumeErr := postControl(oldContainerName, cfg.AppInternalPort, "resume-traffic")
+		resumeErr := postControl(oldContainerName, cfg.AppPort, "resume-traffic")
 		if resumeErr != nil {
 			fatalf("Cutover confirmation failed: %v. Failed to resume old container traffic: %v. Manual intervention required.", err, resumeErr)
 		}
@@ -560,12 +565,12 @@ func cutover(cfg deployConfig, currentColor, targetColor string) {
 	}
 
 	fmt.Printf("[release] [7/8] http control -> %s: reject any remaining new requests\n", currentColor)
-	if err := postControl(oldContainerName, cfg.AppInternalPort, "reject-new-requests"); err != nil {
+	if err := postControl(oldContainerName, cfg.AppPort, "reject-new-requests"); err != nil {
 		fatalf("Failed to reject new requests on %s: %v. Keeping old container running.", currentColor, err)
 	}
 
 	fmt.Printf("[release] waiting %s in-flight requests (timeout=%s)\n", currentColor, cfg.DrainTimeout)
-	if err := waitForDrain(oldContainerName, cfg.AppInternalPort, cfg.DrainTimeout); err != nil {
+	if err := waitForDrain(oldContainerName, cfg.AppPort, cfg.DrainTimeout); err != nil {
 		fatalf("Drain failed: %v. Keeping old container running.", err)
 	}
 
@@ -728,17 +733,23 @@ func acquireDeployLock(env string) {
 
 	for {
 		startedAt := time.Now()
-		if err := createDeployLockFile(lockFile, startedAt); err == nil {
+		err := createDeployLockFile(lockFile, startedAt)
+		if err == nil {
+			activeLockFileMu.Lock()
 			activeLockFile = lockFile
+			activeLockFileMu.Unlock()
 			fmt.Printf("[lock] Acquired deploy lock for environment '%s' (pid=%d)\n", env, os.Getpid())
 			return
-		} else if !os.IsExist(err) {
-			fatalf("ERROR: Failed to create lock file %s: %v", lockFile, err)
 		}
 
-		// 锁已存在：要么 handleExistingDeployLock 清理掉 stale 锁后下一轮重试成功，
-		// 要么 fatal 退出。函数返回即代表"已清理，可重试"。
-		handleExistingDeployLock(env, lockFile)
+		if os.IsExist(err) {
+			// 锁已存在：要么 handleExistingDeployLock 清理掉 stale 锁后重试，
+			// 要么它会直接 fatal 退出。函数返回即代表"已清理，可继续重试"。
+			handleExistingDeployLock(env, lockFile)
+			continue
+		}
+
+		fatalf("ERROR: Failed to create lock file %s: %v", lockFile, err)
 	}
 }
 
@@ -749,9 +760,9 @@ func createDeployLockFile(lockFile string, startedAt time.Time) error {
 	}
 	defer file.Close()
 
-	lockContent := fmt.Sprintf("pid=%d\nstarted=%s\n", os.Getpid(), startedAt.Format(time.RFC3339))
+	lockContent := fmt.Sprintf("pid=%d\nstarted=%s\n", os.Getpid(), startedAt.Format(time.DateTime))
 	if _, err := file.WriteString(lockContent); err != nil {
-		_ = os.Remove(lockFile)
+		os.Remove(lockFile)
 		return err
 	}
 	return nil
@@ -772,7 +783,7 @@ func handleExistingDeployLock(env, lockFile string) {
 	if readErr == nil {
 		ownerPID, startTime := parseLockContent(string(content))
 		if !startTime.IsZero() && time.Since(startTime) > time.Duration(defaultLockTimeoutMinutes)*time.Minute {
-			fmt.Printf("[lock] Stale lock detected (pid=%s, started=%s), removing...\n", ownerPID, startTime.Format(time.RFC3339))
+			fmt.Printf("[lock] Stale lock detected (pid=%s, started=%s), removing...\n", ownerPID, startTime.Format(time.DateTime))
 			if err := os.Remove(lockFile); err == nil || os.IsNotExist(err) {
 				return
 			}
@@ -803,12 +814,18 @@ func handleExistingDeployLock(env, lockFile string) {
 
 // releaseDeployLock 释放当前持有的部署锁。
 func releaseDeployLock() {
-	if activeLockFile == "" {
+	activeLockFileMu.Lock()
+	lockFile := activeLockFile
+	activeLockFile = ""
+	activeLockFileMu.Unlock()
+	if lockFile == "" {
 		return
 	}
-	os.Remove(activeLockFile)
-	fmt.Printf("[lock] Released deploy lock: %s\n", activeLockFile)
-	activeLockFile = ""
+	if err := os.Remove(lockFile); err != nil {
+		fmt.Printf("[lock] Warning: Failed to remove lock file %s: %v\n", lockFile, err)
+		return
+	}
+	fmt.Printf("[lock] Released deploy lock: %s\n", lockFile)
 }
 
 // setupSignalHandler 注册信号处理器，确保进程被中断时优雅终止子进程并释放锁文件。
@@ -852,7 +869,7 @@ func parseLockContent(content string) (string, time.Time) {
 		if strings.HasPrefix(line, "pid=") {
 			pid = strings.TrimPrefix(line, "pid=")
 		} else if strings.HasPrefix(line, "started=") {
-			if t, err := time.Parse(time.RFC3339, strings.TrimPrefix(line, "started=")); err == nil {
+			if t, err := time.ParseInLocation(time.DateTime, strings.TrimPrefix(line, "started="), time.Local); err == nil {
 				started = t
 			}
 		}
@@ -877,11 +894,13 @@ func isProcessAlive(pidStr string) bool {
 		if err != nil || len(output) == 0 {
 			return false
 		}
-		expected := fmt.Sprintf(`"%d"`, pid)
 		for _, line := range strings.Split(string(output), "\n") {
 			fields := strings.Split(line, ",")
-			if len(fields) >= 2 && strings.TrimSpace(fields[1]) == expected {
-				return true
+			if len(fields) >= 2 {
+				pidField := strings.Trim(strings.TrimSpace(fields[1]), `"`)
+				if pidField == strconv.Itoa(pid) {
+					return true
+				}
 			}
 		}
 		return false
@@ -924,7 +943,7 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 		Version:                 getVersion(options, env),
 		GatewayHostPort:         resolveConfig(envVars, "HOST_GATEWAY_PORT", defaultGatewayHostPort),
 		GatewayInternalPort:     resolveConfig(envVars, "GATEWAY_INTERNAL_PORT", defaultGatewayInternalPort),
-		AppInternalPort:         resolveConfig(envVars, "APP_INTERNAL_PORT", defaultAppInternalPort),
+		AppPort:                 resolveConfig(envVars, "APP_PORT", defaultAppPort),
 		DashboardPort:           resolveConfig(envVars, "TRAEFIK_DASHBOARD_PORT", defaultDashboardPort),
 		DashboardEnabled:        boolConfig(envVars, "TRAEFIK_DASHBOARD_ENABLED", env == "local"),
 		HealthTimeout:           secondsConfig(envVars, "DEPLOY_HEALTH_TIMEOUT_SECONDS", defaultHealthTimeoutSeconds),
