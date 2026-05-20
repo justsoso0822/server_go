@@ -54,9 +54,7 @@ const (
 	defaultGoProxy               = "https://proxy.golang.org,direct"
 	defaultGoSumDB               = "sum.golang.org"
 	defaultGoPrivate             = ""
-	// defaultGetOutputTimeout 是 getOutput 的默认超时，覆盖 docker ps / docker port /
-	// docker inspect 等查询命令；docker 偶发挂死时避免无限阻塞部署流程。
-	defaultGetOutputTimeout = 60 * time.Second
+	defaultGetOutputTimeout      = 60 * time.Second
 )
 
 var registryByEnv = map[string]string{
@@ -147,7 +145,7 @@ func printUsage() {
 Commands:
   build <env> [version=xxx]         构建镜像
   push <env> [version=xxx]          推送镜像
-  deploy <env> [version=xxx] [-f]   部署（蓝绿切换，关键失败会保留旧实例）
+  deploy <env> [version=xxx] [-f]   部署（蓝绿切换，构建失败会保留旧实例）
   status [env]                      查看容器状态
   start-local-db                    启动本地数据库
   stop-local-db                     停止本地数据库
@@ -919,26 +917,26 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 	return deployConfig{
 		Env:                     env,
 		EnvFile:                 envFile,
-		AppName:                 getConfigValue(envVars, "APP_NAME", defaultAppName),
-		ImageName:               getConfigValue(envVars, "IMAGE_NAME", defaultImageName),
-		ImageSource:             getConfigValue(envVars, "IMAGE_SOURCE", defaultImageSource),
-		Registry:                getConfigValue(envVars, "IMAGE_REGISTRY", defaultRegistry(env)),
+		AppName:                 resolveConfig(envVars, "APP_NAME", defaultAppName),
+		ImageName:               resolveConfig(envVars, "IMAGE_NAME", defaultImageName),
+		ImageSource:             resolveConfig(envVars, "IMAGE_SOURCE", defaultImageSource),
+		Registry:                resolveConfig(envVars, "IMAGE_REGISTRY", defaultRegistry(env)),
 		Version:                 getVersion(options, env),
-		GatewayHostPort:         getConfigValue(envVars, "HOST_GATEWAY_PORT", defaultGatewayHostPort),
-		GatewayInternalPort:     getConfigValue(envVars, "GATEWAY_INTERNAL_PORT", defaultGatewayInternalPort),
-		AppInternalPort:         getConfigValue(envVars, "APP_INTERNAL_PORT", defaultAppInternalPort),
-		DashboardPort:           getConfigValue(envVars, "TRAEFIK_DASHBOARD_PORT", defaultDashboardPort),
+		GatewayHostPort:         resolveConfig(envVars, "HOST_GATEWAY_PORT", defaultGatewayHostPort),
+		GatewayInternalPort:     resolveConfig(envVars, "GATEWAY_INTERNAL_PORT", defaultGatewayInternalPort),
+		AppInternalPort:         resolveConfig(envVars, "APP_INTERNAL_PORT", defaultAppInternalPort),
+		DashboardPort:           resolveConfig(envVars, "TRAEFIK_DASHBOARD_PORT", defaultDashboardPort),
 		DashboardEnabled:        boolConfig(envVars, "TRAEFIK_DASHBOARD_ENABLED", env == "local"),
 		HealthTimeout:           secondsConfig(envVars, "DEPLOY_HEALTH_TIMEOUT_SECONDS", defaultHealthTimeoutSeconds),
 		CutoverTimeout:          secondsConfig(envVars, "DEPLOY_CUTOVER_TIMEOUT_SECONDS", defaultCutoverTimeoutSeconds),
 		CutoverConfirmations:    intConfig(envVars, "DEPLOY_CUTOVER_CONFIRMATIONS", defaultCutoverConfirmations),
 		DrainTimeout:            secondsConfig(envVars, "DEPLOY_DRAIN_TIMEOUT_SECONDS", defaultDrainTimeoutSeconds),
 		KeepImages:              intConfig(envVars, "DEPLOY_KEEP_IMAGES", defaultKeepImages),
-		TraefikComposeFile:      projectPath(getConfigValue(envVars, "TRAEFIK_COMPOSE_FILE", defaultTraefikComposeFile)),
-		TraefikDashboardFile:    projectPath(getConfigValue(envVars, "TRAEFIK_DASHBOARD_COMPOSE_FILE", defaultTraefikDashboardFile)),
-		Dockerfile:              projectPath(getConfigValue(envVars, "DOCKERFILE", defaultDockerfile)),
-		ComposeDir:              projectPath(getConfigValue(envVars, "COMPOSE_DIR", defaultComposeDir)),
-		LocalDBComposeFile:      projectPath(getConfigValue(envVars, "LOCAL_DB_COMPOSE_FILE", defaultLocalDBComposeFile)),
+		TraefikComposeFile:      projectPath(resolveConfig(envVars, "TRAEFIK_COMPOSE_FILE", defaultTraefikComposeFile)),
+		TraefikDashboardFile:    projectPath(resolveConfig(envVars, "TRAEFIK_DASHBOARD_COMPOSE_FILE", defaultTraefikDashboardFile)),
+		Dockerfile:              projectPath(resolveConfig(envVars, "DOCKERFILE", defaultDockerfile)),
+		ComposeDir:              projectPath(resolveConfig(envVars, "COMPOSE_DIR", defaultComposeDir)),
+		LocalDBComposeFile:      projectPath(resolveConfig(envVars, "LOCAL_DB_COMPOSE_FILE", defaultLocalDBComposeFile)),
 		ForceGatewayReplacement: options["force"] == "true",
 	}
 }
@@ -965,9 +963,9 @@ func getVersion(options map[string]string, env string) string {
 	return ""
 }
 
-// getConfigValue 按优先级获取配置值：env 文件 > 系统环境变量 > 默认值。
-func getConfigValue(env map[string]string, key, defaultVal string) string {
-	if val, ok := env[key]; ok && strings.TrimSpace(val) != "" {
+// resolveConfig 按优先级获取配置值：env 文件 > 系统环境变量 > 默认值。
+func resolveConfig(fileVars map[string]string, key, defaultVal string) string {
+	if val, ok := fileVars[key]; ok && strings.TrimSpace(val) != "" {
 		return strings.TrimSpace(val)
 	}
 	if val := os.Getenv(key); strings.TrimSpace(val) != "" {
@@ -985,13 +983,13 @@ func getEnvWithDefault(key, defaultVal string) string {
 }
 
 // secondsConfig 读取整数配置并转换为 time.Duration（秒）。
-func secondsConfig(env map[string]string, key string, defaultVal int) time.Duration {
-	return time.Duration(intConfig(env, key, defaultVal)) * time.Second
+func secondsConfig(fileVars map[string]string, key string, defaultVal int) time.Duration {
+	return time.Duration(intConfig(fileVars, key, defaultVal)) * time.Second
 }
 
 // intConfig 读取正整数配置值，无效值时 fatal 退出。
-func intConfig(env map[string]string, key string, defaultVal int) int {
-	value := getConfigValue(env, key, "")
+func intConfig(fileVars map[string]string, key string, defaultVal int) int {
+	value := resolveConfig(fileVars, key, "")
 	if value == "" {
 		return defaultVal
 	}
@@ -1003,8 +1001,8 @@ func intConfig(env map[string]string, key string, defaultVal int) int {
 }
 
 // boolConfig 读取布尔配置值，支持 true/false、1/0、yes/no、on/off。
-func boolConfig(env map[string]string, key string, defaultVal bool) bool {
-	value := getConfigValue(env, key, "")
+func boolConfig(fileVars map[string]string, key string, defaultVal bool) bool {
+	value := resolveConfig(fileVars, key, "")
 	if value == "" {
 		return defaultVal
 	}
@@ -1068,7 +1066,7 @@ func cleanEnvValue(value string) string {
 
 // getEnvVar 从指定 env 文件中读取单个配置值的便捷方法。
 func getEnvVar(envFile, key, defaultVal string) string {
-	return getConfigValue(loadEnv(envFile), key, defaultVal)
+	return resolveConfig(loadEnv(envFile), key, defaultVal)
 }
 
 // getAppName 从 env 文件中获取应用名称，未指定环境时依次尝试 local/test/production。
