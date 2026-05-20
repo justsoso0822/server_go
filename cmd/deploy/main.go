@@ -501,11 +501,11 @@ func writeReleaseEnvFile(cfg deployConfig) string {
 // detectDeploymentColors 检测当前活跃颜色和目标部署颜色。
 // 双容器同时运行时通过网关 /health 响应判断活跃方。
 func detectDeploymentColors(cfg deployConfig) (string, string) {
-	blueRunning, err := containerExists(colorContainerName(cfg.AppName, "blue"))
+	blueRunning, err := containerExists(appContainerName(cfg.AppName, "blue"))
 	if err != nil {
 		fatalf("Failed to inspect blue container: %v", err)
 	}
-	greenRunning, err := containerExists(colorContainerName(cfg.AppName, "green"))
+	greenRunning, err := containerExists(appContainerName(cfg.AppName, "green"))
 	if err != nil {
 		fatalf("Failed to inspect green container: %v", err)
 	}
@@ -530,11 +530,11 @@ func detectDeploymentColors(cfg deployConfig) (string, string) {
 func waitForHealthy(cfg deployConfig, color string) error {
 	deadline := time.Now().Add(cfg.HealthTimeout)
 	for time.Now().Before(deadline) {
-		output, err := getOutput("docker", "ps", "--filter", fmt.Sprintf("name=^%s$", colorContainerName(cfg.AppName, color)), "--filter", "health=healthy", "--format", "{{.Names}}")
+		output, err := getOutput("docker", "ps", "--filter", fmt.Sprintf("name=^%s$", appContainerName(cfg.AppName, color)), "--filter", "health=healthy", "--format", "{{.Names}}")
 		if err != nil {
 			return err
 		}
-		if hasLine(output, colorContainerName(cfg.AppName, color)) {
+		if hasLine(output, appContainerName(cfg.AppName, color)) {
 			fmt.Printf("[release] %s healthy\n", color)
 			return nil
 		}
@@ -548,7 +548,7 @@ func waitForHealthy(cfg deployConfig, color string) error {
 // cutover 执行流量切换：通知旧容器摘流 -> 确认网关路由到新容器 -> 排水 -> 移除旧容器。
 // 任何步骤失败都会保留旧容器，避免服务中断。
 func cutover(cfg deployConfig, currentColor, targetColor string) {
-	oldContainerName := colorContainerName(cfg.AppName, currentColor)
+	oldContainerName := appContainerName(cfg.AppName, currentColor)
 
 	fmt.Printf("[release] [5/8] http control -> %s: trigger traffic-shift, /health/lb now returns 503\n", currentColor)
 	if err := postControl(oldContainerName, cfg.AppPort, "traffic-shift"); err != nil {
@@ -1328,8 +1328,8 @@ func gatewayContainerName(appName string) string {
 	return fmt.Sprintf("%s-gateway", appName)
 }
 
-// colorContainerName 返回颜色容器名称：{appName}-{color}。
-func colorContainerName(appName, color string) string {
+// appContainerName 返回应用容器名称：{appName}-{color}。
+func appContainerName(appName, color string) string {
 	return fmt.Sprintf("%s-%s", appName, color)
 }
 
