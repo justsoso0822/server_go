@@ -107,6 +107,13 @@ type deployConfig struct {
 	ForceGatewayReplacement bool
 }
 
+type cleanupImageLine struct {
+	ref       string
+	tag       string
+	createdAt string
+	createdTS time.Time
+}
+
 // ============================================================================
 // Entry Point & CLI
 // ============================================================================
@@ -638,7 +645,7 @@ func cleanupOldImages(cfg deployConfig) {
 	if cfg.KeepImages <= 0 {
 		return
 	}
-	fmt.Printf("\n[cleanup] Removing old images (keeping latest %d)...\n", cfg.KeepImages)
+	fmt.Printf("\n[cleanup] Removing old images (keeping latest %d versions)...\n", cfg.KeepImages)
 
 	reference := fmt.Sprintf("%s/%s", cfg.Registry, cfg.ImageName)
 	output, err := getOutput("docker", "images",
@@ -654,40 +661,49 @@ func cleanupOldImages(cfg deployConfig) {
 		return
 	}
 
-	type imageLine struct {
-		ref       string
-		createdAt string
-		createdTS time.Time
-	}
-	var images []imageLine
+	var images []cleanupImageLine
 	for _, line := range strings.Split(output, "\n") {
 		parts := strings.SplitN(line, "|", 2)
 		if len(parts) == 2 {
-			images = append(images, imageLine{
-				ref:       parts[0],
+			ref := parts[0]
+			images = append(images, cleanupImageLine{
+				ref:       ref,
+				tag:       extractImageTag(ref),
 				createdAt: parts[1],
 				createdTS: parseDockerCreatedAt(parts[1]),
 			})
 		}
 	}
 
-	sort.Slice(images, func(i, j int) bool {
+	versions := make([]cleanupImageLine, 0, len(images))
+	for _, img := range images {
+		if img.tag == "" || img.tag == "latest" {
+			continue
+		}
+		versions = append(versions, img)
+	}
+	if len(versions) == 0 {
+		fmt.Println("[cleanup] No versioned images found")
+		return
+	}
+
+	sort.Slice(versions, func(i, j int) bool {
 		// 优先按解析后的时间降序；任一条目解析失败时退化为字符串比较，
 		// 同时区下字符串顺序与时间顺序一致，跨时区/夏令时切换会被时间路径捕获。
-		ti, tj := images[i].createdTS, images[j].createdTS
+		ti, tj := versions[i].createdTS, versions[j].createdTS
 		if !ti.IsZero() && !tj.IsZero() {
 			return ti.After(tj)
 		}
-		return images[i].createdAt > images[j].createdAt
+		return versions[i].createdAt > versions[j].createdAt
 	})
 
-	if len(images) <= cfg.KeepImages {
-		fmt.Printf("[cleanup] Found %d images, no cleanup needed\n", len(images))
+	if len(versions) <= cfg.KeepImages {
+		fmt.Printf("[cleanup] Found %d versioned images, no cleanup needed\n", len(versions))
 		return
 	}
 
 	deleted := 0
-	for _, img := range images[cfg.KeepImages:] {
+	for _, img := range versions[cfg.KeepImages:] {
 		if err := runCmd("docker", "rmi", img.ref); err == nil {
 			fmt.Printf("[cleanup] Removed: %s\n", img.ref)
 			deleted++
@@ -701,6 +717,15 @@ func cleanupOldImages(cfg deployConfig) {
 // parseDockerCreatedAt 解析 docker images --format {{.CreatedAt}} 输出的时间。
 // 典型格式：'2024-01-02 15:04:05 +0800 CST'，部分版本可能省略时区名。
 // 解析失败返回零值，由调用方决定退化策略。
+// extractImageTag returns the tag portion of a docker image reference.
+func extractImageTag(ref string) string {
+	if i := strings.LastIndex(ref, ":"); i >= 0 {
+		return ref[i+1:]
+	}
+	return ""
+}
+
+// parseDockerCreatedAt parses the CreatedAt field from docker images output.
 func parseDockerCreatedAt(s string) time.Time {
 	s = strings.TrimSpace(s)
 	layouts := []string{
