@@ -414,13 +414,11 @@ func ensureGateway(cfg deployConfig) {
 	case currentGatewayHostPort == cfg.GatewayHostPort:
 		fmt.Printf("[release] gateway already aligned on host port %s\n", cfg.GatewayHostPort)
 	case cfg.ForceGatewayReplacement:
-		fmt.Printf("[release] gateway config mismatch: current gateway=%s, desired gateway=%s, force replacing gateway\n",
-			currentGatewayHostPort, cfg.GatewayHostPort)
+		fmt.Printf("[release] gateway config mismatch: current gateway=%s, desired gateway=%s, force replacing gateway\n", currentGatewayHostPort, cfg.GatewayHostPort)
 		mustRun("docker", append(args, "up", "-d", "--force-recreate")...)
 		waitForGatewayHealthy(cfg)
 	default:
-		fatalf("ERROR: gateway config mismatch: current gateway=%s, desired gateway=%s\nRefusing to replace gateway automatically. Re-run with -f to force replace the gateway.",
-			currentGatewayHostPort, cfg.GatewayHostPort)
+		fatalf("ERROR: gateway config mismatch: current gateway=%s, desired gateway=%s\nRefusing to replace gateway automatically. Re-run with -f to force replace the gateway.", currentGatewayHostPort, cfg.GatewayHostPort)
 	}
 }
 
