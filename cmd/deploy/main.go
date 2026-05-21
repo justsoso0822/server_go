@@ -345,7 +345,7 @@ func status() {
 	if env != "" {
 		gatewayPort = getEnvVar(projectPath(fmt.Sprintf(".env.%s", env)), "HOST_GATEWAY_PORT", defaultGatewayHostPort)
 	}
-	activeColor, err := gatewayActiveColorByPort(gatewayPort)
+	activeColor, err := gatewayActiveColor(gatewayPort)
 	if err != nil {
 		fmt.Printf("  Gateway not reachable or color unknown: %v\n", err)
 	} else {
@@ -512,7 +512,7 @@ func detectDeploymentColors(cfg deployConfig) (string, string) {
 
 	switch {
 	case blueRunning && greenRunning:
-		active, err := gatewayActiveColor(cfg)
+		active, err := gatewayActiveColor(cfg.GatewayHostPort)
 		if err != nil {
 			fatalf("Both blue and green are running, but active color cannot be determined from gateway: %v", err)
 		}
@@ -584,7 +584,7 @@ func confirmCutover(cfg deployConfig, targetColor string) error {
 	confirmed := 0
 	deadline := time.Now().Add(cfg.CutoverTimeout)
 	for time.Now().Before(deadline) {
-		health, err := gatewayHealth(cfg)
+		health, err := gatewayHealth(cfg.GatewayHostPort)
 		if err == nil && health.Color == targetColor && health.Version == cfg.Version {
 			confirmed++
 			fmt.Printf("[release] gateway -> %s version=%s (%d/%d)\n", targetColor, health.Version, confirmed, cfg.CutoverConfirmations)
@@ -1240,30 +1240,18 @@ type healthResponse struct {
 }
 
 // gatewayActiveColor 通过网关 /health 接口解析当前活跃的部署颜色。
-func gatewayActiveColor(cfg deployConfig) (string, error) {
-	health, err := gatewayHealth(cfg)
+func gatewayActiveColor(port string) (string, error) {
+	health, err := gatewayHealth(port)
 	if err != nil {
 		return "", err
 	}
 	return health.Color, nil
 }
 
-// gatewayActiveColorByPort 通过指定端口访问网关 /health 接口，返回活跃颜色。
+// gatewayHealth 通过指定端口访问网关 /health 接口，返回解析后的健康信息。
 // 使用 encoding/json 反序列化，避免字符串匹配误判；通过带超时的 httpClient 防止
 // 网关挂死时无限阻塞 confirmCutover 的轮询循环。
-func gatewayActiveColorByPort(port string) (string, error) {
-	health, err := gatewayHealthByPort(port)
-	if err != nil {
-		return "", err
-	}
-	return health.Color, nil
-}
-
-func gatewayHealth(cfg deployConfig) (healthResponse, error) {
-	return gatewayHealthByPort(cfg.GatewayHostPort)
-}
-
-func gatewayHealthByPort(port string) (healthResponse, error) {
+func gatewayHealth(port string) (healthResponse, error) {
 	resp, err := httpClient.Get(fmt.Sprintf("http://localhost:%s/health", port))
 	if err != nil {
 		return healthResponse{}, err
