@@ -7,8 +7,8 @@ name: ${APP_NAME:-server-go}
 
 services:
     traefik:
-        # 使用官方 Traefik 镜像（latest）
-        image: traefik
+        # 使用官方 Traefik 镜像（固定稳定版本）
+        image: traefik:v3.7.0
         container_name: ${APP_NAME:-server-go}-gateway
         restart: unless-stopped
         command:
