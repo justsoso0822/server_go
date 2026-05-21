@@ -120,6 +120,9 @@ type cleanupImageLine struct {
 
 // main 解析子命令并分发到对应处理函数。
 func main() {
+	// 忽略 compose orphan 容器警告
+	os.Setenv("COMPOSE_IGNORE_ORPHANS", "true")
+
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
@@ -633,7 +636,8 @@ func waitForDrain(containerName, appPort string, timeout time.Duration) error {
 // postControl 通过 docker exec 向容器内应用发送控制指令（traffic-shift / reject-new-requests）。
 func postControl(containerName, appPort, action string) error {
 	url := fmt.Sprintf("http://127.0.0.1:%s/_internal/control/%s", appPort, action)
-	return runCmd("docker", "exec", containerName, "wget", "-q", "-O-", "--timeout=5", "--post-data=", url)
+	_, err := getOutput("docker", "exec", containerName, "wget", "-q", "-O-", "--timeout=5", "--post-data=", url)
+	return err
 }
 
 // cleanupOldImages 按创建时间降序排列本地镜像，保留最新的 N 个 tag，删除其余。
