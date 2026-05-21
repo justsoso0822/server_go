@@ -479,22 +479,32 @@ func startColor(cfg deployConfig, color string) {
 // 临时文件放在项目根目录 .deploy.tmp/ 下，避免 Windows 系统 temp 在 WSL/Docker Desktop
 // 场景下可能存在的挂载差异。
 func writeReleaseEnvFile(cfg deployConfig) string {
+	name, err := doWriteReleaseEnvFile(cfg)
+	if err != nil {
+		fatalf("Failed to write release env file: %v", err)
+	}
+	return name
+}
+
+func doWriteReleaseEnvFile(cfg deployConfig) (string, error) {
 	content, err := os.ReadFile(cfg.EnvFile)
 	if err != nil {
-		fatalf("Failed to read env file %s: %v", cfg.EnvFile, err)
+		return "", fmt.Errorf("read env file %s: %w", cfg.EnvFile, err)
 	}
 
 	tmpDir := projectPath(".deploy.tmp")
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
-		fatalf("Failed to create release env dir %s: %v", tmpDir, err)
+		return "", fmt.Errorf("create release env dir %s: %w", tmpDir, err)
 	}
 
 	file, err := os.CreateTemp(tmpDir, fmt.Sprintf("%s-release-*.env", cfg.AppName))
 	if err != nil {
-		fatalf("Failed to create release env file: %v", err)
+		return "", fmt.Errorf("create release env file: %w", err)
 	}
+	defer file.Close()
+
 	if _, err := file.Write(content); err != nil {
-		fatalf("Failed to write release env file: %v", err)
+		return "", fmt.Errorf("write env content: %w", err)
 	}
 
 	releaseEnvValues := []struct {
@@ -508,17 +518,14 @@ func writeReleaseEnvFile(cfg deployConfig) string {
 	}
 	// 插入换行符分隔原始env
 	if _, err := fmt.Fprintln(file); err != nil {
-		fatalf("Failed to append release env separator: %v", err)
+		return "", fmt.Errorf("append separator: %w", err)
 	}
 	for _, item := range releaseEnvValues {
 		if _, err := fmt.Fprintf(file, "%s=%s\n", item.key, item.value); err != nil {
-			fatalf("Failed to append release env value %s: %v", item.key, err)
+			return "", fmt.Errorf("append %s: %w", item.key, err)
 		}
 	}
-	if err := file.Close(); err != nil {
-		fatalf("Failed to append release env values: %v", err)
-	}
-	return file.Name()
+	return file.Name(), nil
 }
 
 // detectDeploymentColors 检测当前活跃颜色和目标部署颜色。
