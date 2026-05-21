@@ -505,6 +505,7 @@ func writeReleaseEnvFile(cfg deployConfig) string {
 
 // detectDeploymentColors 检测当前活跃颜色和目标部署颜色。
 // 双容器同时运行时通过网关 /health 响应判断活跃方。
+// return (currentColor, targetColor)，currentColor 可能为空表示首次部署。
 func detectDeploymentColors(cfg deployConfig) (string, string) {
 	blueRunning, err := containerExists(appContainerName(cfg.AppName, "blue"))
 	if err != nil {
