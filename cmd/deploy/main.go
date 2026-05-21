@@ -493,11 +493,29 @@ func writeReleaseEnvFile(cfg deployConfig) string {
 	if err != nil {
 		fatalf("Failed to create release env file: %v", err)
 	}
-	defer file.Close()
 	if _, err := file.Write(content); err != nil {
 		fatalf("Failed to write release env file: %v", err)
 	}
-	if _, err := fmt.Fprintf(file, "\nAPP_IMAGE=%s\nAPP_VERSION=%s\nAPP_PORT=%s\nGATEWAY_INTERNAL_PORT=%s\n", formatImageName(cfg, cfg.Version), cfg.Version, cfg.AppPort, cfg.GatewayInternalPort); err != nil {
+
+	releaseEnvValues := []struct {
+		key   string
+		value string
+	}{
+		{"APP_IMAGE", formatImageName(cfg, cfg.Version)},
+		{"APP_VERSION", cfg.Version},
+		{"APP_PORT", cfg.AppPort},
+		{"GATEWAY_INTERNAL_PORT", cfg.GatewayInternalPort},
+	}
+	// 插入换行符分隔原始env
+	if _, err := fmt.Fprintln(file); err != nil {
+		fatalf("Failed to append release env separator: %v", err)
+	}
+	for _, item := range releaseEnvValues {
+		if _, err := fmt.Fprintf(file, "%s=%s\n", item.key, item.value); err != nil {
+			fatalf("Failed to append release env value %s: %v", item.key, err)
+		}
+	}
+	if err := file.Close(); err != nil {
 		fatalf("Failed to append release env values: %v", err)
 	}
 	return file.Name()
