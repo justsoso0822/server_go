@@ -47,3 +47,6 @@ docker/redis/data/
 # Claude
 .claude
 /.claude
+
+# CherryStudio
+.cherry-studio/
