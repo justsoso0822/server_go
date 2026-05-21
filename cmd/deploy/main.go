@@ -278,7 +278,7 @@ func deploy() {
 
 	currentColor, targetColor := detectDeploymentColors(cfg)
 	if currentColor == "" {
-		fmt.Printf("No active deployment found, deploying to %s\n", targetColor)
+		fmt.Printf("No running blue/green service found, deploying to %s\n", targetColor)
 	} else {
 		fmt.Printf("Current active: %s, deploying to: %s\n", currentColor, targetColor)
 	}
