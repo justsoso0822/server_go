@@ -394,7 +394,7 @@ func stopLocalDB() {
 // Deploy Steps
 // ============================================================================
 
-// ensureGateway 确保 Traefik 网关容器运行且端口与配置一致。
+// ensureGateway 确保 Traefik 网关容器运行且对外服务端口与配置一致。
 // 端口不一致时需要 -f 标志才会强制重建，避免意外中断线上流量。
 func ensureGateway(cfg deployConfig) {
 	gatewayRunning, err := containerExists(gatewayContainerName(cfg.AppName))
@@ -402,25 +402,22 @@ func ensureGateway(cfg deployConfig) {
 		fatalf("Failed to inspect gateway: %v", err)
 	}
 	currentGatewayHostPort := getGatewayHostPort(cfg)
-	currentDashboardHostPort := getContainerHostPort(gatewayContainerName(cfg.AppName), "8080")
 	args := traefikComposeArgs(cfg)
-	dashboardAligned := (!cfg.DashboardEnabled && currentDashboardHostPort == "") ||
-		(cfg.DashboardEnabled && currentDashboardHostPort == cfg.DashboardPort)
 
 	switch {
 	case !gatewayRunning:
 		mustRun("docker", append(args, "up", "-d")...)
 		waitForGatewayHealthy(cfg)
-	case currentGatewayHostPort == cfg.GatewayHostPort && dashboardAligned:
+	case currentGatewayHostPort == cfg.GatewayHostPort:
 		fmt.Printf("[release] gateway already aligned on host port %s\n", cfg.GatewayHostPort)
 	case cfg.ForceGatewayReplacement:
-		fmt.Printf("[release] gateway config mismatch: current gateway=%s dashboard=%s, desired gateway=%s dashboard=%s, force replacing gateway\n",
-			currentGatewayHostPort, displayDisabledPort(currentDashboardHostPort), cfg.GatewayHostPort, desiredDashboardPort(cfg))
+		fmt.Printf("[release] gateway config mismatch: current gateway=%s, desired gateway=%s, force replacing gateway\n",
+			currentGatewayHostPort, cfg.GatewayHostPort)
 		mustRun("docker", append(args, "up", "-d", "--force-recreate")...)
 		waitForGatewayHealthy(cfg)
 	default:
-		fatalf("ERROR: gateway config mismatch: current gateway=%s dashboard=%s, desired gateway=%s dashboard=%s\nRefusing to replace gateway automatically. Re-run with -f to force replace the gateway.",
-			currentGatewayHostPort, displayDisabledPort(currentDashboardHostPort), cfg.GatewayHostPort, desiredDashboardPort(cfg))
+		fatalf("ERROR: gateway config mismatch: current gateway=%s, desired gateway=%s\nRefusing to replace gateway automatically. Re-run with -f to force replace the gateway.",
+			currentGatewayHostPort, cfg.GatewayHostPort)
 	}
 }
 
@@ -1364,8 +1361,8 @@ func getGatewayHostPort(cfg deployConfig) string {
 	return getContainerHostPort(gatewayContainerName(cfg.AppName), cfg.GatewayInternalPort)
 }
 
-func getContainerHostPort(containerName, containerPort string) string {
-	output, err := getOutput("docker", "port", containerName, fmt.Sprintf("%s/tcp", containerPort))
+func getContainerHostPort(containerName, internalPort string) string {
+	output, err := getOutput("docker", "port", containerName, fmt.Sprintf("%s/tcp", internalPort))
 	if err != nil || output == "" {
 		return ""
 	}
@@ -1374,22 +1371,6 @@ func getContainerHostPort(containerName, containerPort string) string {
 		return ""
 	}
 	return strings.TrimSpace(parts[len(parts)-1])
-}
-
-// desiredDashboardPort 返回期望的 Dashboard 端口展示值，用于网关配置差异提示。
-func desiredDashboardPort(cfg deployConfig) string {
-	if !cfg.DashboardEnabled {
-		return "disabled"
-	}
-	return cfg.DashboardPort
-}
-
-// displayDisabledPort 将空端口展示为 disabled，用于网关配置差异提示。
-func displayDisabledPort(port string) string {
-	if port == "" {
-		return "disabled"
-	}
-	return port
 }
 
 // ============================================================================
