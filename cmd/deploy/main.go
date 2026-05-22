@@ -118,56 +118,53 @@ type cleanupImageLine struct {
 // Entry Point & CLI
 // ============================================================================
 
-// main 只负责进程级退出，具体命令流程由 run 返回 error。
+// main 顶层 recover：打印错误、释放锁、清理临时文件后退出。
 func main() {
-	if err := run(); err != nil {
-		switch e := err.(type) {
-		case usageError:
-			fmt.Println(e.message)
-			printUsage()
-		default:
-			fmt.Println(err)
+	defer func() {
+		if r := recover(); r != nil {
+			if ue, ok := r.(usageError); ok {
+				fmt.Println(ue.message)
+				printUsage()
+			} else {
+				fmt.Fprintf(os.Stderr, "%v\n", r)
+			}
+			cleanupDeployTmpDir()
+			releaseDeployLock()
+			os.Exit(1)
 		}
-		releaseDeployLock()
-		os.Exit(1)
-	}
+	}()
+	run()
 }
 
 // run 解析子命令并分发到对应处理函数。
-func run() error {
+func run() {
 	// 忽略 compose orphan 容器警告
 	os.Setenv("COMPOSE_IGNORE_ORPHANS", "true")
 
 	if len(os.Args) < 2 {
-		return usageError{message: "Error: command required"}
+		panic(usageError{message: "Error: command required"})
 	}
 
-	if _, err := initProjectRoot(); err != nil {
-		return err
-	}
+	initProjectRoot()
 
 	cmd := os.Args[1]
 	switch cmd {
 	case "build":
-		return build()
+		build()
 	case "push":
-		return push()
+		push()
 	case "deploy":
-		return deploy()
+		deploy()
 	case "status":
-		return status()
+		status()
 	case "start-local-db":
-		if err := ensureNoExtraArgs(cmd); err != nil {
-			return err
-		}
-		return startLocalDB()
+		ensureNoExtraArgs(cmd)
+		startLocalDB()
 	case "stop-local-db":
-		if err := ensureNoExtraArgs(cmd); err != nil {
-			return err
-		}
-		return stopLocalDB()
+		ensureNoExtraArgs(cmd)
+		stopLocalDB()
 	default:
-		return usageError{message: fmt.Sprintf("Unknown command: %s", cmd)}
+		panic(usageError{message: fmt.Sprintf("Unknown command: %s", cmd)})
 	}
 }
 
@@ -240,11 +237,10 @@ func parseArgs() (string, map[string]string) {
 
 // ensureNoExtraArgs 校验 start-local-db / stop-local-db 这类不接受 env 参数的命令，
 // 避免用户错误输入被静默忽略导致误操作。
-func ensureNoExtraArgs(cmd string) error {
+func ensureNoExtraArgs(cmd string) {
 	if len(os.Args) > 2 {
-		return usageError{message: fmt.Sprintf("'%s' does not accept any arguments, got: %s", cmd, strings.Join(os.Args[2:], " "))}
+		panic(usageError{message: fmt.Sprintf("'%s' does not accept any arguments, got: %s", cmd, strings.Join(os.Args[2:], " "))})
 	}
-	return nil
 }
 
 // ============================================================================
@@ -252,80 +248,52 @@ func ensureNoExtraArgs(cmd string) error {
 // ============================================================================
 
 // build 构建 Docker 镜像，同时打 version 和 latest 两个 tag。
-func build() error {
+func build() {
 	env, options := parseArgs()
-	cfg, err := loadDeployConfig(env, options)
-	if err != nil {
-		return err
-	}
+	cfg := loadDeployConfig(env, options)
 
 	setupSignalHandler()
-	if err := acquireDeployLock(cfg.Env); err != nil {
-		return err
-	}
+	acquireDeployLock(cfg.Env)
 	defer releaseDeployLock()
 
 	fmt.Printf("Building for environment: %s with version: %s\n", env, cfg.Version)
-	if err := buildImage(cfg, cfg.Version); err != nil {
-		return err
-	}
+	buildImage(cfg, cfg.Version)
 	fmt.Printf("Build completed: %s\n", formatImageName(cfg, cfg.Version))
-	return nil
 }
 
 // push 将 version 和 latest 两个 tag 的镜像推送到远程仓库。
-func push() error {
+func push() {
 	env, options := parseArgs()
-	cfg, err := loadDeployConfig(env, options)
-	if err != nil {
-		return err
-	}
+	cfg := loadDeployConfig(env, options)
 
 	setupSignalHandler()
-	if err := acquireDeployLock(cfg.Env); err != nil {
-		return err
-	}
+	acquireDeployLock(cfg.Env)
 	defer releaseDeployLock()
 
 	image := formatImageName(cfg, cfg.Version)
 	imageLatest := formatImageName(cfg, "latest")
 
 	fmt.Printf("Pushing image: %s\n", image)
-	if err := runCmd("docker", "push", image); err != nil {
-		return commandError("docker", []string{"push", image}, err)
-	}
-	if err := runCmd("docker", "push", imageLatest); err != nil {
-		return commandError("docker", []string{"push", imageLatest}, err)
-	}
+	mustRun("docker", "push", image)
+	mustRun("docker", "push", imageLatest)
 	fmt.Printf("Push completed: %s and latest\n", image)
-	return nil
 }
 
 // deploy 执行蓝绿部署：启动新颜色 -> 健康检查 -> 切流 -> 排水 -> 移除旧颜色。
 // 首次部署（无活跃容器）时跳过切流和排水步骤。
 // 通过文件锁防止同一环境的并发部署。
-func deploy() error {
+func deploy() {
 	env, options := parseArgs()
-	cfg, err := loadDeployConfig(env, options)
-	if err != nil {
-		return err
-	}
+	cfg := loadDeployConfig(env, options)
 
 	setupSignalHandler()
-	if err := acquireDeployLock(cfg.Env); err != nil {
-		return err
-	}
+	acquireDeployLock(cfg.Env)
 	defer releaseDeployLock()
 
 	fmt.Println("[release] [1/8] ensure traefik gateway")
-	if err := ensureGateway(cfg); err != nil {
-		return err
-	}
+	ensureGateway(cfg)
 
-	currentColor, targetColor, err := detectDeploymentColors(cfg)
-	if err != nil {
-		return err
-	}
+	currentColor, targetColor := detectDeploymentColors(cfg)
 	if currentColor == "" {
 		fmt.Printf("No running blue/green service found, deploying to %s\n", targetColor)
 	} else {
@@ -334,28 +302,22 @@ func deploy() error {
 
 	if cfg.Env == "local" && cfg.ImageSource == "local" {
 		fmt.Println("[release] [2/8] local image source detected, building image")
-		if err := buildImage(cfg, cfg.Version); err != nil {
-			return err
-		}
+		buildImage(cfg, cfg.Version)
 		fmt.Printf("Build completed: %s\n", formatImageName(cfg, cfg.Version))
 	}
 	fmt.Printf("[release] [3/8] start %s (version=%s)\n", targetColor, cfg.Version)
-	if err := startColor(cfg, targetColor); err != nil {
-		return err
-	}
+	startColor(cfg, targetColor)
 
 	fmt.Printf("[release] [4/8] wait for %s to be healthy (timeout=%s)\n", targetColor, cfg.HealthTimeout)
 	if err := waitForHealthy(cfg, targetColor); err != nil {
 		fmt.Printf("ERROR: %v, rolling back new %s deployment...\n", err, targetColor)
-		if downErr := runCmd("docker", "compose", "-f", composeFile(cfg, targetColor), "--env-file", cfg.EnvFile, "down"); downErr != nil {
-			return fmt.Errorf("rollback failed after health check error %v: %w", err, commandError("docker", []string{"compose", "-f", composeFile(cfg, targetColor), "--env-file", cfg.EnvFile, "down"}, downErr))
-		}
-		return fmt.Errorf("rollback completed, deployment failed: %w", err)
+		_ = runCmd("docker", "compose", "-f", composeFile(cfg, targetColor), "--env-file", cfg.EnvFile, "down")
+		panic(fmt.Errorf("rollback completed, deployment failed: %w", err))
 	}
 
 	if currentColor != "" {
 		if err := cutover(cfg, currentColor, targetColor); err != nil {
-			return err
+			panic(err)
 		}
 	}
 
@@ -366,11 +328,10 @@ func deploy() error {
 	}
 
 	cleanupOldImages(cfg)
-	return nil
 }
 
 // status 显示容器健康状态、镜像版本、当前活跃颜色等运行信息。
-func status() error {
+func status() {
 	env, _ := parseArgs()
 	envFile := ""
 	if env != "" {
@@ -385,14 +346,10 @@ func status() error {
 		fmt.Println("Environment: auto-detect")
 	}
 
-	// 容器状态（含镜像版本）
 	fmt.Println("[Containers]")
-	if err := runCmd("docker", "ps", "--filter", fmt.Sprintf("name=%s", appName),
-		"--format", "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"); err != nil {
-		return commandError("docker", []string{"ps", "--filter", fmt.Sprintf("name=%s", appName), "--format", "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"}, err)
-	}
+	mustRun("docker", "ps", "--filter", fmt.Sprintf("name=%s", appName),
+		"--format", "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}")
 
-	// 容器内 APP_VERSION / APP_COLOR
 	containerNames := getContainerNames(appName)
 	if len(containerNames) > 0 {
 		fmt.Println("\n[Versions]")
@@ -409,7 +366,6 @@ func status() error {
 		}
 	}
 
-	// 网关路由目标
 	fmt.Println("\n[Gateway Route]")
 	gatewayPort := defaultGatewayHostPort
 	if env != "" {
@@ -423,51 +379,32 @@ func status() error {
 	}
 
 	fmt.Println("\n[Networks]")
-	if err := runCmd("docker", "network", "ls", "--filter", fmt.Sprintf("name=%s", appName)); err != nil {
-		return commandError("docker", []string{"network", "ls", "--filter", fmt.Sprintf("name=%s", appName)}, err)
-	}
+	mustRun("docker", "network", "ls", "--filter", fmt.Sprintf("name=%s", appName))
 
 	fmt.Println("\n[Volumes]")
-	if err := runCmd("docker", "volume", "ls", "--filter", fmt.Sprintf("name=%s", appName)); err != nil {
-		return commandError("docker", []string{"volume", "ls", "--filter", fmt.Sprintf("name=%s", appName)}, err)
-	}
-	return nil
+	mustRun("docker", "volume", "ls", "--filter", fmt.Sprintf("name=%s", appName))
 }
 
 // startLocalDB 启动本地开发用的 MySQL 和 Redis 容器。
-func startLocalDB() error {
-	cfg, err := loadDeployConfig("local", map[string]string{})
-	if err != nil {
-		return err
-	}
+func startLocalDB() {
+	cfg := loadDeployConfig("local", map[string]string{})
 	fmt.Println("Starting local database services...")
-	if err := runCmd("docker", "compose", "-f", cfg.LocalDBComposeFile, "--env-file", cfg.EnvFile, "up", "-d"); err != nil {
-		return commandError("docker", []string{"compose", "-f", cfg.LocalDBComposeFile, "--env-file", cfg.EnvFile, "up", "-d"}, err)
-	}
+	mustRun("docker", "compose", "-f", cfg.LocalDBComposeFile, "--env-file", cfg.EnvFile, "up", "-d")
 
 	fmt.Println("Local database services started:")
-	// 330:3306 宿主机端口:容器端口
 	fmt.Println("  MySQL: 127.0.0.1:330")
-	// 637:6379 宿主机端口:容器端口
 	fmt.Println("  Redis: 127.0.0.1:637")
 	fmt.Println("")
 	fmt.Println("You can now run the application with:")
 	fmt.Println("  go run main.go")
-	return nil
 }
 
 // stopLocalDB 停止本地开发数据库容器。
-func stopLocalDB() error {
-	cfg, err := loadDeployConfig("local", map[string]string{})
-	if err != nil {
-		return err
-	}
+func stopLocalDB() {
+	cfg := loadDeployConfig("local", map[string]string{})
 	fmt.Println("Stopping local database services...")
-	if err := runCmd("docker", "compose", "-f", cfg.LocalDBComposeFile, "--env-file", cfg.EnvFile, "down"); err != nil {
-		return commandError("docker", []string{"compose", "-f", cfg.LocalDBComposeFile, "--env-file", cfg.EnvFile, "down"}, err)
-	}
+	mustRun("docker", "compose", "-f", cfg.LocalDBComposeFile, "--env-file", cfg.EnvFile, "down")
 	fmt.Println("Local database services stopped")
-	return nil
 }
 
 // ============================================================================
@@ -475,63 +412,53 @@ func stopLocalDB() error {
 // ============================================================================
 
 // ensureGateway 确保 Traefik 网关容器运行且对外服务端口与配置一致。
-// 端口不一致时需要 -f 标志才会强制重建，避免意外中断线上流量。
-func ensureGateway(cfg deployConfig) error {
+func ensureGateway(cfg deployConfig) {
 	gatewayRunning, err := containerExists(gatewayContainerName(cfg.AppName))
 	if err != nil {
-		return fmt.Errorf("failed to inspect gateway: %w", err)
+		panic(fmt.Errorf("failed to inspect gateway: %w", err))
 	}
 	currentGatewayHostPort := getGatewayHostPort(cfg)
 	args := traefikComposeArgs(cfg)
 
 	switch {
 	case !gatewayRunning:
-		upArgs := append(args, "up", "-d")
-		if err := runCmd("docker", upArgs...); err != nil {
-			return commandError("docker", upArgs, err)
-		}
-		return waitForGatewayHealthy(cfg)
+		mustRun("docker", append(args, "up", "-d")...)
+		waitForGatewayHealthy(cfg)
 	case currentGatewayHostPort == cfg.GatewayHostPort:
 		fmt.Printf("[release] gateway already aligned on host port %s\n", cfg.GatewayHostPort)
-		return nil
 	case cfg.ForceGatewayReplacement:
 		fmt.Printf("[release] gateway config mismatch: current gateway=%s, desired gateway=%s, force replacing gateway\n", currentGatewayHostPort, cfg.GatewayHostPort)
-		upArgs := append(args, "up", "-d", "--force-recreate")
-		if err := runCmd("docker", upArgs...); err != nil {
-			return commandError("docker", upArgs, err)
-		}
-		return waitForGatewayHealthy(cfg)
+		mustRun("docker", append(args, "up", "-d", "--force-recreate")...)
+		waitForGatewayHealthy(cfg)
 	default:
-		return fmt.Errorf("ERROR: gateway config mismatch: current gateway=%s, desired gateway=%s\nRefusing to replace gateway automatically. Re-run with -f to force replace the gateway.", currentGatewayHostPort, cfg.GatewayHostPort)
+		panic(fmt.Errorf("ERROR: gateway config mismatch: current gateway=%s, desired gateway=%s\nRefusing to replace gateway automatically. Re-run with -f to force replace the gateway.", currentGatewayHostPort, cfg.GatewayHostPort))
 	}
 }
 
 // waitForGatewayHealthy 轮询 docker inspect 等待 Traefik 容器 healthcheck 通过。
-// 替代固定 sleep，避免 Traefik 启动慢时端口未就绪、启动快时多余等待。
-func waitForGatewayHealthy(cfg deployConfig) error {
+func waitForGatewayHealthy(cfg deployConfig) {
 	name := gatewayContainerName(cfg.AppName)
 	deadline := time.Now().Add(cfg.HealthTimeout)
 	for time.Now().Before(deadline) {
 		status, err := getOutput("docker", "inspect", "--format", "{{.State.Health.Status}}", name)
 		if err == nil && status == "healthy" {
 			fmt.Printf("[release] gateway %s healthy\n", name)
-			return nil
+			return
 		}
-		// 容器没有 healthcheck 时返回空字符串；这种情况下退化为：只要在运行就放行。
 		if err == nil && status == "" {
 			running, _ := containerExists(name)
 			if running {
 				fmt.Printf("[release] gateway %s running (no healthcheck configured)\n", name)
-				return nil
+				return
 			}
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("gateway %s did not become healthy within %s", name, cfg.HealthTimeout)
+	panic(fmt.Errorf("gateway %s did not become healthy within %s", name, cfg.HealthTimeout))
 }
 
 // buildImage 执行 docker build，注入 APP_PORT 和 Go 模块代理参数，同时打 version 和 latest tag。
-func buildImage(cfg deployConfig, version string) error {
+func buildImage(cfg deployConfig, version string) {
 	buildArgs := []string{
 		"build",
 		"--build-arg", fmt.Sprintf("APP_PORT=%s", cfg.AppPort),
@@ -543,120 +470,77 @@ func buildImage(cfg deployConfig, version string) error {
 		"-f", cfg.Dockerfile,
 		".",
 	}
-	if err := runCmd("docker", buildArgs...); err != nil {
-		return commandError("docker", buildArgs, err)
-	}
-	return nil
+	mustRun("docker", buildArgs...)
 }
 
 // startColor 生成包含运行时变量的临时 env 文件，启动指定颜色的 compose 服务。
-func startColor(cfg deployConfig, color string) error {
-	releaseEnvFile, err := writeReleaseEnvFile(cfg)
-	if err != nil {
-		return err
-	}
+func startColor(cfg deployConfig, color string) {
+	releaseEnvFile := writeReleaseEnvFile(cfg)
 	defer os.Remove(releaseEnvFile)
 	composeArgs := []string{"compose", "-f", composeFile(cfg, color), "--env-file", releaseEnvFile}
 	if cfg.ImageSource == "remote" {
-		pullArgs := append(composeArgs, "pull")
-		if err := runCmd("docker", pullArgs...); err != nil {
-			return commandError("docker", pullArgs, err)
-		}
+		mustRun("docker", append(composeArgs, "pull")...)
 	}
-	upArgs := append(composeArgs, "up", "-d")
-	if err := runCmd("docker", upArgs...); err != nil {
-		return commandError("docker", upArgs, err)
-	}
-	return nil
+	mustRun("docker", append(composeArgs, "up", "-d")...)
 }
 
 // writeReleaseEnvFile 基于原始 .env 文件生成临时发布 env 文件，
 // 追加 APP_IMAGE、APP_VERSION 等运行时变量供 compose 使用。
-// 临时文件放在项目根目录 .deploy.tmp/ 下，避免 Windows 系统 temp 在 WSL/Docker Desktop
-// 场景下可能存在的挂载差异。
-func writeReleaseEnvFile(cfg deployConfig) (string, error) {
-	name, err := doWriteReleaseEnvFile(cfg)
-	if err != nil {
-		return "", fmt.Errorf("failed to write release env file: %w", err)
-	}
-	return name, nil
-}
-
-func doWriteReleaseEnvFile(cfg deployConfig) (string, error) {
+func writeReleaseEnvFile(cfg deployConfig) string {
 	content, err := os.ReadFile(cfg.EnvFile)
 	if err != nil {
-		return "", fmt.Errorf("read env file %s: %w", cfg.EnvFile, err)
+		panic(fmt.Errorf("read env file %s: %w", cfg.EnvFile, err))
 	}
 
 	tmpDir := projectPath(".deploy.tmp")
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
-		return "", fmt.Errorf("create release env dir %s: %w", tmpDir, err)
+		panic(fmt.Errorf("create release env dir %s: %w", tmpDir, err))
 	}
 
 	file, err := os.CreateTemp(tmpDir, fmt.Sprintf("%s-release-*.env", cfg.AppName))
 	if err != nil {
-		return "", fmt.Errorf("create release env file: %w", err)
+		panic(fmt.Errorf("create release env file: %w", err))
 	}
 	defer file.Close()
 
 	if _, err := file.Write(content); err != nil {
 		os.Remove(file.Name())
-		return "", fmt.Errorf("write env content: %w", err)
+		panic(fmt.Errorf("write env content: %w", err))
 	}
 
-	releaseEnvValues := []struct {
-		key   string
-		value string
-	}{
-		{"APP_IMAGE", formatImageName(cfg, cfg.Version)},
-		{"APP_VERSION", cfg.Version},
-		{"APP_PORT", cfg.AppPort},
-		{"GATEWAY_INTERNAL_PORT", cfg.GatewayInternalPort},
-	}
-	// 插入换行符分隔原始env
-	if _, err := fmt.Fprintln(file); err != nil {
+	extra := fmt.Sprintf("\nAPP_IMAGE=%s\nAPP_VERSION=%s\nAPP_PORT=%s\nGATEWAY_INTERNAL_PORT=%s\n",
+		formatImageName(cfg, cfg.Version), cfg.Version, cfg.AppPort, cfg.GatewayInternalPort)
+	if _, err := file.WriteString(extra); err != nil {
 		os.Remove(file.Name())
-		return "", fmt.Errorf("append separator: %w", err)
+		panic(fmt.Errorf("append release env values: %w", err))
 	}
-	for _, item := range releaseEnvValues {
-		if _, err := fmt.Fprintf(file, "%s=%s\n", item.key, item.value); err != nil {
-			os.Remove(file.Name())
-			return "", fmt.Errorf("append %s: %w", item.key, err)
-		}
-	}
-	return file.Name(), nil
+	return file.Name()
 }
 
 // detectDeploymentColors 检测当前活跃颜色和目标部署颜色。
-// 双容器同时运行时通过网关 /health 响应判断活跃方。
-// return (currentColor, targetColor)，currentColor 可能为空表示首次部署。
-func detectDeploymentColors(cfg deployConfig) (string, string, error) {
+func detectDeploymentColors(cfg deployConfig) (string, string) {
 	blueRunning, err := containerExists(appContainerName(cfg.AppName, "blue"))
 	if err != nil {
-		return "", "", fmt.Errorf("failed to inspect blue container: %w", err)
+		panic(fmt.Errorf("failed to inspect blue container: %w", err))
 	}
 	greenRunning, err := containerExists(appContainerName(cfg.AppName, "green"))
 	if err != nil {
-		return "", "", fmt.Errorf("failed to inspect green container: %w", err)
+		panic(fmt.Errorf("failed to inspect green container: %w", err))
 	}
 
 	switch {
 	case blueRunning && greenRunning:
 		active, err := gatewayActiveColor(cfg.GatewayHostPort)
 		if err != nil {
-			return "", "", fmt.Errorf("both blue and green are running, but active color cannot be determined from gateway: %w", err)
+			panic(fmt.Errorf("both blue and green are running, but active color cannot be determined from gateway: %w", err))
 		}
-		target, err := oppositeColor(active)
-		if err != nil {
-			return "", "", err
-		}
-		return active, target, nil
+		return active, oppositeColor(active)
 	case blueRunning:
-		return "blue", "green", nil
+		return "blue", "green"
 	case greenRunning:
-		return "green", "blue", nil
+		return "green", "blue"
 	default:
-		return "", "blue", nil
+		return "", "blue"
 	}
 }
 
@@ -711,7 +595,7 @@ func cutover(cfg deployConfig, currentColor, targetColor string) error {
 	fmt.Printf("[release] [8/8] %s: remove containers\n", currentColor)
 	downArgs := []string{"compose", "-f", composeFile(cfg, currentColor), "--env-file", cfg.EnvFile, "down"}
 	if err := runCmd("docker", downArgs...); err != nil {
-		return commandError("docker", downArgs, err)
+		return fmt.Errorf("command failed: docker %s: %w", strings.Join(downArgs, " "), err)
 	}
 	return nil
 }
@@ -884,8 +768,7 @@ func lockFilePath(env string) string {
 }
 
 // acquireDeployLock 获取部署文件锁。
-// 如果锁已被其他进程持有且未过期，则 fatal 退出；过期锁会被自动清理。
-func acquireDeployLock(env string) error {
+func acquireDeployLock(env string) {
 	lockFile := lockFilePath(env)
 
 	for {
@@ -896,18 +779,15 @@ func acquireDeployLock(env string) error {
 			activeLockFile = lockFile
 			activeLockFileMu.Unlock()
 			fmt.Printf("[lock] Acquired deploy lock for environment '%s' (pid=%d)\n", env, os.Getpid())
-			return nil
+			return
 		}
 
 		if os.IsExist(err) {
-			// 锁已存在：返回 nil 代表 stale 锁已清理，可继续重试。
-			if err := handleExistingDeployLock(env, lockFile); err != nil {
-				return err
-			}
+			handleExistingDeployLock(env, lockFile)
 			continue
 		}
 
-		return fmt.Errorf("ERROR: Failed to create lock file %s: %w", lockFile, err)
+		panic(fmt.Errorf("failed to create lock file %s: %w", lockFile, err))
 	}
 }
 
@@ -927,14 +807,14 @@ func createDeployLockFile(lockFile string, startedAt time.Time) error {
 }
 
 // handleExistingDeployLock 处理已存在的锁文件：stale 则移除后返回（调用方会重试），
-// 否则 fatal 退出。返回即代表"锁已被清理，可继续重试创建"。
-func handleExistingDeployLock(env, lockFile string) error {
+// 否则 panic 退出。
+func handleExistingDeployLock(env, lockFile string) {
 	info, err := os.Stat(lockFile)
 	if os.IsNotExist(err) {
-		return nil
+		return
 	}
 	if err != nil {
-		return fmt.Errorf("ERROR: Failed to inspect lock file %s: %w", lockFile, err)
+		panic(fmt.Errorf("failed to inspect lock file %s: %w", lockFile, err))
 	}
 
 	content, readErr := os.ReadFile(lockFile)
@@ -943,31 +823,31 @@ func handleExistingDeployLock(env, lockFile string) error {
 		if !startTime.IsZero() && time.Since(startTime) > time.Duration(defaultLockTimeoutMinutes)*time.Minute {
 			fmt.Printf("[lock] Stale lock detected (pid=%s, started=%s), removing...\n", ownerPID, startTime.Format(time.DateTime))
 			if err := os.Remove(lockFile); err == nil || os.IsNotExist(err) {
-				return nil
+				return
 			}
-			return fmt.Errorf("ERROR: Failed to remove stale lock file %s: %w", lockFile, err)
+			panic(fmt.Errorf("failed to remove stale lock file %s: %w", lockFile, err))
 		}
 		if isProcessAlive(ownerPID) {
-			return fmt.Errorf("ERROR: Another deployment is in progress for environment '%s'\n  Lock holder: PID %s (started %s ago)\n  Lock file: %s\n\nIf you believe this is stale, delete the lock file manually:\n  rm %s",
-				env, ownerPID, time.Since(startTime).Truncate(time.Second), lockFile, lockFile)
+			panic(fmt.Errorf("another deployment is in progress for environment '%s'\n  Lock holder: PID %s (started %s ago)\n  Lock file: %s\n\nIf you believe this is stale, delete the lock file manually:\n  rm %s",
+				env, ownerPID, time.Since(startTime).Truncate(time.Second), lockFile, lockFile))
 		}
 
 		fmt.Printf("[lock] Lock holder (pid=%s) is no longer running, removing stale lock...\n", ownerPID)
 		if err := os.Remove(lockFile); err == nil || os.IsNotExist(err) {
-			return nil
+			return
 		}
-		return fmt.Errorf("ERROR: Failed to remove stale lock file %s: %w", lockFile, err)
+		panic(fmt.Errorf("failed to remove stale lock file %s: %w", lockFile, err))
 	}
 
 	if time.Since(info.ModTime()) > time.Duration(defaultLockTimeoutMinutes)*time.Minute {
 		fmt.Println("[lock] Stale lock detected (unreadable, expired), removing...")
 		if err := os.Remove(lockFile); err == nil || os.IsNotExist(err) {
-			return nil
+			return
 		}
-		return fmt.Errorf("ERROR: Failed to remove stale lock file %s: %w", lockFile, err)
+		panic(fmt.Errorf("failed to remove stale lock file %s: %w", lockFile, err))
 	}
 
-	return fmt.Errorf("ERROR: Lock file exists but cannot be read: %s\nAnother deployment may be in progress for '%s'.", lockFile, env)
+	panic(fmt.Errorf("lock file exists but cannot be read: %s\nAnother deployment may be in progress for '%s'", lockFile, env))
 }
 
 // releaseDeployLock 释放当前持有的部署锁。
@@ -1088,54 +968,19 @@ func isProcessAlive(pidStr string) bool {
 // loadDeployConfig 从 .env.<env> 文件和命令行选项中加载部署配置。
 // 配置优先级：命令行选项 > .env 文件 > 系统环境变量 > 默认值。
 // 非 local 环境必须显式指定 version。
-func loadDeployConfig(env string, options map[string]string) (deployConfig, error) {
+func loadDeployConfig(env string, options map[string]string) deployConfig {
 	if env == "" {
-		return deployConfig{}, usageError{message: "Error: environment required"}
+		panic(usageError{message: "Error: environment required"})
 	}
 
 	envFile := projectPath(fmt.Sprintf(".env.%s", env))
 	if _, err := os.Stat(envFile); os.IsNotExist(err) {
-		return deployConfig{}, fmt.Errorf("environment file not found: %s", envFile)
+		panic(fmt.Errorf("environment file not found: %s", envFile))
 	} else if err != nil {
-		return deployConfig{}, fmt.Errorf("inspect environment file %s: %w", envFile, err)
+		panic(fmt.Errorf("inspect environment file %s: %w", envFile, err))
 	}
 
-	envVars, err := loadEnv(envFile)
-	if err != nil {
-		return deployConfig{}, err
-	}
-	registry, err := defaultRegistry(env)
-	if err != nil {
-		return deployConfig{}, err
-	}
-	version, err := getVersion(options, env)
-	if err != nil {
-		return deployConfig{}, err
-	}
-	dashboardEnabled, err := boolConfig(envVars, "TRAEFIK_DASHBOARD_ENABLED", env == "local")
-	if err != nil {
-		return deployConfig{}, err
-	}
-	healthTimeout, err := secondsConfig(envVars, "DEPLOY_HEALTH_TIMEOUT_SECONDS", defaultHealthTimeoutSeconds)
-	if err != nil {
-		return deployConfig{}, err
-	}
-	cutoverTimeout, err := secondsConfig(envVars, "DEPLOY_CUTOVER_TIMEOUT_SECONDS", defaultCutoverTimeoutSeconds)
-	if err != nil {
-		return deployConfig{}, err
-	}
-	cutoverConfirmations, err := intConfig(envVars, "DEPLOY_CUTOVER_CONFIRMATIONS", defaultCutoverConfirmations)
-	if err != nil {
-		return deployConfig{}, err
-	}
-	drainTimeout, err := secondsConfig(envVars, "DEPLOY_DRAIN_TIMEOUT_SECONDS", defaultDrainTimeoutSeconds)
-	if err != nil {
-		return deployConfig{}, err
-	}
-	keepImages, err := intConfig(envVars, "DEPLOY_KEEP_IMAGES", defaultKeepImages)
-	if err != nil {
-		return deployConfig{}, err
-	}
+	envVars := loadEnv(envFile)
 
 	return deployConfig{
 		Env:                     env,
@@ -1143,46 +988,44 @@ func loadDeployConfig(env string, options map[string]string) (deployConfig, erro
 		AppName:                 resolveConfig(envVars, "APP_NAME", defaultAppName),
 		ImageName:               resolveConfig(envVars, "IMAGE_NAME", defaultImageName),
 		ImageSource:             resolveConfig(envVars, "IMAGE_SOURCE", defaultImageSource),
-		Registry:                resolveConfig(envVars, "IMAGE_REGISTRY", registry),
-		Version:                 version,
+		Registry:                resolveConfig(envVars, "IMAGE_REGISTRY", defaultRegistry(env)),
+		Version:                 getVersion(options, env),
 		GatewayHostPort:         resolveConfig(envVars, "HOST_GATEWAY_PORT", defaultGatewayHostPort),
 		GatewayInternalPort:     resolveConfig(envVars, "GATEWAY_INTERNAL_PORT", defaultGatewayInternalPort),
 		AppPort:                 resolveConfig(envVars, "APP_PORT", defaultAppPort),
 		DashboardPort:           resolveConfig(envVars, "TRAEFIK_DASHBOARD_PORT", defaultDashboardPort),
-		DashboardEnabled:        dashboardEnabled,
-		HealthTimeout:           healthTimeout,
-		CutoverTimeout:          cutoverTimeout,
-		CutoverConfirmations:    cutoverConfirmations,
-		DrainTimeout:            drainTimeout,
-		KeepImages:              keepImages,
+		DashboardEnabled:        boolConfig(envVars, "TRAEFIK_DASHBOARD_ENABLED", env == "local"),
+		HealthTimeout:           secondsConfig(envVars, "DEPLOY_HEALTH_TIMEOUT_SECONDS", defaultHealthTimeoutSeconds),
+		CutoverTimeout:          secondsConfig(envVars, "DEPLOY_CUTOVER_TIMEOUT_SECONDS", defaultCutoverTimeoutSeconds),
+		CutoverConfirmations:    intConfig(envVars, "DEPLOY_CUTOVER_CONFIRMATIONS", defaultCutoverConfirmations),
+		DrainTimeout:            secondsConfig(envVars, "DEPLOY_DRAIN_TIMEOUT_SECONDS", defaultDrainTimeoutSeconds),
+		KeepImages:              intConfig(envVars, "DEPLOY_KEEP_IMAGES", defaultKeepImages),
 		TraefikComposeFile:      projectPath(resolveConfig(envVars, "TRAEFIK_COMPOSE_FILE", defaultTraefikComposeFile)),
 		TraefikDashboardFile:    projectPath(resolveConfig(envVars, "TRAEFIK_DASHBOARD_COMPOSE_FILE", defaultTraefikDashboardFile)),
 		Dockerfile:              projectPath(resolveConfig(envVars, "DOCKERFILE", defaultDockerfile)),
 		ComposeDir:              projectPath(resolveConfig(envVars, "COMPOSE_DIR", defaultComposeDir)),
 		LocalDBComposeFile:      projectPath(resolveConfig(envVars, "LOCAL_DB_COMPOSE_FILE", defaultLocalDBComposeFile)),
 		ForceGatewayReplacement: options["force"] == "true",
-	}, nil
+	}
 }
 
 // defaultRegistry 根据环境名返回对应的腾讯云镜像仓库地址。
-func defaultRegistry(env string) (string, error) {
+func defaultRegistry(env string) string {
 	registry, ok := registryByEnv[env]
 	if !ok {
-		return "", fmt.Errorf("unknown environment: %s", env)
+		panic(fmt.Errorf("unknown environment: %s", env))
 	}
-	return registry, nil
+	return registry
 }
 
-// getVersion 解析版本号：优先取命令行 version=xxx；
-// local 环境未指定时返回默认版本，非 local 环境未指定则返回 error。
-func getVersion(options map[string]string, env string) (string, error) {
+func getVersion(options map[string]string, env string) string {
 	if version, ok := options["version"]; ok && version != "" {
-		return version, nil
+		return version
 	}
 	if env == "local" {
-		return defaultLocalVersion, nil
+		return defaultLocalVersion
 	}
-	return "", fmt.Errorf("error: version parameter is required for %s", env)
+	panic(fmt.Errorf("error: version parameter is required for %s", env))
 }
 
 // resolveConfig 按优先级获取配置值：env 文件 > 系统环境变量 > 默认值。
@@ -1204,54 +1047,46 @@ func getEnvWithDefault(key, defaultVal string) string {
 	return defaultVal
 }
 
-// secondsConfig 读取整数配置并转换为 time.Duration（秒）。
-func secondsConfig(fileVars map[string]string, key string, defaultVal int) (time.Duration, error) {
-	value, err := intConfig(fileVars, key, defaultVal)
-	if err != nil {
-		return 0, err
-	}
-	return time.Duration(value) * time.Second, nil
+func secondsConfig(fileVars map[string]string, key string, defaultVal int) time.Duration {
+	return time.Duration(intConfig(fileVars, key, defaultVal)) * time.Second
 }
 
-// intConfig 读取正整数配置值，无效值时返回 error。
-func intConfig(fileVars map[string]string, key string, defaultVal int) (int, error) {
+func intConfig(fileVars map[string]string, key string, defaultVal int) int {
 	value := resolveConfig(fileVars, key, "")
 	if value == "" {
-		return defaultVal, nil
+		return defaultVal
 	}
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed <= 0 {
-		return 0, fmt.Errorf("invalid %s=%q, expected positive integer", key, value)
+		panic(fmt.Errorf("invalid %s=%q, expected positive integer", key, value))
 	}
-	return parsed, nil
+	return parsed
 }
 
-// boolConfig 读取布尔配置值，支持 true/false、1/0、yes/no、on/off。
-func boolConfig(fileVars map[string]string, key string, defaultVal bool) (bool, error) {
+func boolConfig(fileVars map[string]string, key string, defaultVal bool) bool {
 	value := resolveConfig(fileVars, key, "")
 	if value == "" {
-		return defaultVal, nil
+		return defaultVal
 	}
 	parsed, err := strconv.ParseBool(value)
 	if err == nil {
-		return parsed, nil
+		return parsed
 	}
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "yes", "on":
-		return true, nil
+		return true
 	case "no", "off":
-		return false, nil
+		return false
 	default:
-		return false, fmt.Errorf("invalid %s=%q, expected boolean", key, value)
+		panic(fmt.Errorf("invalid %s=%q, expected boolean", key, value))
 	}
 }
 
-// loadEnv 解析 .env 文件，支持 # 注释、引号包裹值、export 前缀。
-func loadEnv(envFile string) (map[string]string, error) {
+func loadEnv(envFile string) map[string]string {
 	env := make(map[string]string)
 	file, err := os.Open(envFile)
 	if err != nil {
-		return nil, fmt.Errorf("open env file %s: %w", envFile, err)
+		panic(fmt.Errorf("open env file %s: %w", envFile, err))
 	}
 	defer file.Close()
 
@@ -1268,9 +1103,9 @@ func loadEnv(envFile string) (map[string]string, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return env, fmt.Errorf("failed to read env file %s: %w", envFile, err)
+		panic(fmt.Errorf("failed to read env file %s: %w", envFile, err))
 	}
-	return env, nil
+	return env
 }
 
 // cleanEnvValue 清理 env 值：去除首尾引号、行内注释（未被引号包裹时）。
@@ -1290,7 +1125,10 @@ func cleanEnvValue(value string) string {
 
 // getEnvVar 从指定 env 文件中读取单个配置值的便捷方法。
 func getEnvVar(envFile, key, defaultVal string) string {
-	env, _ := loadEnv(envFile)
+	if _, err := os.Stat(envFile); err != nil {
+		return defaultVal
+	}
+	env := loadEnv(envFile)
 	return resolveConfig(env, key, defaultVal)
 }
 
@@ -1316,9 +1154,9 @@ func getAppName(envFile string) string {
 // ============================================================================
 
 // initProjectRoot 探测并缓存项目根目录，允许在项目内移动脚本或从不同目录执行。
-func initProjectRoot() (string, error) {
+func initProjectRoot() {
 	if projectRootDir != "" {
-		return projectRootDir, nil
+		return
 	}
 
 	candidates := make([]string, 0, 3)
@@ -1335,11 +1173,11 @@ func initProjectRoot() (string, error) {
 	for _, start := range candidates {
 		if root, ok := findProjectRoot(start); ok {
 			projectRootDir = root
-			return projectRootDir, nil
+			return
 		}
 	}
 
-	return "", fmt.Errorf("failed to locate project root from current working directory, executable path, or source file path")
+	panic(fmt.Errorf("failed to locate project root from current working directory, executable path, or source file path"))
 }
 
 // projectRoot 返回已缓存的项目根目录。
@@ -1414,9 +1252,11 @@ func runCmd(name string, args ...string) error {
 	return cmd.Run()
 }
 
-// commandError 为外部命令失败补充命令上下文。
-func commandError(name string, args []string, err error) error {
-	return fmt.Errorf("command failed: %s %s: %w", name, strings.Join(args, " "), err)
+// mustRun 执行外部命令，失败时 panic。
+func mustRun(name string, args ...string) {
+	if err := runCmd(name, args...); err != nil {
+		panic(fmt.Errorf("command failed: %s %s: %w", name, strings.Join(args, " "), err))
+	}
 }
 
 // getOutput 执行外部命令并捕获 stdout 输出，带默认超时避免 docker 偶发挂死阻塞部署流程。
@@ -1530,14 +1370,14 @@ func appContainerName(appName, color string) string {
 }
 
 // oppositeColor 返回对立颜色：blue -> green, green -> blue。
-func oppositeColor(color string) (string, error) {
+func oppositeColor(color string) string {
 	switch color {
 	case "blue":
-		return "green", nil
+		return "green"
 	case "green":
-		return "blue", nil
+		return "blue"
 	default:
-		return "", fmt.Errorf("unknown deployment color: %s", color)
+		panic(fmt.Errorf("unknown deployment color: %s", color))
 	}
 }
 
