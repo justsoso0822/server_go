@@ -3,6 +3,7 @@ NAMESPACE   = "default"
 DEPLOY_NAME = "server-go"
 DOCKER_NAME = "server-go"
 VERSION     ?=
+FORCE       ?=
 
 include ./hack/hack-cli.mk
 include ./hack/hack.mk
@@ -52,17 +53,23 @@ push.production:
 # 部署
 .PHONY: deploy.local
 deploy.local:
-	@go run cmd/deploy/main.go deploy local $(if $(VERSION),version=$(VERSION),)
+	@go run cmd/deploy/main.go deploy local $(if $(VERSION),version=$(VERSION),) $(if $(FORCE),-f,)
 
 .PHONY: deploy.test
 deploy.test:
-	@go run cmd/deploy/main.go deploy test $(if $(VERSION),version=$(VERSION),)
+	@[ -n "$(VERSION)" ] || (echo "Error: VERSION is required for deploy.test" && exit 1)
+	@go run cmd/deploy/main.go deploy test version=$(VERSION) $(if $(FORCE),-f,)
 
 .PHONY: deploy.production
 deploy.production:
-	@go run cmd/deploy/main.go deploy production $(if $(VERSION),version=$(VERSION),)
+	@[ -n "$(VERSION)" ] || (echo "Error: VERSION is required for deploy.production" && exit 1)
+	@go run cmd/deploy/main.go deploy production version=$(VERSION) $(if $(FORCE),-f,)
 
 # 状态查看
+.PHONY: status
+status:
+	@go run cmd/deploy/main.go status
+
 .PHONY: status.local
 status.local:
 	@go run cmd/deploy/main.go status local

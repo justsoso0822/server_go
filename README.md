@@ -1,672 +1,315 @@
-# 部署文档
+# server_go
 
-## 快速开始
+基于 GoFrame v2 的游戏服务端项目，提供用户登录、游戏状态、背包、棋盘、资源变更、健康检查和内部流量控制等 HTTP 接口。
+
+## 项目定位
+
+`server_go` 是一个面向游戏业务的后端服务，核心职责包括：
+
+- 提供游戏客户端访问的 `/api` 接口。
+- 管理用户、资源、背包、棋盘、任务等游戏数据。
+- 连接 MySQL 存储业务数据。
+- 连接 Redis 支撑缓存、状态和运行时能力。
+- 提供健康检查与内部控制接口，支持容器化部署和蓝绿发布。
+
+## 技术栈
+
+- Go `1.26.0`
+- GoFrame `v2.10.0`
+- MySQL `8.4`
+- Redis `7.4`
+- Docker / Docker Compose
+
+## 目录结构
+
+```text
+.
+├── api/                    # 接口协议定义
+├── cmd/                    # 辅助命令，如部署、本地压测
+├── hack/                   # 构建、部署相关脚本
+├── internal/
+│   ├── cmd/                # HTTP 服务入口与路由注册
+│   ├── controller/         # 请求处理层
+│   ├── dao/                # 数据访问层
+│   ├── logic/              # 业务逻辑层
+│   ├── middleware/         # 签名、登录态校验等中间件
+│   ├── model/              # 数据模型
+│   └── service/            # 服务接口声明
+├── manifest/
+│   ├── config/             # 不同环境配置
+│   └── docker/             # Dockerfile、Compose、数据库初始化脚本
+├── resource/               # 静态资源与模板目录
+├── utility/                # 通用工具
+├── main.go                 # 服务启动入口
+├── Makefile                # 常用开发、构建、部署命令
+└── go.mod                  # Go 模块依赖
+```
+
+## 环境要求
+
+本地开发建议准备：
+
+- Go `1.26+`
+- Docker Desktop
+- Docker Compose
+- Make，可选；Windows 下也可以直接执行对应的 `go run` 命令
+
+## 快速启动
+
+### 1. 安装依赖
+
+```bash
+go mod download
+```
+
+### 2. 启动本地 MySQL 和 Redis
+
+如果当前环境支持 `make`：
+
+```bash
+make start-local-db
+```
+
+等价命令：
+
+```bash
+go run cmd/deploy/main.go start-local-db
+```
+
+本地开发数据库默认信息：
+
+```text
+MySQL: 127.0.0.1:330
+Database: game_db_1
+User: root
+Password: root
+
+Redis: 127.0.0.1:637
+Password: root
+DB: 0
+```
+
+初始化 SQL 位于：
+
+```text
+manifest/docker/mysql/init/01-init.sql
+```
+
+### 3. 启动服务
+
+```bash
+go run main.go
+```
+
+或：
+
+```bash
+make dev
+```
+
+服务默认监听：
+
+```text
+http://127.0.0.1:7001
+```
+
+## 配置说明
+
+默认配置文件位于：
+
+```text
+manifest/config/config.yaml
+```
+
+常见环境配置：
+
+```text
+manifest/config/config.local.yaml       # 本地容器内运行配置
+manifest/config/config.test.yaml        # 测试环境配置
+manifest/config/config.production.yaml  # 生产环境配置
+```
+
+关键配置项：
+
+| 配置项 | 说明 |
+| --- | --- |
+| `server.address` | HTTP 服务监听地址 |
+| `server.openapiPath` | OpenAPI JSON 地址 |
+| `server.swaggerPath` | Swagger UI 地址 |
+| `app.keys` | 应用签名和加密密钥 |
+| `database.default.link` | MySQL 连接地址 |
+| `database.default.debug` | 是否开启 SQL 调试日志 |
+| `redis.default.address` | Redis 地址 |
+| `redis.default.pass` | Redis 密码 |
+| `logger.level` | 日志级别 |
+
+容器运行时可通过 `APP_PORT` 覆盖监听端口。
+
+## 接口分组
+
+### 游戏业务接口
+
+`/api` 分组启用了签名校验和登录态校验。
+
+| 分组 | 路径 | 说明 |
+| --- | --- | --- |
+| User | `/api/user/login` | 用户登录 |
+| Game | `/api/game/time` | 获取服务器时间 |
+| Game | `/api/game/online` | 记录在线时长 |
+| Bag | `/api/bag/get_bag/{chapter}` | 获取用户背包 |
+| Bag | `/api/bag/get_bag_tp/{chapter}` | 获取用户背包 TP |
+| Grid | `/api/grid/get/{chapter}` | 获取棋盘数据 |
+| Res | `/api/res/add_tili` | 测试增加体力 |
+| Res | `/api/res/add_gold` | 测试增加金币 |
+| Res | `/api/res/add_diamond` | 测试增加钻石 |
+
+### 非登录业务接口
+
+| 分组 | 路径 | 说明 |
+| --- | --- | --- |
+| Other | `/other/res_version/{key}` | 获取资源版本号 |
+| Test | `/test/` | 测试接口 |
+| Test | `/test/db` | 测试数据库 |
+
+### 健康检查接口
+
+| 路径 | 说明 |
+| --- | --- |
+| `/health/` | 基础健康检查 |
+| `/health/ready` | 就绪检查 |
+| `/health/detail` | 健康详情 |
+| `/health/lb` | 负载均衡健康检查 |
+
+### 内部控制接口
+
+内部控制接口位于 `/_internal/control`，主要用于部署、流量切换和优雅下线。
+
+| 路径 | 说明 |
+| --- | --- |
+| `/_internal/control/traffic-shift` | 开始流量切换 |
+| `/_internal/control/reject-new-requests` | 拒绝新请求 |
+| `/_internal/control/resume-traffic` | 恢复流量 |
+
+## OpenAPI 与 Swagger
+
+服务启动后可访问：
+
+```text
+http://127.0.0.1:7001/api.json
+http://127.0.0.1:7001/swagger
+```
+
+## 常用命令
 
 ### 本地开发
 
 ```bash
-# 1. 启动本地数据库（MySQL + Redis）
-go run cmd/deploy/main.go start-local-db
+make dev
+make start-local-db
+make stop-local-db
+```
 
-# 2. 运行应用（自动使用 config.yaml）
+等价命令：
+
+```bash
 go run main.go
-
-# 3. 停止数据库
+go run cmd/deploy/main.go start-local-db
 go run cmd/deploy/main.go stop-local-db
 ```
 
-访问:
-- 宿主机直接运行：`http://localhost:7001`
-- 本地 Docker 蓝绿发布：默认 `http://localhost:17001`（取决于 `.env.local` 中的 `HOST_GATEWAY_PORT`）
-
-### 使用 Makefile（推荐）
-
-Makefile 提供了简化的命令封装：
+### 构建镜像
 
 ```bash
-make start-local-db    # 启动本地数据库（等同于 go run cmd/deploy/main.go start-local-db）
-make dev               # 运行应用（等同于 go run main.go）
-make stop-local-db     # 停止本地数据库（等同于 go run cmd/deploy/main.go stop-local-db）
+make build.local
+make build.test VERSION=1.0.0
+make build.production VERSION=1.0.0
 ```
 
-> **说明**：Makefile 命令与部署脚本命令完全一致，只是省略了 `go run cmd/deploy/main.go` 前缀。
-
----
-
-## 部署命令详解
-
-### 命令格式
+### 推送镜像
 
 ```bash
-go run cmd/deploy/main.go <command> <env> [options]
+make push.local
+make push.test VERSION=1.0.0
+make push.production VERSION=1.0.0
 ```
 
-**参数说明：**
-- `<command>`: 命令类型（必填）
-- `<env>`: 环境名称（必填，除了 start-local-db 和 stop-local-db）
-- `[options]`: 可选参数，格式为 `key=value`
-
-### 1. 构建镜像 (build)
-
-构建 Docker 镜像并打标签。
-
-**命令组合：**
+### 部署
 
 ```bash
-# 构建本地环境镜像
-go run cmd/deploy/main.go build local
-# 说明：构建镜像并推送到 ccr.ccs.tencentyun.com/justsoso-local/server-go
-# 标签：默认 1.0.0，可通过 version=xxx 覆盖
-
-# 构建测试环境镜像
-go run cmd/deploy/main.go build test version=v1.2.3
-# 说明：构建镜像并推送到 ccr.ccs.tencentyun.com/justsoso-test/server-go
-# 标签：必须显式指定 version，同时会打 latest 标签
-
-# 构建生产环境镜像
-go run cmd/deploy/main.go build production version=v1.2.3
-# 说明：构建镜像并推送到 ccr.ccs.tencentyun.com/justsoso-production/server-go
-# 标签：必须显式指定 version，同时会打 latest 标签
-
-# 构建测试/生产环境镜像（指定版本）
-go run cmd/deploy/main.go build production version=v1.2.3
-# 说明：构建生产环境镜像，使用指定的版本号 v1.2.3 作为标签
-# 镜像：ccr.ccs.tencentyun.com/justsoso-production/server-go:v1.2.3
-# 同时打 latest 标签
+make deploy.local
+make deploy.test VERSION=1.0.0
+make deploy.production VERSION=1.0.0
 ```
 
-**构建过程：**
-1. local 默认版本号使用 `1.0.0`，也可用 version 参数覆盖
-2. test/production 必须显式传入 version 参数
-3. 使用 `manifest/docker/Dockerfile` 构建镜像
-4. 打两个标签：指定版本号 + latest
-5. 镜像保存在本地，等待推送
-
-### 2. 推送镜像 (push)
-
-将本地构建的镜像推送到腾讯云镜像仓库。
-
-**命令组合：**
+### 查看状态
 
 ```bash
-# 推送本地环境镜像
-go run cmd/deploy/main.go push local
-# 说明：推送到 justsoso-local 命名空间
-# 推送：server-go:版本号 和 server-go:latest
-
-# 推送测试环境镜像
-go run cmd/deploy/main.go push test version=v1.2.3
-# 说明：推送到 justsoso-test 命名空间
-# 用途：供测试服务器拉取部署
-
-# 推送生产环境镜像
-go run cmd/deploy/main.go push production version=v1.2.3
-# 说明：推送到 justsoso-production 命名空间
-# 用途：供生产服务器拉取部署
-
-# 推送测试/生产环境镜像（必须指定版本）
-go run cmd/deploy/main.go push production version=v1.2.3
-# 说明：推送指定版本号的镜像
-# 前提：必须先用相同的 version 参数执行 build 命令
+make status.local
+make status.test
+make status.production
 ```
 
-**推送过程：**
-1. 查找本地已构建的镜像
-2. 推送到对应环境的腾讯云镜像仓库
-3. 同时推送版本号标签和 latest 标签
+## Docker 本地环境
 
-### 3. 部署 (deploy)
+本地数据库服务由以下文件维护：
 
-执行蓝绿部署，自动检测当前运行的颜色并切换到另一个颜色。
-
-**命令组合：**
-
-```bash
-# 部署到本地环境
-go run cmd/deploy/main.go deploy local
-# 说明：在本地 Docker 环境执行蓝绿部署
-# 流程：
-#   1. 检测当前运行的颜色（blue 或 green）
-#   2. 如果 blue 在运行，部署到 green；如果 green 在运行，部署到 blue
-#   3. 如果都没运行（首次部署），默认部署到 blue
-#   4. 启动 Traefik 网关（如果未运行）
-#   5. 启动新颜色的容器
-#   6. 等待健康检查通过（最多 60 秒）
-#   7. 健康检查通过后，Traefik 自动切换流量到新容器
-#   8. 停止旧颜色的容器
-#   9. 如果健康检查失败，停止新容器，保持旧版本运行（自动回滚）
-
-# 部署到测试环境
-go run cmd/deploy/main.go deploy test
-# 说明：在测试服务器执行蓝绿部署
-# 前提：镜像已通过 push 上传到仓库
-# 配置：使用 .env.test 和 config.test.yaml
-# 数据库：连接测试环境的外部数据库
-
-# 部署到生产环境
-go run cmd/deploy/main.go deploy production
-# 说明：在生产服务器执行蓝绿部署
-# 前提：镜像已通过 push 上传到仓库
-# 配置：使用 .env.production 和 config.production.yaml
-# 数据库：连接生产环境的外部数据库
-# 特点：0 停机部署，失败自动回滚
-
-# 部署指定版本（可选）
-go run cmd/deploy/main.go deploy production version=v1.2.3
-# 说明：部署指定版本号的镜像到生产环境
-# 前提：该版本已经 build 和 push
-# 注意：version 参数可选，默认使用 latest
-```
-
-**部署流程详解：**
-
-1. **检测阶段**
-   - 检查 blue 容器是否运行
-   - 检查 green 容器是否运行
-   - 确定当前颜色和目标颜色
-
-2. **准备阶段**
-   - 启动 Traefik 网关（如果未运行）
-   - 等待 2 秒让网关就绪
-
-3. **部署阶段**
-   - 使用 docker compose 启动目标颜色的容器
-   - `IMAGE_SOURCE=local` 时在部署机本地构建镜像后再蓝绿发布
-   - `IMAGE_SOURCE=remote` 时只使用仓库镜像；如果未传 version，默认拉取 latest
-   - 网关不存在时自动启动
-   - 网关已存在且宿主机映射端口与目标环境一致时直接复用
-   - 网关已存在但端口不一致时直接终止部署；只有传 `-f` 才会强制替换网关
-   - 容器使用对应环境的配置文件
-   - 容器自动注册到 Traefik
-
-4. **健康检查阶段**
-   - 每 3 秒检查一次容器健康状态
-   - 最多等待 60 秒
-   - 检查 `/health/lb` 端点
-
-5. **切换阶段**
-   - 健康检查通过后，Traefik 自动将流量切到新容器
-   - 停止旧颜色的容器
-   - 完成 0 停机部署
-
-6. **失败回滚**
-   - 如果健康检查超时（60 秒）
-   - 自动停止新容器
-   - 保持旧版本继续运行
-   - 输出错误日志
-
-7. **镜像清理**
-   - 部署成功后自动清理旧镜像
-   - 只保留最近 10 个版本的镜像
-   - 避免磁盘空间占用过多
-
-### 4. 查看状态 (status)
-
-查看当前机器上的容器运行状态。
-
-**命令：**
-
-```bash
-# 查看容器状态（无需指定环境）
-go run cmd/deploy/main.go status
-# 显示：
-#   - 运行中的容器（blue/green/traefik）
-#   - 容器状态（运行时间、健康状态）
-#   - 端口映射
-#   - 网络信息
-#   - 数据卷信息
-```
-
-> **说明**：status 命令不需要指定环境参数，它会显示当前机器上所有 server-go 相关的容器。
-
-**输出示例：**
 ```text
-=== Environment: test ===
-
-Running containers:
-NAMES               STATUS                    PORTS
-server-go-green-1   Up 2 hours (healthy)     7001/tcp
-server-go-gateway   Up 2 hours (healthy)     0.0.0.0:7001->7001/tcp
-
-Networks:
-NETWORK ID     NAME                DRIVER    SCOPE
-abc123         server-go-network   bridge    local
-
-Volumes:
-DRIVER    VOLUME NAME
+manifest/docker/compose/local.yml
 ```
 
-> 说明：网关端口映射取决于对应 `.env.*` 中的 `HOST_GATEWAY_PORT`，例如 `.env.local` 默认是 `17001`。
+包含：
 
-### 5. 启动本地数据库 (start-local-db)
+- MySQL `8.4`
+- Redis `7.4-alpine`
+- 独立 Docker network
+- MySQL 和 Redis named volume 持久化
+- 首次启动自动执行初始化 SQL
 
-启动本地开发用的 MySQL 和 Redis 容器。
+停止本地数据库：
 
 ```bash
-go run cmd/deploy/main.go start-local-db
-# 说明：启动本地数据库服务
-# 启动：
-#   - MySQL 8.4 容器，端口映射到 127.0.0.1:330
-#   - Redis 7.4 容器，端口映射到 127.0.0.1:637
-# 配置：
-#   - MySQL root 密码：root
-#   - Redis 密码：root
-# 数据持久化：使用 Docker volume
-# 用途：本地开发时，应用连接这些数据库
+make stop-local-db
 ```
 
-**启动后：**
-- MySQL: `mysql:root:root@tcp(127.0.0.1:330)/game_db_1`
-- Redis: `127.0.0.1:637`，密码 `root`
-- 数据保存在 Docker volume 中，重启不丢失
+如果需要彻底清空本地数据，需要额外删除 Docker volume。
 
-### 6. 停止本地数据库 (stop-local-db)
+## 部署说明
 
-停止并删除本地数据库容器。
+项目内置了部署辅助命令：
 
-```bash
-go run cmd/deploy/main.go stop-local-db
-# 说明：停止本地数据库服务
-# 操作：
-#   - 停止 MySQL 容器
-#   - 停止 Redis 容器
-#   - 删除容器（数据卷保留）
-# 注意：数据不会丢失，下次启动会恢复
+```text
+cmd/deploy/main.go
 ```
 
----
+支持的环境：
 
-## 完整部署流程示例
-
-### 场景 1：本地开发
-
-```bash
-# 1. 启动数据库
-go run cmd/deploy/main.go start-local-db
-# 结果：MySQL 和 Redis 启动在 127.0.0.1
-
-# 2. 运行应用
-go run main.go
-# 结果：应用自动使用 config.yaml，连接本地数据库
-
-# 3. 停止数据库（开发结束后）
-go run cmd/deploy/main.go stop-local-db
+```text
+local
+test
+production
 ```
 
-### 场景 1.1：本地 Docker 蓝绿发布
+部署相关资源位于：
 
-```bash
-# 1. 确认 .env.local 中 IMAGE_SOURCE=local
-# 结果：deploy local 会在本机先校验网关，再构建镜像并执行蓝绿发布
-
-# 2. 首次发布
-go run cmd/deploy/main.go deploy local
-# 结果：
-#   - 先校验网关；如果不存在则启动
-#   - 网关校验通过后，默认使用 1.0.0 构建本地镜像
-#   - 同时打上 1.0.0 和 latest 标签
-#   - 首次发布到 blue
-#   - 默认通过 http://localhost:17001 访问（取决于 .env.local 的 HOST_GATEWAY_PORT）
-
-# 3. 发布指定版本
-go run cmd/deploy/main.go deploy local version=v1.2.3
-# 结果：
-#   - 先校验网关；如果端口冲突则直接失败
-#   - 本机构建 v1.2.3 并同时打上 latest
-#   - 与当前运行颜色做蓝绿切换
-#   - 健康检查通过后切流
-
-# 4. 端口冲突时强制替换网关
-go run cmd/deploy/main.go deploy local -f
-# 结果：只有显式传 -f 时，才会强制替换当前网关
+```text
+manifest/docker/
+manifest/docker/compose/
 ```
 
-### 场景 2：测试环境首次部署
-
-```bash
-# 1. 配置环境（在服务器上）
-vim .env.test
-vim manifest/config/config.test.yaml
-
-# 2. 构建镜像（可在本地或服务器）
-go run cmd/deploy/main.go build test version=v1.2.3
-# 结果：构建镜像并同时打上 v1.2.3 与 latest 标签
-
-# 3. 推送镜像
-go run cmd/deploy/main.go push test version=v1.2.3
-# 结果：镜像推送到 justsoso-test 命名空间
-
-# 4. 部署（在服务器上）
-go run cmd/deploy/main.go deploy test version=v1.2.3
-# 结果：
-#   - 检测到无运行容器，部署到 blue
-#   - 启动 Traefik 网关
-#   - 拉取并启动 blue 容器
-#   - 等待健康检查
-#   - 服务可访问
-
-# 5. 查看状态
-go run cmd/deploy/main.go status test
-# 结果：显示 blue 容器运行中
-```
-
-### 场景 3：测试环境更新部署
-
-```bash
-# 1. 拉取最新代码（在服务器上）
-git pull
-
-# 2. 构建新版本
-go run cmd/deploy/main.go build test version=def5678
-# 结果：构建 def5678，并同时打上 latest 标签
-
-# 3. 推送新版本
-go run cmd/deploy/main.go push test version=def5678
-
-# 4. 部署新版本
-go run cmd/deploy/main.go deploy test version=def5678
-# 结果：
-#   - 检测到 blue 在运行
-#   - 部署到 green
-#   - 拉取并启动 green 容器
-#   - 等待健康检查
-#   - 健康检查通过，流量切到 green
-#   - 停止 blue 容器
-#   - 完成 0 停机更新
-
-# 5. 查看状态
-go run cmd/deploy/main.go status test
-# 结果：显示 green 容器运行中
-```
-
-### 场景 4：生产环境发布指定版本
-
-```bash
-# 1. 构建指定版本
-go run cmd/deploy/main.go build production version=v1.2.3
-# 结果：构建镜像，标签为 v1.2.3
-
-# 2. 推送指定版本
-go run cmd/deploy/main.go push production version=v1.2.3
-# 结果：推送 v1.2.3 到 justsoso-production
-
-# 3. 部署指定版本
-go run cmd/deploy/main.go deploy production version=v1.2.3
-# 结果：
-#   - 检测当前运行颜色
-#   - 部署 v1.2.3 到另一个颜色
-#   - 健康检查通过后切换
-#   - 0 停机发布
-
-# 4. 查看状态
-go run cmd/deploy/main.go status production
-```
-
-### 场景 5：部署失败自动回滚
-
-```bash
-# 1. 部署新版本
-go run cmd/deploy/main.go deploy test
-# 过程：
-#   - 检测到 blue 在运行
-#   - 开始部署到 green
-#   - 启动 green 容器
-#   - 等待健康检查...
-#   - 健康检查失败（应用启动失败）
-#   - 自动停止 green 容器
-#   - blue 容器继续运行
-#   - 输出错误信息
-
-# 2. 查看状态
-go run cmd/deploy/main.go status test
-# 结果：blue 仍在运行，服务未中断
-
-# 3. 排查问题后重新部署
-go run cmd/deploy/main.go deploy test
-# 结果：再次尝试部署到 green
-```
-
----
-
-## 环境配置
-
-### 配置文件
-
-| 环境 | 配置文件 | 说明 |
-|------|---------|------|
-| 本地开发 | `manifest/config/config.yaml` | 宿主机运行，连接本地 Docker 数据库 |
-| Docker 本地 | `manifest/config/config.local.yaml` | 容器内运行，连接 compose 服务名 |
-| 测试环境 | `manifest/config/config.test.yaml` | 外部数据库 |
-| 生产环境 | `manifest/config/config.production.yaml` | 外部数据库 |
-
-### 环境变量文件
-
-- `.env.local` - 本地环境
-- `.env.test` - 测试环境
-- `.env.production` - 生产环境
-
----
-
-## 服务器部署
-
-### 前置准备
-
-1. 服务器安装 Docker 和 Docker Compose
-2. 登录腾讯云镜像仓库: `docker login ccr.ccs.tencentyun.com`
-3. 克隆代码: `git clone <repo-url> && cd server_go`
-
-### 测试环境部署
-
-```bash
-# 1. 配置环境
-vim .env.test
-vim manifest/config/config.test.yaml
-
-# 2. 构建并推送（可在本地或服务器执行）
-go run cmd/deploy/main.go build test version=v1.2.3
-go run cmd/deploy/main.go push test version=v1.2.3
-
-# 3. 部署（自动蓝绿切换）
-go run cmd/deploy/main.go deploy test version=v1.2.3
-
-# 4. 查看状态
-go run cmd/deploy/main.go status test
-```
-
-### 生产环境部署
-
-```bash
-# 1. 配置环境
-vim .env.production
-vim manifest/config/config.production.yaml
-
-# 2. 构建并推送
-go run cmd/deploy/main.go build production version=v1.2.3
-go run cmd/deploy/main.go push production version=v1.2.3
-
-# 3. 部署
-go run cmd/deploy/main.go deploy production version=v1.2.3
-
-# 4. 查看状态
-go run cmd/deploy/main.go status production
-```
-
-### 编译部署工具（服务器无 Go 环境）
-
-```bash
-# 本地编译
-GOOS=linux GOARCH=amd64 go build -o deploy cmd/deploy/main.go
-
-# 上传到服务器
-scp deploy user@server:/path/to/server_go/
-
-# 服务器上运行
-./deploy build test version=v1.2.3
-./deploy push test version=v1.2.3
-./deploy deploy test version=v1.2.3
-```
-
----
-
-## 蓝绿部署原理
-
-1. **自动检测**：检测当前运行的颜色（blue 或 green）
-2. **部署新版本**：启动另一个颜色的容器
-3. **健康检查**：等待新容器健康检查通过（最多 60 秒）
-4. **自动切换**：Traefik 自动将流量切换到健康的新容器
-5. **停止旧版本**：停止旧颜色的容器
-6. **失败回滚**：如果健康检查失败，自动停止新容器，保持旧版本运行
-
-### 健康检查端点
-
-- `/health/ready` - 容器内部健康检查
-- `/health/lb` - 负载均衡器健康检查
-
----
-
-## 日志配置
-
-### 日志级别
-
-所有环境统一使用 `info` 级别
-
-### 日志格式
-
-| 环境 | 格式 | 说明 |
-|------|------|------|
-| 本地开发 | 原始文本，带颜色 | 便于开发调试 |
-| 测试环境 | 单行 JSON | 腾讯云日志采集 |
-| 生产环境 | 单行 JSON | 腾讯云日志采集 |
-
-### Docker 日志轮转
-
-所有容器已配置日志轮转：
-- 驱动: `json-file`
-- 单文件大小: `20MB`
-- 保留文件数: `5个`
-- 总容量: 最多 100MB
-
----
-
-## 监控和日志
-
-### 查看容器日志
-
-```bash
-# 查看 blue 容器日志
-docker compose -f manifest/docker/compose/blue.yml --env-file .env.test logs -f
-
-# 查看 green 容器日志
-docker compose -f manifest/docker/compose/green.yml --env-file .env.test logs -f
-
-# 查看最近 100 行
-docker logs server-go-blue-1 --tail=100
-```
-
-### 访问 Traefik Dashboard（仅本地环境）
-
-本地环境默认开启 Dashboard：
-```
-http://localhost:18080/dashboard/
-```
-
-测试/生产环境默认关闭 Dashboard。如需开启，修改对应 `.env` 文件：
-```bash
-TRAEFIK_API_ENABLED=true
-TRAEFIK_DASHBOARD_ENABLED=true
-TRAEFIK_DASHBOARD_PORT=18080
-```
-
----
-
-## 故障排查
-
-### 容器无法启动
-
-```bash
-# 查看容器日志
-docker logs server-go-blue-1 --tail=50
-
-# 检查配置文件
-cat manifest/config/config.test.yaml
-
-# 进入容器检查
-docker exec -it server-go-blue-1 sh
-```
-
-### 健康检查失败
-
-```bash
-# 手动测试健康检查端点
-curl http://localhost:7001/health/ready
-curl http://localhost:7001/health/lb
-
-# 查看应用日志
-docker logs server-go-blue-1 --tail=50
-```
-
-### 部署失败
-
-部署失败会自动回滚，保持旧版本运行。查看日志排查问题后重新部署即可。
-
----
-
-## CI/CD 集成
-
-### GitHub Actions 示例
-
-```yaml
-name: Deploy to Test
-
-on:
-  push:
-    branches: [test]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.23'
-      
-      - name: Login to Tencent Cloud Registry
-        run: echo "${{ secrets.TCR_PASSWORD }}" | docker login ccr.ccs.tencentyun.com -u ${{ secrets.TCR_USERNAME }} --password-stdin
-      
-      - name: Build and Push
-        run: |
-          go run cmd/deploy/main.go build test version=${{ github.sha }}
-          go run cmd/deploy/main.go push test version=${{ github.sha }}
-      
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.TEST_HOST }}
-          username: ${{ secrets.TEST_USER }}
-          key: ${{ secrets.TEST_SSH_KEY }}
-          script: |
-            cd /path/to/server_go
-            git pull
-            go run cmd/deploy/main.go deploy test version=${{ github.sha }}
-```
-
----
-
-## 安全建议
-
-1. **不要提交敏感信息**
-   - `.env.*` 文件应在 `.gitignore` 中
-   - 数据库密码、API 密钥通过环境变量配置
-
-2. **限制服务器访问**
-   - 使用防火墙限制端口访问
-   - 只开放必要的端口（如 7001）
-   - 生产环境禁用 Traefik Dashboard（默认已关闭）
-
-3. **定期更新**
-   - 定期更新 Docker 镜像
-   - 定期更新依赖包
-   - 定期备份数据库
+其中 `blue.yml`、`green.yml`、`traefik.yml` 用于蓝绿部署和流量入口管理。
+
+## 开发约定
+
+- 新接口优先在 `api/<module>/v1` 定义协议。
+- 对外业务接口挂载到 `/api`，默认经过签名和登录态校验。
+- 健康检查和内部控制接口不依赖登录态。
+- 数据访问模型由 `internal/dao`、`internal/model` 承载。
+- 业务编排放在 `internal/logic`。
+- 公共能力放在 `utility`。
+
+## 注意事项
+
+- `app.keys` 涉及签名和加密，生产环境必须替换。
+- `.env.*` 和环境配置中可能包含环境差异，请不要直接混用生产配置启动本地服务。
+- `/api` 分组接口需要满足项目内签名和校验规则，直接浏览器访问可能无法通过中间件。
+- 本地 MySQL 使用宿主机端口 `330`，如端口被占用，需要同步修改 Compose 和配置文件。
