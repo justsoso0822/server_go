@@ -583,7 +583,7 @@ func waitForHealthy(cfg deployConfig, color string) error {
 			return err
 		}
 		if hasLine(output, appContainerName(cfg.AppName, color)) {
-			fmt.Printf("[release] %s healthy\n", color)
+			fmt.Printf("\n[release] %s healthy\n", color)
 			return nil
 		}
 		fmt.Print(".")
