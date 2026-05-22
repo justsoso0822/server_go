@@ -33,7 +33,6 @@ import (
 
 const (
 	defaultAppName               = "server-go"
-	defaultImageName             = "server-go"
 	defaultLocalVersion          = "1.0.0"
 	defaultGatewayHostPort       = "7001"
 	defaultGatewayInternalPort   = "7001"
@@ -63,16 +62,16 @@ var registryByEnv = map[string]string{
 	"production": "ccr.ccs.tencentyun.com/justsoso-production",
 }
 
-// activeLockFile 记录当前持有的锁文件路径，用于异常退出时自动清理。
+// 记录当前持有的锁文件路径，用于异常退出时自动清理。
 var (
 	activeLockFile   string
 	activeLockFileMu sync.Mutex
 )
 
-// projectRootDir 缓存自动探测到的项目根目录。
+// 缓存自动探测到的项目根目录。
 var projectRootDir string
 
-// httpClient 用于网关健康探测，避免默认 client 无超时阻塞部署流程。
+// 用于网关健康探测，避免默认 client 无超时阻塞部署流程。
 var httpClient = &http.Client{Timeout: 5 * time.Second}
 
 // 当前正在运行的子进程引用，信号到达时优先转发给它，再退出。
@@ -85,13 +84,12 @@ type deployConfig struct {
 	Env                     string
 	EnvFile                 string
 	AppName                 string
-	ImageName               string
-	ImageSource             string
-	Registry                string
 	Version                 string
+	AppPort                 string
+	Registry                string
+	ImageSource             string
 	GatewayHostPort         string
 	GatewayInternalPort     string
-	AppPort                 string
 	DashboardPort           string
 	DashboardEnabled        bool
 	HealthTimeout           time.Duration
@@ -122,7 +120,7 @@ type cleanupImageLine struct {
 // Entry Point & CLI
 // ============================================================================
 
-// main 顶层 recover：打印错误、释放锁、清理临时文件后退出。
+// 顶层 recover：打印错误、释放锁、清理临时文件后退出。
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -140,7 +138,7 @@ func main() {
 	run()
 }
 
-// run 解析子命令并分发到对应处理函数。
+// 解析子命令并分发到对应处理函数。
 func run() {
 	// 忽略 compose orphan 容器警告
 	os.Setenv("COMPOSE_IGNORE_ORPHANS", "true")
@@ -172,7 +170,7 @@ func run() {
 	}
 }
 
-// printUsage 输出命令行帮助信息。
+// 输出命令行帮助信息。
 func printUsage() {
 	fmt.Println(`Usage: go run cmd/deploy/main.go <command> <env> [options]
 
@@ -218,7 +216,7 @@ Examples:
   go run cmd/deploy/main.go status local                 # 查看本地容器状态`)
 }
 
-// parseArgs 解析命令行参数，返回环境名和选项键值对（version=xxx, -f 等）。
+// 解析命令行参数，返回环境名和选项键值对（version=xxx, -f 等）。
 func parseArgs() (string, map[string]string) {
 	env := ""
 	if len(os.Args) > 2 {
@@ -243,7 +241,7 @@ func parseArgs() (string, map[string]string) {
 	return env, options
 }
 
-// ensureNoExtraArgs 校验 start-local-db / stop-local-db 这类不接受 env 参数的命令，
+// 校验 start-local-db / stop-local-db 这类不接受 env 参数的命令，
 // 避免用户错误输入被静默忽略导致误操作。
 func ensureNoExtraArgs(cmd string) {
 	if len(os.Args) > 2 {
@@ -255,7 +253,7 @@ func ensureNoExtraArgs(cmd string) {
 // Commands
 // ============================================================================
 
-// build 构建 Docker 镜像，同时打 version 和 latest 两个 tag。
+// 构建 Docker 镜像，同时打 version 和 latest 两个 tag。
 func build() {
 	env, options := parseArgs()
 	cfg := loadDeployConfig(env, options)
@@ -266,10 +264,10 @@ func build() {
 
 	fmt.Printf("Building for environment: %s with version: %s\n", env, cfg.Version)
 	buildImage(cfg)
-	fmt.Printf("Build completed: %s\n", formatImageName(cfg, cfg.Version))
+	fmt.Printf("Build completed: %s\n", formatImageName(cfg.AppName, cfg.Registry, cfg.Version))
 }
 
-// push 将 version 和 latest 两个 tag 的镜像推送到远程仓库。
+// 将 version 和 latest 两个 tag 的镜像推送到远程仓库。
 func push() {
 	env, options := parseArgs()
 	cfg := loadDeployConfig(env, options)
@@ -278,8 +276,8 @@ func push() {
 	acquireDeployLock(cfg.Env)
 	defer releaseDeployLock()
 
-	image := formatImageName(cfg, cfg.Version)
-	imageLatest := formatImageName(cfg, "latest")
+	image := formatImageName(cfg.AppName, cfg.Registry, cfg.Version)
+	imageLatest := formatImageName(cfg.AppName, cfg.Registry, "latest")
 
 	fmt.Printf("Pushing image: %s\n", image)
 	mustRun("docker", "push", image)
@@ -287,7 +285,7 @@ func push() {
 	fmt.Printf("Push completed: %s and latest\n", image)
 }
 
-// deploy 执行蓝绿部署：启动新颜色 -> 健康检查 -> 网关确认 -> 切流 -> 排水 -> 移除旧颜色。
+// 执行蓝绿部署：启动新颜色 -> 健康检查 -> 网关确认 -> 切流 -> 排水 -> 移除旧颜色。
 // 首次部署（无活跃容器）时跳过旧容器切流和排水步骤，但仍确认网关已路由到新容器。
 // 通过文件锁防止同一环境的并发部署。
 func deploy() {
@@ -311,7 +309,7 @@ func deploy() {
 	if cfg.Env == "local" && cfg.ImageSource == "local" {
 		fmt.Println("[release] [2/8] local image source detected, building image")
 		buildImage(cfg)
-		fmt.Printf("Build completed: %s\n", formatImageName(cfg, cfg.Version))
+		fmt.Printf("Build completed: %s\n", formatImageName(cfg.AppName, cfg.Registry, cfg.Version))
 	}
 	fmt.Printf("[release] [3/8] start %s (version=%s)\n", targetColor, cfg.Version)
 	startColor(cfg, targetColor)
@@ -329,7 +327,7 @@ func deploy() {
 		}
 	} else {
 		fmt.Printf("[release] [5/8] confirm gateway routes to %s (%d consecutive, timeout=%s)\n", targetColor, cfg.CutoverConfirmations, cfg.CutoverTimeout)
-		if err := confirmCutover(cfg, targetColor); err != nil {
+		if err := confirmGatewayRoute(cfg, targetColor); err != nil {
 			fmt.Printf("ERROR: %v, rolling back new %s deployment...\n", err, targetColor)
 			_ = downColor(cfg, targetColor)
 			panic(fmt.Errorf("rollback completed, deployment failed: %w", err))
@@ -345,7 +343,7 @@ func deploy() {
 	cleanupOldImages(cfg)
 }
 
-// status 显示容器健康状态、镜像版本、当前活跃颜色等运行信息。
+// 显示容器健康状态、镜像版本、当前活跃颜色等运行信息。
 func status() {
 	env, _ := parseArgs()
 	if len(os.Args) > 3 {
@@ -368,12 +366,21 @@ func status() {
 	mustRun("docker", "ps", "--filter", fmt.Sprintf("name=%s", appName),
 		"--format", "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}")
 
-	containerNames := getContainerNames(appName)
+	containerNames, err := getContainerNames(appName)
+	if err != nil {
+		panic(fmt.Errorf("list containers for %s: %w", appName, err))
+	}
 	if len(containerNames) > 0 {
 		fmt.Println("\n[Versions]")
 		for _, name := range containerNames {
-			version := getContainerEnv(name, "APP_VERSION")
-			color := getContainerEnv(name, "APP_COLOR")
+			version, err := getContainerEnv(name, "APP_VERSION")
+			if err != nil {
+				panic(fmt.Errorf("read APP_VERSION from %s: %w", name, err))
+			}
+			color, err := getContainerEnv(name, "APP_COLOR")
+			if err != nil {
+				panic(fmt.Errorf("read APP_COLOR from %s: %w", name, err))
+			}
 			if version == "" {
 				version = "unknown"
 			}
@@ -403,7 +410,7 @@ func status() {
 	mustRun("docker", "volume", "ls", "--filter", fmt.Sprintf("name=%s", appName))
 }
 
-// startLocalDB 启动本地开发用的 MySQL 和 Redis 容器。
+// 启动本地开发用的 MySQL 和 Redis 容器。
 func startLocalDB() {
 	cfg := loadDeployConfig("local", map[string]string{})
 	fmt.Println("Starting local database services...")
@@ -417,7 +424,7 @@ func startLocalDB() {
 	fmt.Println("  go run main.go")
 }
 
-// stopLocalDB 停止本地开发数据库容器。
+// 停止本地开发数据库容器。
 func stopLocalDB() {
 	cfg := loadDeployConfig("local", map[string]string{})
 	fmt.Println("Stopping local database services...")
@@ -429,7 +436,7 @@ func stopLocalDB() {
 // Deploy Steps
 // ============================================================================
 
-// ensureGateway 确保 Traefik 网关容器运行且对外服务端口与配置一致。
+// 确保 Traefik 网关容器运行且对外服务端口与配置一致。
 func ensureGateway(cfg deployConfig) {
 	gatewayRunning, err := containerExists(gatewayContainerName(cfg.AppName))
 	if err != nil {
@@ -453,7 +460,7 @@ func ensureGateway(cfg deployConfig) {
 	}
 }
 
-// waitForGatewayHealthy 轮询 docker inspect 等待 Traefik 容器 healthcheck 通过。
+// 轮询 docker inspect 等待 Traefik 容器 healthcheck 通过。
 func waitForGatewayHealthy(cfg deployConfig) {
 	name := gatewayContainerName(cfg.AppName)
 	deadline := time.Now().Add(cfg.HealthTimeout)
@@ -475,7 +482,7 @@ func waitForGatewayHealthy(cfg deployConfig) {
 	panic(fmt.Errorf("gateway %s did not become healthy within %s", name, cfg.HealthTimeout))
 }
 
-// buildImage 执行 docker build，注入 APP_PORT 和 Go 模块代理参数，同时打 version 和 latest tag。
+// 执行 docker build，注入 APP_PORT 和 Go 模块代理参数，同时打 version 和 latest tag。
 func buildImage(cfg deployConfig) {
 	buildArgs := []string{
 		"build",
@@ -483,15 +490,15 @@ func buildImage(cfg deployConfig) {
 		"--build-arg", fmt.Sprintf("GOPROXY=%s", getEnvWithDefault("GOPROXY", defaultGoProxy)),
 		"--build-arg", fmt.Sprintf("GOSUMDB=%s", getEnvWithDefault("GOSUMDB", defaultGoSumDB)),
 		"--build-arg", fmt.Sprintf("GOPRIVATE=%s", getEnvWithDefault("GOPRIVATE", defaultGoPrivate)),
-		"-t", formatImageName(cfg, cfg.Version),
-		"-t", formatImageName(cfg, "latest"),
+		"-t", formatImageName(cfg.AppName, cfg.Registry, cfg.Version),
+		"-t", formatImageName(cfg.AppName, cfg.Registry, "latest"),
 		"-f", cfg.Dockerfile,
 		".",
 	}
 	mustRun("docker", buildArgs...)
 }
 
-// startColor 生成包含运行时变量的临时 env 文件，启动指定颜色的 compose 服务。
+// 生成包含运行时变量的临时 env 文件，启动指定颜色的 compose 服务。
 func startColor(cfg deployConfig, color string) {
 	releaseEnvFile := writeReleaseEnvFile(cfg)
 	defer os.Remove(releaseEnvFile)
@@ -502,7 +509,7 @@ func startColor(cfg deployConfig, color string) {
 	mustRun("docker", append(composeArgs, "up", "-d")...)
 }
 
-// writeReleaseEnvFile 基于原始 .env 文件生成临时发布 env 文件，
+// 基于原始 .env 文件生成临时发布 env 文件，
 // 追加 APP_IMAGE、APP_VERSION 等运行时变量供 compose 使用。
 func writeReleaseEnvFile(cfg deployConfig) string {
 	content, err := os.ReadFile(cfg.EnvFile)
@@ -527,7 +534,7 @@ func writeReleaseEnvFile(cfg deployConfig) string {
 	}
 
 	releaseEnv := []string{
-		fmt.Sprintf("APP_IMAGE=%s", formatImageName(cfg, cfg.Version)),
+		fmt.Sprintf("APP_IMAGE=%s", formatImageName(cfg.AppName, cfg.Registry, cfg.Version)),
 		fmt.Sprintf("APP_VERSION=%s", cfg.Version),
 		fmt.Sprintf("APP_PORT=%s", cfg.AppPort),
 		fmt.Sprintf("GATEWAY_INTERNAL_PORT=%s", cfg.GatewayInternalPort),
@@ -540,7 +547,7 @@ func writeReleaseEnvFile(cfg deployConfig) string {
 	return file.Name()
 }
 
-// detectDeploymentColors 检测当前活跃颜色和目标部署颜色。
+// 检测当前活跃颜色和目标部署颜色。
 func detectDeploymentColors(cfg deployConfig) (string, string) {
 	blueRunning, err := containerExists(appContainerName(cfg.AppName, "blue"))
 	if err != nil {
@@ -567,7 +574,7 @@ func detectDeploymentColors(cfg deployConfig) (string, string) {
 	}
 }
 
-// waitForHealthy 轮询 docker ps 等待目标容器健康检查通过，超时返回 error。
+// 轮询 docker ps 等待目标容器健康检查通过，超时返回 error。
 func waitForHealthy(cfg deployConfig, color string) error {
 	deadline := time.Now().Add(cfg.HealthTimeout)
 	for time.Now().Before(deadline) {
@@ -586,7 +593,7 @@ func waitForHealthy(cfg deployConfig, color string) error {
 	return fmt.Errorf("%s service failed to become healthy", color)
 }
 
-// cutover 执行流量切换：通知旧容器摘流 -> 确认网关路由到新容器 -> 排水 -> 移除旧容器。
+// 执行流量切换：通知旧容器摘流 -> 确认网关路由到新容器 -> 排水 -> 移除旧容器。
 // 任何步骤失败都会保留旧容器，避免服务中断。
 func cutover(cfg deployConfig, currentColor, targetColor string) error {
 	oldContainerName := appContainerName(cfg.AppName, currentColor)
@@ -597,7 +604,7 @@ func cutover(cfg deployConfig, currentColor, targetColor string) error {
 	}
 
 	fmt.Printf("[release] [6/8] confirm gateway routes to %s (%d consecutive, timeout=%s)\n", targetColor, cfg.CutoverConfirmations, cfg.CutoverTimeout)
-	if err := confirmCutover(cfg, targetColor); err != nil {
+	if err := confirmGatewayRoute(cfg, targetColor); err != nil {
 		resumeErr := postControl(cfg, oldContainerName, "resume-traffic")
 		if resumeErr != nil {
 			return fmt.Errorf("cutover confirmation failed: %v. Failed to resume old container traffic: %w. Manual intervention required", err, resumeErr)
@@ -633,9 +640,9 @@ func downColor(cfg deployConfig, color string) error {
 	return nil
 }
 
-// confirmCutover 轮询网关 /health 接口，确认连续 N 次返回目标颜色后视为切流成功。
+// 轮询网关 /health 接口，确认连续 N 次返回目标颜色和版本后视为网关路由生效。
 // 任何一次探测失败会重置计数器。
-func confirmCutover(cfg deployConfig, targetColor string) error {
+func confirmGatewayRoute(cfg deployConfig, targetColor string) error {
 	confirmed := 0
 	deadline := time.Now().Add(cfg.CutoverTimeout)
 	for time.Now().Before(deadline) {
@@ -644,7 +651,7 @@ func confirmCutover(cfg deployConfig, targetColor string) error {
 			confirmed++
 			fmt.Printf("[release] gateway -> %s version=%s (%d/%d)\n", targetColor, health.Version, confirmed, cfg.CutoverConfirmations)
 			if confirmed >= cfg.CutoverConfirmations {
-				fmt.Printf("[release] cutover confirmed: all sampled traffic is on %s\n", targetColor)
+				fmt.Printf("[release] gateway route confirmed: all sampled traffic is on %s\n", targetColor)
 				return nil
 			}
 		} else if confirmed > 0 {
@@ -656,7 +663,7 @@ func confirmCutover(cfg deployConfig, targetColor string) error {
 	return fmt.Errorf("gateway did not route to %s version=%s for %d consecutive probes before timeout", targetColor, cfg.Version, cfg.CutoverConfirmations)
 }
 
-// waitForDrain 等待旧容器排空存量请求。
+// 等待旧容器排空存量请求。
 // 通过 /health/detail 的 activeRequests 字段判断；容器不可达时视为已排空。
 func waitForDrain(cfg deployConfig, containerName string) error {
 	deadline := time.Now().Add(cfg.DrainTimeout)
@@ -681,14 +688,14 @@ func waitForDrain(cfg deployConfig, containerName string) error {
 	return fmt.Errorf("%s still has in-flight requests after %s", containerName, cfg.DrainTimeout)
 }
 
-// postControl 通过 docker exec 向容器内应用发送控制指令（traffic-shift / reject-new-requests）。
+// 通过 docker exec 向容器内应用发送控制指令（traffic-shift / reject-new-requests）。
 func postControl(cfg deployConfig, containerName, action string) error {
-	url := fmt.Sprintf("http://127.0.0.1:%s/_internal/control/%s", cfg.AppPort, action)
+	url := fmt.Sprintf("http://127.0.0.1:%s/internal/control/%s", cfg.AppPort, action)
 	_, err := getOutput("docker", "exec", containerName, "wget", "-q", "-O-", "--timeout=5", "--post-data=", url)
 	return err
 }
 
-// cleanupOldImages 按创建时间降序排列本地镜像，保留最新的 N 个 tag，删除其余。
+// 按创建时间降序排列本地镜像，保留最新的 N 个 tag，删除其余。
 // 通过完整 tag 引用（registry/name:tag）删除，避免多 tag 共享 image ID 导致的删除失败。
 func cleanupOldImages(cfg deployConfig) {
 	if cfg.KeepImages <= 0 {
@@ -696,7 +703,7 @@ func cleanupOldImages(cfg deployConfig) {
 	}
 	fmt.Printf("\n[cleanup] Removing old images (keeping latest %d versions)...\n", cfg.KeepImages)
 
-	reference := fmt.Sprintf("%s/%s", cfg.Registry, cfg.ImageName)
+	reference := fmt.Sprintf("%s/%s", cfg.Registry, cfg.AppName)
 	output, err := getOutput("docker", "images",
 		"--filter", fmt.Sprintf("reference=%s:*", reference),
 		"--format", "{{.Repository}}:{{.Tag}}|{{.CreatedAt}}",
@@ -763,10 +770,10 @@ func cleanupOldImages(cfg deployConfig) {
 	fmt.Printf("[cleanup] Cleanup complete: removed %d old images\n", deleted)
 }
 
-// parseDockerCreatedAt 解析 docker images --format {{.CreatedAt}} 输出的时间。
+// 解析 docker images --format {{.CreatedAt}} 输出的时间。
 // 典型格式：'2024-01-02 15:04:05 +0800 CST'，部分版本可能省略时区名。
 // 解析失败返回零值，由调用方决定退化策略。
-// extractImageTag returns the tag portion of a docker image reference.
+// returns the tag portion of a docker image reference.
 func extractImageTag(ref string) string {
 	if i := strings.LastIndex(ref, ":"); i >= 0 {
 		return ref[i+1:]
@@ -774,7 +781,7 @@ func extractImageTag(ref string) string {
 	return ""
 }
 
-// parseDockerCreatedAt parses the CreatedAt field from docker images output.
+// parses the CreatedAt field from docker images output.
 func parseDockerCreatedAt(s string) time.Time {
 	s = strings.TrimSpace(s)
 	layouts := []string{
@@ -795,12 +802,12 @@ func parseDockerCreatedAt(s string) time.Time {
 // File Lock
 // ============================================================================
 
-// lockFilePath 返回指定环境的锁文件路径（位于项目根目录）。
+// 返回指定环境的锁文件路径（位于项目根目录）。
 func lockFilePath(env string) string {
 	return projectPath(fmt.Sprintf(".deploy.%s.lock", env))
 }
 
-// acquireDeployLock 获取部署文件锁。
+// 获取部署文件锁。
 func acquireDeployLock(env string) {
 	lockFile := lockFilePath(env)
 
@@ -839,7 +846,7 @@ func createDeployLockFile(lockFile string, startedAt time.Time) error {
 	return nil
 }
 
-// handleExistingDeployLock 处理已存在的锁文件：stale 则移除后返回（调用方会重试），
+// 处理已存在的锁文件：stale 则移除后返回（调用方会重试），
 // 否则 panic 退出。
 func handleExistingDeployLock(env, lockFile string) {
 	info, err := os.Stat(lockFile)
@@ -883,7 +890,7 @@ func handleExistingDeployLock(env, lockFile string) {
 	panic(fmt.Errorf("lock file exists but cannot be read: %s\nAnother deployment may be in progress for '%s'", lockFile, env))
 }
 
-// releaseDeployLock 释放当前持有的部署锁。
+// 释放当前持有的部署锁。
 func releaseDeployLock() {
 	activeLockFileMu.Lock()
 	lockFile := activeLockFile
@@ -899,7 +906,7 @@ func releaseDeployLock() {
 	fmt.Printf("[lock] Released deploy lock: %s\n", lockFile)
 }
 
-// cleanupDeployTmpDir 清理 .deploy.tmp 目录，用于信号退出时兜底清理临时文件。
+// 清理 .deploy.tmp 目录，用于信号退出时兜底清理临时文件。
 func cleanupDeployTmpDir() {
 	tmpDir := projectPath(".deploy.tmp")
 	if err := os.RemoveAll(tmpDir); err != nil {
@@ -907,7 +914,7 @@ func cleanupDeployTmpDir() {
 	}
 }
 
-// setupSignalHandler 注册信号处理器，确保进程被中断时优雅终止子进程并释放锁文件。
+// 注册信号处理器，确保进程被中断时优雅终止子进程并释放锁文件。
 // 同时监听 os.Interrupt 和 SIGTERM(后者覆盖 docker stop / k8s preStop / kill 默认信号)。
 // 信号到达时先转发给当前正在运行的子进程，给它一个清理窗口，再释放锁退出。
 func setupSignalHandler() {
@@ -939,7 +946,7 @@ func setupSignalHandler() {
 	}()
 }
 
-// parseLockContent 解析锁文件内容，提取 PID 和启动时间。
+// 解析锁文件内容，提取 PID 和启动时间。
 func parseLockContent(content string) (string, time.Time) {
 	pid := "unknown"
 	started := time.Time{}
@@ -957,7 +964,7 @@ func parseLockContent(content string) (string, time.Time) {
 	return pid, started
 }
 
-// isProcessAlive 检查指定 PID 的进程是否仍在运行。
+// 检查指定 PID 的进程是否仍在运行。
 // Windows 通过 tasklist 命令查询，Unix 通过 kill -0 探测。
 func isProcessAlive(pidStr string) bool {
 	pid, err := strconv.Atoi(pidStr)
@@ -970,11 +977,11 @@ func isProcessAlive(pidStr string) bool {
 		// 进程不存在时输出 "INFO: No tasks are running ..." 或空内容。
 		// 通过精确匹配第二列的引号包裹 PID，避免 strings.Contains 的子串误判
 		// （例如 PID=123 时不应命中 1234）。
-		output, err := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/NH", "/FO", "CSV").Output()
+		output, err := getOutput("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/NH", "/FO", "CSV")
 		if err != nil || len(output) == 0 {
 			return false
 		}
-		for _, line := range strings.Split(string(output), "\n") {
+		for _, line := range strings.Split(output, "\n") {
 			fields := strings.Split(line, ",")
 			if len(fields) >= 2 {
 				pidField := strings.Trim(strings.TrimSpace(fields[1]), `"`)
@@ -987,10 +994,7 @@ func isProcessAlive(pidStr string) bool {
 	}
 
 	// Unix: 发送信号 0 探测进程是否存在
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
+	process, _ := os.FindProcess(pid)
 	return process.Signal(syscall.Signal(0)) == nil
 }
 
@@ -998,7 +1002,7 @@ func isProcessAlive(pidStr string) bool {
 // Configuration
 // ============================================================================
 
-// loadDeployConfig 从 .env.<env> 文件、系统环境变量和命令行选项中加载部署配置。
+// 从 .env.<env> 文件、系统环境变量和命令行选项中加载部署配置。
 // 配置优先级：version/-f 来自命令行；其他配置为 .env 文件 > 系统环境变量 > 默认值。
 // 非 local 环境必须显式指定 version。
 func loadDeployConfig(env string, options map[string]string) deployConfig {
@@ -1020,13 +1024,12 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 		Env:                     env,
 		EnvFile:                 envFile,
 		AppName:                 resolveConfig(envVars, "APP_NAME", defaultAppName),
-		ImageName:               resolveConfig(envVars, "IMAGE_NAME", defaultImageName),
-		ImageSource:             imageSource,
-		Registry:                resolveConfig(envVars, "IMAGE_REGISTRY", defaultRegistry(env)),
 		Version:                 getVersion(options, env),
+		AppPort:                 resolveConfig(envVars, "APP_PORT", defaultAppPort),
+		Registry:                resolveConfig(envVars, "IMAGE_REGISTRY", defaultRegistry(env)),
+		ImageSource:             imageSource,
 		GatewayHostPort:         resolveConfig(envVars, "HOST_GATEWAY_PORT", defaultGatewayHostPort),
 		GatewayInternalPort:     resolveConfig(envVars, "GATEWAY_INTERNAL_PORT", defaultGatewayInternalPort),
-		AppPort:                 resolveConfig(envVars, "APP_PORT", defaultAppPort),
 		DashboardPort:           resolveConfig(envVars, "TRAEFIK_DASHBOARD_PORT", defaultDashboardPort),
 		DashboardEnabled:        boolConfig(envVars, "TRAEFIK_DASHBOARD_ENABLED", env == "local"),
 		HealthTimeout:           secondsConfig(envVars, "DEPLOY_HEALTH_TIMEOUT_SECONDS", defaultHealthTimeoutSeconds),
@@ -1043,7 +1046,7 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 	}
 }
 
-// defaultRegistry 根据环境名返回对应的腾讯云镜像仓库地址。
+// 根据环境名返回对应的腾讯云镜像仓库地址。
 func defaultRegistry(env string) string {
 	registry, ok := registryByEnv[env]
 	if !ok {
@@ -1052,6 +1055,7 @@ func defaultRegistry(env string) string {
 	return registry
 }
 
+// 获取版本号，local 环境不传使用默认版本，其他环境必须指定版本。
 func getVersion(options map[string]string, env string) string {
 	if version, ok := options["version"]; ok && version != "" {
 		return version
@@ -1062,6 +1066,7 @@ func getVersion(options map[string]string, env string) string {
 	panic(fmt.Errorf("error: version parameter is required for %s", env))
 }
 
+// 获取镜像源配置，只能是 local 或 remote。
 func imageSourceConfig(fileVars map[string]string) string {
 	value := resolveConfig(fileVars, "IMAGE_SOURCE", defaultImageSource)
 	switch value {
@@ -1072,7 +1077,7 @@ func imageSourceConfig(fileVars map[string]string) string {
 	}
 }
 
-// resolveConfig 按优先级获取配置值：env 文件 > 系统环境变量 > 默认值。
+// 按优先级获取配置值：env 文件 > 系统环境变量 > 默认值。
 func resolveConfig(fileVars map[string]string, key, defaultVal string) string {
 	if val, ok := fileVars[key]; ok && strings.TrimSpace(val) != "" {
 		return strings.TrimSpace(val)
@@ -1083,7 +1088,7 @@ func resolveConfig(fileVars map[string]string, key, defaultVal string) string {
 	return defaultVal
 }
 
-// getEnvWithDefault 从系统环境读取值，未设置时返回默认值。
+// 从系统环境读取值，未设置时返回默认值。
 func getEnvWithDefault(key, defaultVal string) string {
 	if val := strings.TrimSpace(os.Getenv(key)); val != "" {
 		return val
@@ -1091,10 +1096,12 @@ func getEnvWithDefault(key, defaultVal string) string {
 	return defaultVal
 }
 
+// 将配置转换为 time.Duration，默认单位为秒。
 func secondsConfig(fileVars map[string]string, key string, defaultVal int) time.Duration {
 	return time.Duration(intConfig(fileVars, key, defaultVal)) * time.Second
 }
 
+// 将字符串配置转换为 int，未设置或无效时返回默认值。
 func intConfig(fileVars map[string]string, key string, defaultVal int) int {
 	value := resolveConfig(fileVars, key, "")
 	if value == "" {
@@ -1107,6 +1114,7 @@ func intConfig(fileVars map[string]string, key string, defaultVal int) int {
 	return parsed
 }
 
+// 将配置转换为 bool，未设置或无效时返回默认值。
 func boolConfig(fileVars map[string]string, key string, defaultVal bool) bool {
 	value := resolveConfig(fileVars, key, "")
 	if value == "" {
@@ -1126,6 +1134,7 @@ func boolConfig(fileVars map[string]string, key string, defaultVal bool) bool {
 	}
 }
 
+// 从 env 文件中加载所有配置项，返回键值对映射。
 func loadEnv(envFile string) map[string]string {
 	env := make(map[string]string)
 	file, err := os.Open(envFile)
@@ -1152,7 +1161,7 @@ func loadEnv(envFile string) map[string]string {
 	return env
 }
 
-// cleanEnvValue 清理 env 值：去除首尾引号、行内注释（未被引号包裹时）。
+// 清理 env 值：去除首尾引号、行内注释（未被引号包裹时）。
 func cleanEnvValue(value string) string {
 	value = strings.TrimSpace(value)
 	if len(value) >= 2 {
@@ -1167,11 +1176,11 @@ func cleanEnvValue(value string) string {
 	return strings.TrimSpace(value)
 }
 
-// getEnvVar 从指定 env 文件中读取单个配置值的便捷方法。
+// 从指定 env 文件中读取单个配置值的便捷方法。
 func getEnvVar(envFile, key, defaultVal string) string {
 	info, err := os.Stat(envFile)
 	if os.IsNotExist(err) {
-		return defaultVal
+		panic(fmt.Errorf("env file not found: %s", envFile))
 	}
 	if err != nil {
 		panic(fmt.Errorf("inspect env file %s: %w", envFile, err))
@@ -1183,7 +1192,7 @@ func getEnvVar(envFile, key, defaultVal string) string {
 	return resolveConfig(env, key, defaultVal)
 }
 
-// getAppName 从 env 文件中获取应用名称，未指定环境时依次尝试 local/test/production。
+// 从 env 文件中获取应用名称，未指定环境时依次尝试 local/test/production。
 func getAppName(envFile string) string {
 	if envFile != "" {
 		return getEnvVar(envFile, "APP_NAME", defaultAppName)
@@ -1193,6 +1202,9 @@ func getAppName(envFile string) string {
 		projectPath(".env.test"),
 		projectPath(".env.production"),
 	} {
+		if !fileExists(file) {
+			continue
+		}
 		if appName := getEnvVar(file, "APP_NAME", ""); appName != "" {
 			return appName
 		}
@@ -1204,7 +1216,7 @@ func getAppName(envFile string) string {
 // Helpers
 // ============================================================================
 
-// initProjectRoot 探测并缓存项目根目录，允许在项目内移动脚本或从不同目录执行。
+// 探测并缓存项目根目录，允许在项目内移动脚本或从不同目录执行。
 func initProjectRoot() {
 	if projectRootDir != "" {
 		return
@@ -1231,12 +1243,12 @@ func initProjectRoot() {
 	panic(fmt.Errorf("failed to locate project root from current working directory, executable path, or source file path"))
 }
 
-// projectRoot 返回已缓存的项目根目录。
+// 返回已缓存的项目根目录。
 func projectRoot() string {
 	return projectRootDir
 }
 
-// findProjectRoot 从起始目录向上查找项目根目录。
+// 从起始目录向上查找项目根目录。
 func findProjectRoot(start string) (string, bool) {
 	current := start
 	for {
@@ -1252,29 +1264,29 @@ func findProjectRoot(start string) (string, bool) {
 	}
 }
 
-// projectPath 将项目相对路径解析为基于项目根目录的绝对路径。
+// 将项目相对路径解析为基于项目根目录的绝对路径。
 func projectPath(parts ...string) string {
 	segments := append([]string{projectRoot()}, parts...)
 	return filepath.Join(segments...)
 }
 
-// fileExists 判断文件或目录是否存在。
+// 判断文件或目录是否存在。
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-// formatImageName 拼接完整镜像名：registry/image:tag。
-func formatImageName(cfg deployConfig, tag string) string {
-	return fmt.Sprintf("%s/%s:%s", cfg.Registry, cfg.ImageName, tag)
+// 拼接完整镜像名：registry/image:tag。
+func formatImageName(appName, registry, tag string) string {
+	return fmt.Sprintf("%s/%s:%s", registry, appName, tag)
 }
 
-// composeFile 返回指定颜色的 compose 文件路径（如 manifest/docker/compose/blue.yml）。
+// 返回指定颜色的 compose 文件路径（如 manifest/docker/compose/blue.yml）。
 func composeFile(cfg deployConfig, color string) string {
 	return fmt.Sprintf("%s/%s.yml", strings.TrimRight(cfg.ComposeDir, "/\\"), color)
 }
 
-// traefikComposeArgs 返回 Traefik compose 基础参数；Dashboard 仅在显式开启时挂载端口和路由。
+// 返回 Traefik compose 基础参数；Dashboard 仅在显式开启时挂载端口和路由。
 func traefikComposeArgs(cfg deployConfig) []string {
 	args := []string{"compose", "-f", cfg.TraefikComposeFile}
 	if cfg.DashboardEnabled {
@@ -1283,7 +1295,7 @@ func traefikComposeArgs(cfg deployConfig) []string {
 	return append(args, "--env-file", cfg.EnvFile)
 }
 
-// runCmd 执行外部命令，stdout/stderr 直接输出到终端。
+// 执行外部命令，stdout/stderr 直接输出到终端。
 // 同时把当前 *exec.Cmd 注册为全局 currentChild，便于信号处理器中断时转发信号给子进程。
 func runCmd(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
@@ -1303,20 +1315,20 @@ func runCmd(name string, args ...string) error {
 	return cmd.Run()
 }
 
-// mustRun 执行外部命令，失败时 panic。
+// 执行外部命令，失败时 panic。
 func mustRun(name string, args ...string) {
 	if err := runCmd(name, args...); err != nil {
 		panic(fmt.Errorf("command failed: %s %s: %w", name, strings.Join(args, " "), err))
 	}
 }
 
-// getOutput 执行外部命令并捕获 stdout 输出，带默认超时避免 docker 偶发挂死阻塞部署流程。
+// 执行外部命令并捕获 stdout 输出，带默认超时避免 docker 偶发挂死阻塞部署流程。
 // 调用方需要更长超时时改用 getOutputWithTimeout。
 func getOutput(name string, args ...string) (string, error) {
 	return getOutputWithTimeout(defaultGetOutputTimeout, name, args...)
 }
 
-// getOutputWithTimeout 执行外部命令并捕获 stdout 输出，使用指定超时。
+// 执行外部命令并捕获 stdout 输出，使用指定超时。
 func getOutputWithTimeout(timeout time.Duration, name string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -1332,13 +1344,13 @@ func getOutputWithTimeout(timeout time.Duration, name string, args ...string) (s
 	return strings.TrimSpace(string(output)), nil
 }
 
-// healthResponse 解析 /health 接口返回的 JSON。
+// 解析 /health 接口返回的 JSON。
 type healthResponse struct {
 	Color   string `json:"color"`
 	Version string `json:"version"`
 }
 
-// gatewayActiveColor 通过网关 /health 接口解析当前活跃的部署颜色。
+// 通过网关 /health 接口解析当前活跃的部署颜色。
 func gatewayActiveColor(port string) (string, error) {
 	health, err := probeGatewayRoute(port)
 	if err != nil {
@@ -1347,7 +1359,7 @@ func gatewayActiveColor(port string) (string, error) {
 	return health.Color, nil
 }
 
-// probeGatewayRoute 通过网关探测当前实际路由到的应用颜色和版本。
+// 通过网关探测当前实际路由到的应用颜色和版本。
 // 使用 encoding/json 反序列化，避免字符串匹配误判；通过带超时的 httpClient 防止
 // 网关挂死时无限阻塞 confirmCutover 的轮询循环。
 func probeGatewayRoute(port string) (healthResponse, error) {
@@ -1373,7 +1385,7 @@ func probeGatewayRoute(port string) (healthResponse, error) {
 	return hr, nil
 }
 
-// containerExists 检查指定名称的容器是否正在运行。
+// 检查指定名称的容器是否正在运行。
 func containerExists(name string) (bool, error) {
 	output, err := getOutput("docker", "ps", "--format", "{{.Names}}")
 	if err != nil {
@@ -1382,7 +1394,7 @@ func containerExists(name string) (bool, error) {
 	return hasLine(output, name), nil
 }
 
-// hasLine 检查多行输出中是否包含精确匹配的行。
+// 检查多行输出中是否包含精确匹配的行。
 func hasLine(output, expected string) bool {
 	for line := range strings.SplitSeq(output, "\n") {
 		if strings.TrimSpace(line) == expected {
@@ -1392,35 +1404,38 @@ func hasLine(output, expected string) bool {
 	return false
 }
 
-// getContainerNames 返回匹配 appName 的运行中容器名称列表。
-func getContainerNames(appName string) []string {
+// 返回匹配 appName 的运行中容器名称列表。
+func getContainerNames(appName string) ([]string, error) {
 	output, err := getOutput("docker", "ps", "--filter", fmt.Sprintf("name=%s", appName), "--format", "{{.Names}}")
-	if err != nil || output == "" {
-		return nil
+	if err != nil {
+		return nil, err
 	}
-	return strings.Split(output, "\n")
+	if output == "" {
+		return []string{}, nil
+	}
+	return strings.Split(output, "\n"), nil
 }
 
-// getContainerEnv 从容器环境变量中读取指定 key 的值。
-func getContainerEnv(containerName, key string) string {
+// 从容器环境变量中读取指定 key 的值。
+func getContainerEnv(containerName, key string) (string, error) {
 	output, err := getOutput("docker", "exec", containerName, "printenv", key)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return strings.TrimSpace(output)
+	return strings.TrimSpace(output), nil
 }
 
-// gatewayContainerName 返回网关容器名称：{appName}-gateway。
+// 返回网关容器名称：{appName}-gateway。
 func gatewayContainerName(appName string) string {
 	return fmt.Sprintf("%s-gateway", appName)
 }
 
-// appContainerName 返回应用容器名称：{appName}-{color}。
+// 返回应用容器名称：{appName}-{color}。
 func appContainerName(appName, color string) string {
 	return fmt.Sprintf("%s-%s", appName, color)
 }
 
-// oppositeColor 返回对立颜色：blue -> green, green -> blue。
+// 返回对立颜色：blue -> green, green -> blue。
 func oppositeColor(color string) string {
 	switch color {
 	case "blue":
@@ -1432,7 +1447,7 @@ func oppositeColor(color string) string {
 	}
 }
 
-// getGatewayHostPort 通过 docker port 查询网关容器实际映射的宿主机端口。
+// 通过 docker port 查询网关容器实际映射的宿主机端口。
 func getGatewayHostPort(cfg deployConfig) string {
 	return getContainerHostPort(gatewayContainerName(cfg.AppName), cfg.GatewayInternalPort)
 }

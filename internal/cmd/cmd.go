@@ -74,7 +74,7 @@ var (
 			})
 
 			// 内部控制路由（无中间件）
-			s.Group("/_internal/control", func(group *ghttp.RouterGroup) {
+			s.Group("/internal/control", func(group *ghttp.RouterGroup) {
 				group.Bind(
 					controlController.NewV1(),
 				)

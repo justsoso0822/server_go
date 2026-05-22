@@ -182,13 +182,13 @@ manifest/config/config.production.yaml  # 生产环境配置
 
 ### 内部控制接口
 
-内部控制接口位于 `/_internal/control`，主要用于部署、流量切换和优雅下线。
+内部控制接口位于 `/internal/control`，主要用于部署、流量切换和优雅下线。
 
 | 路径 | 说明 |
 | --- | --- |
-| `/_internal/control/traffic-shift` | 开始流量切换 |
-| `/_internal/control/reject-new-requests` | 拒绝新请求 |
-| `/_internal/control/resume-traffic` | 恢复流量 |
+| `/internal/control/traffic-shift` | 开始流量切换 |
+| `/internal/control/reject-new-requests` | 拒绝新请求 |
+| `/internal/control/resume-traffic` | 恢复流量 |
 
 ## OpenAPI 与 Swagger
 
