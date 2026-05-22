@@ -261,7 +261,7 @@ func build() {
 	defer releaseDeployLock()
 
 	fmt.Printf("Building for environment: %s with version: %s\n", env, cfg.Version)
-	buildImage(cfg, cfg.Version)
+	buildImage(cfg)
 	fmt.Printf("Build completed: %s\n", formatImageName(cfg, cfg.Version))
 }
 
@@ -306,7 +306,7 @@ func deploy() {
 
 	if cfg.Env == "local" && cfg.ImageSource == "local" {
 		fmt.Println("[release] [2/8] local image source detected, building image")
-		buildImage(cfg, cfg.Version)
+		buildImage(cfg)
 		fmt.Printf("Build completed: %s\n", formatImageName(cfg, cfg.Version))
 	}
 	fmt.Printf("[release] [3/8] start %s (version=%s)\n", targetColor, cfg.Version)
@@ -472,14 +472,14 @@ func waitForGatewayHealthy(cfg deployConfig) {
 }
 
 // buildImage 执行 docker build，注入 APP_PORT 和 Go 模块代理参数，同时打 version 和 latest tag。
-func buildImage(cfg deployConfig, version string) {
+func buildImage(cfg deployConfig) {
 	buildArgs := []string{
 		"build",
 		"--build-arg", fmt.Sprintf("APP_PORT=%s", cfg.AppPort),
 		"--build-arg", fmt.Sprintf("GOPROXY=%s", getEnvWithDefault("GOPROXY", defaultGoProxy)),
 		"--build-arg", fmt.Sprintf("GOSUMDB=%s", getEnvWithDefault("GOSUMDB", defaultGoSumDB)),
 		"--build-arg", fmt.Sprintf("GOPRIVATE=%s", getEnvWithDefault("GOPRIVATE", defaultGoPrivate)),
-		"-t", formatImageName(cfg, version),
+		"-t", formatImageName(cfg, cfg.Version),
 		"-t", formatImageName(cfg, "latest"),
 		"-f", cfg.Dockerfile,
 		".",
@@ -583,13 +583,13 @@ func cutover(cfg deployConfig, currentColor, targetColor string) error {
 	oldContainerName := appContainerName(cfg.AppName, currentColor)
 
 	fmt.Printf("[release] [5/8] http control -> %s: trigger traffic-shift, /health/lb now returns 503\n", currentColor)
-	if err := postControl(oldContainerName, cfg.AppPort, "traffic-shift"); err != nil {
+	if err := postControl(cfg, oldContainerName, "traffic-shift"); err != nil {
 		return fmt.Errorf("failed to call traffic-shift on %s: %w. Keeping old container running", currentColor, err)
 	}
 
 	fmt.Printf("[release] [6/8] confirm gateway routes to %s (%d consecutive, timeout=%s)\n", targetColor, cfg.CutoverConfirmations, cfg.CutoverTimeout)
 	if err := confirmCutover(cfg, targetColor); err != nil {
-		resumeErr := postControl(oldContainerName, cfg.AppPort, "resume-traffic")
+		resumeErr := postControl(cfg, oldContainerName, "resume-traffic")
 		if resumeErr != nil {
 			return fmt.Errorf("cutover confirmation failed: %v. Failed to resume old container traffic: %w. Manual intervention required", err, resumeErr)
 		}
@@ -600,12 +600,12 @@ func cutover(cfg deployConfig, currentColor, targetColor string) error {
 	}
 
 	fmt.Printf("[release] [7/8] http control -> %s: reject any remaining new requests\n", currentColor)
-	if err := postControl(oldContainerName, cfg.AppPort, "reject-new-requests"); err != nil {
+	if err := postControl(cfg, oldContainerName, "reject-new-requests"); err != nil {
 		return fmt.Errorf("failed to reject new requests on %s after cutover was confirmed: %w. New container remains active; old container may still be running and needs manual cleanup", currentColor, err)
 	}
 
 	fmt.Printf("[release] waiting %s in-flight requests (timeout=%s)\n", currentColor, cfg.DrainTimeout)
-	if err := waitForDrain(oldContainerName, cfg.AppPort, cfg.DrainTimeout); err != nil {
+	if err := waitForDrain(cfg, oldContainerName); err != nil {
 		return fmt.Errorf("drain failed after cutover was confirmed: %w. New container remains active; old container was already removed from load balancing but was not removed", err)
 	}
 
@@ -649,10 +649,10 @@ func confirmCutover(cfg deployConfig, targetColor string) error {
 
 // waitForDrain 等待旧容器排空存量请求。
 // 通过 /health/detail 的 activeRequests 字段判断；容器不可达时视为已排空。
-func waitForDrain(containerName, appPort string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+func waitForDrain(cfg deployConfig, containerName string) error {
+	deadline := time.Now().Add(cfg.DrainTimeout)
 	for time.Now().Before(deadline) {
-		output, err := getOutput("docker", "exec", containerName, "wget", "-q", "-O-", "--timeout=2", fmt.Sprintf("http://127.0.0.1:%s/health/detail", appPort))
+		output, err := getOutput("docker", "exec", containerName, "wget", "-q", "-O-", "--timeout=2", fmt.Sprintf("http://127.0.0.1:%s/health/detail", cfg.AppPort))
 		if err != nil {
 			fmt.Printf("[release] %s: container unreachable, treating as drained\n", containerName)
 			return nil
@@ -669,12 +669,12 @@ func waitForDrain(containerName, appPort string, timeout time.Duration) error {
 		}
 		time.Sleep(1 * time.Second)
 	}
-	return fmt.Errorf("%s still has in-flight requests after %s", containerName, timeout)
+	return fmt.Errorf("%s still has in-flight requests after %s", containerName, cfg.DrainTimeout)
 }
 
 // postControl 通过 docker exec 向容器内应用发送控制指令（traffic-shift / reject-new-requests）。
-func postControl(containerName, appPort, action string) error {
-	url := fmt.Sprintf("http://127.0.0.1:%s/_internal/control/%s", appPort, action)
+func postControl(cfg deployConfig, containerName, action string) error {
+	url := fmt.Sprintf("http://127.0.0.1:%s/_internal/control/%s", cfg.AppPort, action)
 	_, err := getOutput("docker", "exec", containerName, "wget", "-q", "-O-", "--timeout=5", "--post-data=", url)
 	return err
 }
