@@ -25,7 +25,8 @@
       "args": [
         "deploy",
         "local"
-      ]
+      ],
+      "console": "integratedTerminal"
     },
     {
       "name": "Debug scratch main",
