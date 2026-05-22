@@ -522,8 +522,13 @@ func writeReleaseEnvFile(cfg deployConfig) string {
 		panic(fmt.Errorf("write env content: %w", err))
 	}
 
-	extra := fmt.Sprintf("\nAPP_IMAGE=%s\nAPP_VERSION=%s\nAPP_PORT=%s\nGATEWAY_INTERNAL_PORT=%s\n",
-		formatImageName(cfg, cfg.Version), cfg.Version, cfg.AppPort, cfg.GatewayInternalPort)
+	releaseEnv := []string{
+		fmt.Sprintf("APP_IMAGE=%s", formatImageName(cfg, cfg.Version)),
+		fmt.Sprintf("APP_VERSION=%s", cfg.Version),
+		fmt.Sprintf("APP_PORT=%s", cfg.AppPort),
+		fmt.Sprintf("GATEWAY_INTERNAL_PORT=%s", cfg.GatewayInternalPort),
+	}
+	extra := "\n" + strings.Join(releaseEnv, "\n") + "\n"
 	if _, err := file.WriteString(extra); err != nil {
 		os.Remove(file.Name())
 		panic(fmt.Errorf("append release env values: %w", err))
