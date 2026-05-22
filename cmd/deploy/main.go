@@ -635,7 +635,7 @@ func confirmCutover(cfg deployConfig, targetColor string) error {
 	confirmed := 0
 	deadline := time.Now().Add(cfg.CutoverTimeout)
 	for time.Now().Before(deadline) {
-		health, err := gatewayHealth(cfg.GatewayHostPort)
+		health, err := probeGatewayRoute(cfg.GatewayHostPort)
 		if err == nil && health.Color == targetColor && health.Version == cfg.Version {
 			confirmed++
 			fmt.Printf("[release] gateway -> %s version=%s (%d/%d)\n", targetColor, health.Version, confirmed, cfg.CutoverConfirmations)
@@ -1336,17 +1336,17 @@ type healthResponse struct {
 
 // gatewayActiveColor 通过网关 /health 接口解析当前活跃的部署颜色。
 func gatewayActiveColor(port string) (string, error) {
-	health, err := gatewayHealth(port)
+	health, err := probeGatewayRoute(port)
 	if err != nil {
 		return "", err
 	}
 	return health.Color, nil
 }
 
-// gatewayHealth 通过指定端口访问网关 /health 接口，返回解析后的健康信息。
+// probeGatewayRoute 通过网关探测当前实际路由到的应用颜色和版本。
 // 使用 encoding/json 反序列化，避免字符串匹配误判；通过带超时的 httpClient 防止
 // 网关挂死时无限阻塞 confirmCutover 的轮询循环。
-func gatewayHealth(port string) (healthResponse, error) {
+func probeGatewayRoute(port string) (healthResponse, error) {
 	resp, err := httpClient.Get(fmt.Sprintf("http://localhost:%s/health", port))
 	if err != nil {
 		return healthResponse{}, err
