@@ -222,18 +222,22 @@ Examples:
 func parseArgs() (string, map[string]string) {
 	env := ""
 	if len(os.Args) > 2 {
-		env = os.Args[2]
+		env = strings.TrimSpace(os.Args[2])
 	}
 
 	options := make(map[string]string)
 	for i := 3; i < len(os.Args); i++ {
-		if os.Args[i] == "-f" {
+		arg := strings.TrimSpace(os.Args[i])
+		if arg == "-f" {
 			options["force"] = "true"
 			continue
 		}
-		parts := strings.SplitN(os.Args[i], "=", 2)
+		parts := strings.SplitN(arg, "=", 2)
 		if len(parts) == 2 {
-			options[parts[0]] = parts[1]
+			key := strings.TrimSpace(parts[0])
+			if key != "" {
+				options[key] = strings.TrimSpace(parts[1])
+			}
 		}
 	}
 	return env, options
