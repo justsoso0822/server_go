@@ -1201,18 +1201,18 @@ func initProjectRoot() {
 		return
 	}
 
-	candidates := make([]string, 0, 3)
+	rootSearchStarts := make([]string, 0, 3)
 	if wd, err := os.Getwd(); err == nil {
-		candidates = append(candidates, wd)
+		rootSearchStarts = append(rootSearchStarts, wd)
 	}
 	if exePath, err := os.Executable(); err == nil {
-		candidates = append(candidates, filepath.Dir(exePath))
+		rootSearchStarts = append(rootSearchStarts, filepath.Dir(exePath))
 	}
 	if _, currentFile, _, ok := runtime.Caller(0); ok {
-		candidates = append(candidates, filepath.Dir(currentFile))
+		rootSearchStarts = append(rootSearchStarts, filepath.Dir(currentFile))
 	}
 
-	for _, start := range candidates {
+	for _, start := range rootSearchStarts {
 		if root, ok := findProjectRoot(start); ok {
 			projectRootDir = root
 			return
