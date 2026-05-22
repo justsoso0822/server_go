@@ -108,9 +108,13 @@ type deployConfig struct {
 }
 
 type cleanupImageLine struct {
-	ref       string
-	tag       string
+	// ref 是完整镜像引用，例如 registry/image:v1.2.3。
+	ref string
+	// tag 是镜像标签，例如 v1.2.3；latest 会在清理时跳过。
+	tag string
+	// createdAt 是 docker images 返回的原始创建时间文本。
 	createdAt string
+	// createdTS 是解析后的创建时间，用于按时间排序清理旧镜像。
 	createdTS time.Time
 }
 
