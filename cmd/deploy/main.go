@@ -279,8 +279,8 @@ func push() {
 	fmt.Printf("Push completed: %s and latest\n", image)
 }
 
-// deploy 执行蓝绿部署：启动新颜色 -> 健康检查 -> 切流 -> 排水 -> 移除旧颜色。
-// 首次部署（无活跃容器）时跳过切流和排水步骤。
+// deploy 执行蓝绿部署：启动新颜色 -> 健康检查 -> 网关确认 -> 切流 -> 排水 -> 移除旧颜色。
+// 首次部署（无活跃容器）时跳过旧容器切流和排水步骤，但仍确认网关已路由到新容器。
 // 通过文件锁防止同一环境的并发部署。
 func deploy() {
 	env, options := parseArgs()
@@ -311,13 +311,20 @@ func deploy() {
 	fmt.Printf("[release] [4/8] wait for %s to be healthy (timeout=%s)\n", targetColor, cfg.HealthTimeout)
 	if err := waitForHealthy(cfg, targetColor); err != nil {
 		fmt.Printf("ERROR: %v, rolling back new %s deployment...\n", err, targetColor)
-		_ = runCmd("docker", "compose", "-f", composeFile(cfg, targetColor), "--env-file", cfg.EnvFile, "down")
+		_ = downColor(cfg, targetColor)
 		panic(fmt.Errorf("rollback completed, deployment failed: %w", err))
 	}
 
 	if currentColor != "" {
 		if err := cutover(cfg, currentColor, targetColor); err != nil {
 			panic(err)
+		}
+	} else {
+		fmt.Printf("[release] [5/8] confirm gateway routes to %s (%d consecutive, timeout=%s)\n", targetColor, cfg.CutoverConfirmations, cfg.CutoverTimeout)
+		if err := confirmCutover(cfg, targetColor); err != nil {
+			fmt.Printf("ERROR: %v, rolling back new %s deployment...\n", err, targetColor)
+			_ = downColor(cfg, targetColor)
+			panic(fmt.Errorf("rollback completed, deployment failed: %w", err))
 		}
 	}
 
@@ -333,6 +340,9 @@ func deploy() {
 // status 显示容器健康状态、镜像版本、当前活跃颜色等运行信息。
 func status() {
 	env, _ := parseArgs()
+	if len(os.Args) > 3 {
+		panic(usageError{message: fmt.Sprintf("'status' accepts at most one environment argument, got: %s", strings.Join(os.Args[2:], " "))})
+	}
 	envFile := ""
 	if env != "" {
 		envFile = projectPath(fmt.Sprintf(".env.%s", env))
@@ -579,21 +589,31 @@ func cutover(cfg deployConfig, currentColor, targetColor string) error {
 		if resumeErr != nil {
 			return fmt.Errorf("cutover confirmation failed: %v. Failed to resume old container traffic: %w. Manual intervention required", err, resumeErr)
 		}
-		return fmt.Errorf("cutover confirmation failed: %w. Resumed old container traffic and kept it running", err)
+		if downErr := downColor(cfg, targetColor); downErr != nil {
+			return fmt.Errorf("cutover confirmation failed: %v. Resumed old container traffic, but failed to remove new %s container: %w. Manual cleanup required", err, targetColor, downErr)
+		}
+		return fmt.Errorf("cutover confirmation failed: %w. Resumed old container traffic and removed new %s container", err, targetColor)
 	}
 
 	fmt.Printf("[release] [7/8] http control -> %s: reject any remaining new requests\n", currentColor)
 	if err := postControl(oldContainerName, cfg.AppPort, "reject-new-requests"); err != nil {
-		return fmt.Errorf("failed to reject new requests on %s: %w. Keeping old container running", currentColor, err)
+		return fmt.Errorf("failed to reject new requests on %s after cutover was confirmed: %w. New container remains active; old container may still be running and needs manual cleanup", currentColor, err)
 	}
 
 	fmt.Printf("[release] waiting %s in-flight requests (timeout=%s)\n", currentColor, cfg.DrainTimeout)
 	if err := waitForDrain(oldContainerName, cfg.AppPort, cfg.DrainTimeout); err != nil {
-		return fmt.Errorf("drain failed: %w. Keeping old container running", err)
+		return fmt.Errorf("drain failed after cutover was confirmed: %w. New container remains active; old container was already removed from load balancing but was not removed", err)
 	}
 
 	fmt.Printf("[release] [8/8] %s: remove containers\n", currentColor)
-	downArgs := []string{"compose", "-f", composeFile(cfg, currentColor), "--env-file", cfg.EnvFile, "down"}
+	if err := downColor(cfg, currentColor); err != nil {
+		return err
+	}
+	return nil
+}
+
+func downColor(cfg deployConfig, color string) error {
+	downArgs := []string{"compose", "-f", composeFile(cfg, color), "--env-file", cfg.EnvFile, "down"}
 	if err := runCmd("docker", downArgs...); err != nil {
 		return fmt.Errorf("command failed: docker %s: %w", strings.Join(downArgs, " "), err)
 	}
@@ -965,8 +985,8 @@ func isProcessAlive(pidStr string) bool {
 // Configuration
 // ============================================================================
 
-// loadDeployConfig 从 .env.<env> 文件和命令行选项中加载部署配置。
-// 配置优先级：命令行选项 > .env 文件 > 系统环境变量 > 默认值。
+// loadDeployConfig 从 .env.<env> 文件、系统环境变量和命令行选项中加载部署配置。
+// 配置优先级：version/-f 来自命令行；其他配置为 .env 文件 > 系统环境变量 > 默认值。
 // 非 local 环境必须显式指定 version。
 func loadDeployConfig(env string, options map[string]string) deployConfig {
 	if env == "" {
@@ -981,13 +1001,14 @@ func loadDeployConfig(env string, options map[string]string) deployConfig {
 	}
 
 	envVars := loadEnv(envFile)
+	imageSource := imageSourceConfig(envVars)
 
 	return deployConfig{
 		Env:                     env,
 		EnvFile:                 envFile,
 		AppName:                 resolveConfig(envVars, "APP_NAME", defaultAppName),
 		ImageName:               resolveConfig(envVars, "IMAGE_NAME", defaultImageName),
-		ImageSource:             resolveConfig(envVars, "IMAGE_SOURCE", defaultImageSource),
+		ImageSource:             imageSource,
 		Registry:                resolveConfig(envVars, "IMAGE_REGISTRY", defaultRegistry(env)),
 		Version:                 getVersion(options, env),
 		GatewayHostPort:         resolveConfig(envVars, "HOST_GATEWAY_PORT", defaultGatewayHostPort),
@@ -1026,6 +1047,16 @@ func getVersion(options map[string]string, env string) string {
 		return defaultLocalVersion
 	}
 	panic(fmt.Errorf("error: version parameter is required for %s", env))
+}
+
+func imageSourceConfig(fileVars map[string]string) string {
+	value := resolveConfig(fileVars, "IMAGE_SOURCE", defaultImageSource)
+	switch value {
+	case "local", "remote":
+		return value
+	default:
+		panic(fmt.Errorf("invalid IMAGE_SOURCE=%q, expected local or remote", value))
+	}
 }
 
 // resolveConfig 按优先级获取配置值：env 文件 > 系统环境变量 > 默认值。
@@ -1125,8 +1156,15 @@ func cleanEnvValue(value string) string {
 
 // getEnvVar 从指定 env 文件中读取单个配置值的便捷方法。
 func getEnvVar(envFile, key, defaultVal string) string {
-	if _, err := os.Stat(envFile); err != nil {
+	info, err := os.Stat(envFile)
+	if os.IsNotExist(err) {
 		return defaultVal
+	}
+	if err != nil {
+		panic(fmt.Errorf("inspect env file %s: %w", envFile, err))
+	}
+	if info.IsDir() {
+		panic(fmt.Errorf("env file path is a directory: %s", envFile))
 	}
 	env := loadEnv(envFile)
 	return resolveConfig(env, key, defaultVal)
