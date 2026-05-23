@@ -26,7 +26,7 @@
 .
 ├── api/                    # 接口协议定义
 ├── cmd/                    # 辅助命令，如部署、本地压测
-├── hack/                   # 构建、部署相关脚本
+├── hack/                   # GoFrame CLI 配置
 ├── internal/
 │   ├── cmd/                # HTTP 服务入口与路由注册
 │   ├── controller/         # 请求处理层
@@ -37,11 +37,10 @@
 │   └── service/            # 服务接口声明
 ├── manifest/
 │   ├── config/             # 不同环境配置
-│   └── docker/             # Dockerfile、Compose、数据库初始化脚本
+│   └── docker/             # Dockerfile 与 Compose 编排
 ├── resource/               # 静态资源与模板目录
 ├── utility/                # 通用工具
 ├── main.go                 # 服务启动入口
-├── Makefile                # 常用开发、构建、部署命令
 └── go.mod                  # Go 模块依赖
 ```
 
@@ -52,7 +51,7 @@
 - Go `1.26+`
 - Docker Desktop
 - Docker Compose
-- Make，可选；Windows 下也可以直接执行对应的 `go run` 命令
+- GoFrame CLI（`gf`）
 
 ## 快速启动
 
@@ -64,14 +63,6 @@ go mod download
 
 ### 2. 启动本地 MySQL 和 Redis
 
-如果当前环境支持 `make`：
-
-```bash
-make start-local-db
-```
-
-等价命令：
-
 ```bash
 go run cmd/deploy/main.go start-local-db
 ```
@@ -80,7 +71,6 @@ go run cmd/deploy/main.go start-local-db
 
 ```text
 MySQL: 127.0.0.1:330
-Database: game_db_1
 User: root
 Password: root
 
@@ -89,28 +79,23 @@ Password: root
 DB: 0
 ```
 
-初始化 SQL 位于：
-
-```text
-manifest/docker/mysql/init/01-init.sql
-```
-
 ### 3. 启动服务
 
 ```bash
 go run main.go
 ```
 
-或：
-
-```bash
-make dev
-```
-
 服务默认监听：
 
 ```text
 http://127.0.0.1:7001
+```
+
+如果使用本地蓝绿部署脚本发布到 `local` 环境，统一入口为：
+
+```text
+http://127.0.0.1:17001
+Traefik Dashboard: http://127.0.0.1:18080/dashboard/
 ```
 
 ## 配置说明
@@ -127,6 +112,9 @@ manifest/config/config.yaml
 manifest/config/config.local.yaml       # 本地容器内运行配置
 manifest/config/config.test.yaml        # 测试环境配置
 manifest/config/config.production.yaml  # 生产环境配置
+.env.local                              # 本地部署环境变量
+.env.test                               # 测试部署环境变量
+.env.production                         # 生产部署环境变量
 ```
 
 关键配置项：
@@ -142,6 +130,8 @@ manifest/config/config.production.yaml  # 生产环境配置
 | `redis.default.address` | Redis 地址 |
 | `redis.default.pass` | Redis 密码 |
 | `logger.level` | 日志级别 |
+| `APP_ENV` | 运行环境标识，影响 `/test` 分组可用性 |
+| `IMAGE_SOURCE` | 镜像来源，`local` 为本地构建，`remote` 为远程拉取 |
 
 容器运行时可通过 `APP_PORT` 覆盖监听端口。
 
@@ -168,8 +158,8 @@ manifest/config/config.production.yaml  # 生产环境配置
 | 分组 | 路径 | 说明 |
 | --- | --- | --- |
 | Other | `/other/res_version/{key}` | 获取资源版本号 |
-| Test | `/test/` | 测试接口 |
-| Test | `/test/db` | 测试数据库 |
+| Test | `/test/` | 测试接口，仅 `local/test` 环境可用 |
+| Test | `/test/db` | 测试数据库，仅 `local/test` 环境可用 |
 
 ### 健康检查接口
 
@@ -199,17 +189,16 @@ http://127.0.0.1:7001/api.json
 http://127.0.0.1:7001/swagger
 ```
 
+如果通过本地蓝绿入口访问，则对应地址为：
+
+```text
+http://127.0.0.1:17001/api.json
+http://127.0.0.1:17001/swagger
+```
+
 ## 常用命令
 
 ### 本地开发
-
-```bash
-make dev
-make start-local-db
-make stop-local-db
-```
-
-等价命令：
 
 ```bash
 go run main.go
@@ -220,33 +209,34 @@ go run cmd/deploy/main.go stop-local-db
 ### 构建镜像
 
 ```bash
-make build.local
-make build.test VERSION=1.0.0
-make build.production VERSION=1.0.0
+go run cmd/deploy/main.go build local
+go run cmd/deploy/main.go build test version=v1.0.0
+go run cmd/deploy/main.go build production version=v1.0.0
 ```
 
 ### 推送镜像
 
 ```bash
-make push.local
-make push.test VERSION=1.0.0
-make push.production VERSION=1.0.0
+go run cmd/deploy/main.go push local
+go run cmd/deploy/main.go push test version=v1.0.0
+go run cmd/deploy/main.go push production version=v1.0.0
 ```
 
 ### 部署
 
 ```bash
-make deploy.local
-make deploy.test VERSION=1.0.0
-make deploy.production VERSION=1.0.0
+go run cmd/deploy/main.go deploy local
+go run cmd/deploy/main.go deploy local -f
+go run cmd/deploy/main.go deploy test version=v1.0.0
+go run cmd/deploy/main.go deploy production version=v1.0.0
 ```
 
 ### 查看状态
 
 ```bash
-make status.local
-make status.test
-make status.production
+go run cmd/deploy/main.go status local
+go run cmd/deploy/main.go status test
+go run cmd/deploy/main.go status production
 ```
 
 ## Docker 本地环境
@@ -263,12 +253,11 @@ manifest/docker/compose/local.yml
 - Redis `7.4-alpine`
 - 独立 Docker network
 - MySQL 和 Redis named volume 持久化
-- 首次启动自动执行初始化 SQL
 
 停止本地数据库：
 
 ```bash
-make stop-local-db
+go run cmd/deploy/main.go stop-local-db
 ```
 
 如果需要彻底清空本地数据，需要额外删除 Docker volume。
@@ -297,6 +286,7 @@ manifest/docker/compose/
 ```
 
 其中 `blue.yml`、`green.yml`、`traefik.yml` 用于蓝绿部署和流量入口管理。
+本地环境默认 `IMAGE_SOURCE=local`，会在部署时自动构建镜像；测试和生产环境默认 `IMAGE_SOURCE=remote`，由目标机器拉取指定版本镜像。
 
 ## 开发约定
 

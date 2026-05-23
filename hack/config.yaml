@@ -7,9 +7,3 @@ gfcli:
         overwriteDao: true
         overwriteDo: true
         overwriteEntity: true
-  docker:
-    build: "-a amd64 -s linux -p temp -ew"
-    tagPrefixes:
-      - ccr.ccs.tencentyun.com/justsoso-local
-      - ccr.ccs.tencentyun.com/justsoso-test
-      - ccr.ccs.tencentyun.com/justsoso-production

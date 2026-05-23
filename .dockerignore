@@ -29,7 +29,6 @@ cmd/
 
 # 构建与版本控制元数据
 .gitignore
-Makefile
 
 # 文档
 *.md

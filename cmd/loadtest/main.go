@@ -11,13 +11,6 @@ import (
 	"time"
 )
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 type Stats struct {
 	total      atomic.Int64
 	failed     atomic.Int64
@@ -59,10 +52,10 @@ func main() {
 					IdleConnTimeout:     90 * time.Second,
 				},
 			}
-			
+
 			for time.Now().Before(endTime) {
 				stats.total.Add(1)
-				
+
 				resp, err := client.Get(*url)
 				if err != nil {
 					stats.failed.Add(1)
@@ -71,10 +64,10 @@ func main() {
 					val.(*atomic.Int64).Add(1)
 					continue
 				}
-				
+
 				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
-				
+
 				if err != nil {
 					stats.failed.Add(1)
 					errType := fmt.Sprintf("读取响应失败: %v", err)
@@ -82,7 +75,7 @@ func main() {
 					val.(*atomic.Int64).Add(1)
 					continue
 				}
-				
+
 				if resp.StatusCode != http.StatusOK {
 					stats.failed.Add(1)
 					errType := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body[:min(100, len(body))]))
@@ -90,7 +83,7 @@ func main() {
 					val.(*atomic.Int64).Add(1)
 					continue
 				}
-				
+
 				var health HealthResponse
 				if err := json.Unmarshal(body, &health); err != nil {
 					stats.failed.Add(1)
@@ -99,7 +92,7 @@ func main() {
 					val.(*atomic.Int64).Add(1)
 					continue
 				}
-				
+
 				instanceID := fmt.Sprintf("%s (PID-%d)", health.Color, health.PID)
 				val, _ := stats.instances.LoadOrStore(instanceID, &atomic.Int64{})
 				val.(*atomic.Int64).Add(1)
@@ -125,9 +118,9 @@ func main() {
 	fmt.Println("=== 实例分布 ===")
 	stats.instances.Range(func(key, value interface{}) bool {
 		count := value.(*atomic.Int64).Load()
-		fmt.Printf("实例 [%s]: %d 次 (%.2f%%)\n", 
-			key.(string), 
-			count, 
+		fmt.Printf("实例 [%s]: %d 次 (%.2f%%)\n",
+			key.(string),
+			count,
 			float64(count)/float64(stats.total.Load()-stats.failed.Load())*100)
 		return true
 	})
