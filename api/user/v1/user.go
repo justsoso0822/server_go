@@ -8,7 +8,7 @@ import (
 type LoginReq struct {
 	g.Meta   `path:"/user/login" method:"get,post" tags:"User" summary:"登录"`
 	Uid      int64  `json:"uid" v:"required"`
-	LoginKey string `json:"login_key"`
+	LoginKey string `json:"login_key" v:"required"`
 	Openid   string `json:"openid" v:"required"`
 	Platform string `json:"platform" v:"required"`
 	Version  string `json:"version" v:"required"`
