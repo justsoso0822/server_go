@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"server_go/internal/dao"
-	"server_go/internal/logic/gamelog"
-	"server_go/internal/logic/lock"
 	"server_go/internal/model/entity"
+	"server_go/internal/runtime/gamelog"
+	"server_go/internal/runtime/lock"
 	"server_go/internal/service"
 
 	"github.com/gogf/gf/v2/frame/g"

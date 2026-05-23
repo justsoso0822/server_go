@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"server_go/api/health/v1"
-	"server_go/internal/logic/drainstate"
+	"server_go/internal/runtime/drain"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -23,9 +23,9 @@ func (c *ControllerV1) HealthDetail(ctx context.Context, req *v1.HealthDetailReq
 		"pid":            os.Getpid(),
 		"uptime":         int(time.Since(startTime).Seconds()),
 		"timestamp":      gtime.Now().Format("Y/m/d H:i:s"),
-		"draining":       drainstate.IsTrafficShift(),
-		"rejecting":      drainstate.IsRejecting(),
-		"activeRequests": drainstate.GetActiveRequests(),
+		"draining":       drain.IsTrafficShift(),
+		"rejecting":      drain.IsRejecting(),
+		"activeRequests": drain.GetActiveRequests(),
 	})
 	return
 }

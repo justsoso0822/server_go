@@ -1,7 +1,7 @@
 package control
 
 import (
-	"server_go/internal/logic/drainstate"
+	"server_go/internal/runtime/drain"
 	"server_go/internal/service"
 )
 
@@ -12,16 +12,16 @@ func init() {
 }
 
 func (s *sControl) TrafficShift() (string, error) {
-	drainstate.StartTrafficShift()
+	drain.StartTrafficShift()
 	return "traffic-shift", nil
 }
 
 func (s *sControl) RejectNew() (string, error) {
-	drainstate.StartRejectNew()
+	drain.StartRejectNew()
 	return "reject-new-requests", nil
 }
 
 func (s *sControl) ResumeTraffic() (string, error) {
-	drainstate.Resume()
+	drain.Resume()
 	return "resume-traffic", nil
 }

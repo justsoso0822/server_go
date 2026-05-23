@@ -1,4 +1,4 @@
-package drainstate
+package drain
 
 import "github.com/gogf/gf/v2/container/gtype"
 

@@ -1,22 +1,31 @@
+// ================================================================================
+// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
+// You can delete these comments if you wish manually maintain this interface file.
+// ================================================================================
+
 package service
 
 import (
 	"context"
 )
 
-type ITask interface {
-	InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error)
-}
+type (
+	ITask interface {
+		InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error)
+	}
+)
 
-var localTask ITask
+var (
+	localTask ITask
+)
 
 func Task() ITask {
 	if localTask == nil {
-		panic("service ITask not registered")
+		panic("implement not found for interface ITask, forgot register?")
 	}
 	return localTask
 }
 
-func RegisterTask(s ITask) {
-	localTask = s
+func RegisterTask(i ITask) {
+	localTask = i
 }
