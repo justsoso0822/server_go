@@ -20,6 +20,9 @@ func IncActiveRequests() {
 
 func DecActiveRequests() {
 	manager.activeRequests.Add(-1)
+	if manager.activeRequests.Val() < 0 {
+		manager.activeRequests.Set(0)
+	}
 }
 
 func GetActiveRequests() int64 {

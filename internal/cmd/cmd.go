@@ -45,6 +45,7 @@ var (
 			// 游戏接口路由
 			s.Group("/api", func(group *ghttp.RouterGroup) {
 				group.Middleware(
+					middleware.DrainGuard,
 					middleware.Sign,
 					middleware.Verify,
 					ghttp.MiddlewareHandlerResponse,
@@ -60,7 +61,10 @@ var (
 
 			// 其他路由（不校验签名和登录态）
 			s.Group("/other", func(group *ghttp.RouterGroup) {
-				group.Middleware(ghttp.MiddlewareHandlerResponse)
+				group.Middleware(
+					middleware.DrainGuard,
+					ghttp.MiddlewareHandlerResponse,
+				)
 				group.Bind(
 					otherController.NewV1(),
 				)
@@ -81,7 +85,10 @@ var (
 			})
 
 			s.Group("/test", func(group *ghttp.RouterGroup) {
-				group.Middleware(ghttp.MiddlewareHandlerResponse)
+				group.Middleware(
+					middleware.DrainGuard,
+					ghttp.MiddlewareHandlerResponse,
+				)
 				group.Bind(
 					testController.NewV1(),
 				)

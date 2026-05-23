@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"server_go/api/health/v1"
-	"server_go/internal/controller/drainstate"
+	"server_go/internal/logic/drainstate"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"

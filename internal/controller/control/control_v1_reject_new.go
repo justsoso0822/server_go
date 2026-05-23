@@ -3,8 +3,8 @@ package control
 import (
 	"context"
 
-	"server_go/api/control/v1"
-	"server_go/internal/controller/drainstate"
+	v1 "server_go/api/control/v1"
+	"server_go/internal/service"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -15,7 +15,10 @@ func (c *ControllerV1) RejectNew(ctx context.Context, req *v1.RejectNewReq) (res
 	if !ensureInternalAccess(r) {
 		return
 	}
-	drainstate.StartRejectNew()
-	r.Response.WriteJson(g.Map{"ok": true, "state": "reject-new-requests"})
+	state, err := service.Control().RejectNew()
+	if err != nil {
+		return nil, err
+	}
+	r.Response.WriteJson(g.Map{"ok": true, "state": state})
 	return
 }

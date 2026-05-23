@@ -6,6 +6,7 @@ package logic
 
 import (
 	_ "server_go/internal/logic/bag"
+	_ "server_go/internal/logic/control"
 	_ "server_go/internal/logic/game"
 	_ "server_go/internal/logic/gamelog"
 	_ "server_go/internal/logic/grid"
