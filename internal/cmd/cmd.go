@@ -86,6 +86,7 @@ var (
 
 			s.Group("/test", func(group *ghttp.RouterGroup) {
 				group.Middleware(
+					middleware.TestEnvGuard,
 					middleware.DrainGuard,
 					ghttp.MiddlewareHandlerResponse,
 				)
