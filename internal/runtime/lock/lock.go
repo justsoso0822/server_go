@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"server_go/internal/autodb"
+	"server_go/utility/dbcache"
 
 	"github.com/gogf/gf/v2/database/gredis"
 )
@@ -25,7 +26,7 @@ func Lock(ctx context.Context, key string) (string, error) {
 		return "", fmt.Errorf("[Lock] key is required")
 	}
 	redis := autodb.Redis(ctx)
-	redisKey := "lock:" + key
+	redisKey := dbcache.BuildKey(ctx, "lock", key)
 	token := fmt.Sprintf("%d:%d:%d", os.Getpid(), time.Now().UnixNano(), rand.Int63())
 
 	deadline := time.Now().Add(time.Duration(acquireTimeoutMs) * time.Millisecond)
@@ -56,7 +57,7 @@ func Unlock(ctx context.Context, key, token string) error {
 		return nil
 	}
 	redis := autodb.Redis(ctx)
-	redisKey := "lock:" + key
+	redisKey := dbcache.BuildKey(ctx, "lock", key)
 	script := `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`
 	_, err := redis.Do(ctx, "EVAL", script, 1, redisKey, token)
 	return err

@@ -6,6 +6,7 @@ import (
 
 	"server_go/internal/dao"
 	"server_go/internal/service"
+	"server_go/utility/dbcache"
 	"server_go/utility/tools"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -79,14 +80,16 @@ func getOneTask(ctx context.Context, uid int64, ser int) (map[string]interface{}
 	} else if row["done"].Int() != 0 {
 		taskId = row["taskid"].Int()
 		if taskId >= maxId {
-			v, e := dao.PrfTask.Ctx(ctx).Where("ser", ser).Where("start_loop", 1).
+			v, e := dao.PrfTask.Ctx(ctx).Cache(dbcache.Opt()).
+				Where("ser", ser).Where("start_loop", 1).
 				OrderAsc("id").Limit(1).Value("id")
 			if e != nil {
 				return nil, e
 			}
 			taskId = v.Int()
 		} else {
-			v, e := dao.PrfTask.Ctx(ctx).Where("ser", ser).WhereGT("id", taskId).
+			v, e := dao.PrfTask.Ctx(ctx).Cache(dbcache.Opt()).
+				Where("ser", ser).WhereGT("id", taskId).
 				OrderAsc("id").Limit(1).Value("id")
 			if e != nil {
 				return nil, e
@@ -114,7 +117,7 @@ func getOneTask(ctx context.Context, uid int64, ser int) (map[string]interface{}
 		return nil, nil
 	}
 
-	taskRow, err := dao.PrfTask.Ctx(ctx).Where("id", taskId).One()
+	taskRow, err := dao.PrfTask.Ctx(ctx).Cache(dbcache.Opt()).Where("id", taskId).One()
 	if err != nil {
 		return nil, err
 	}
@@ -125,14 +128,14 @@ func getOneTask(ctx context.Context, uid int64, ser int) (map[string]interface{}
 }
 
 func getTaskSerMinMax(ctx context.Context, ser int) ([]int, error) {
-	minVal, err := dao.PrfTask.Ctx(ctx).Where("ser", ser).Min("id")
+	minVal, err := dao.PrfTask.Ctx(ctx).Cache(dbcache.Opt()).Where("ser", ser).Min("id")
 	if err != nil {
 		return nil, err
 	}
 	if minVal == 0 {
 		return nil, nil
 	}
-	maxVal, err := dao.PrfTask.Ctx(ctx).Where("ser", ser).Max("id")
+	maxVal, err := dao.PrfTask.Ctx(ctx).Cache(dbcache.Opt()).Where("ser", ser).Max("id")
 	if err != nil {
 		return nil, err
 	}

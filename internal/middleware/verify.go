@@ -1,11 +1,12 @@
 package middleware
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 
 	"server_go/internal/autodb"
 	"server_go/internal/dao"
+	"server_go/utility/dbcache"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -32,9 +33,13 @@ func Verify(r *ghttp.Request) {
 		return
 	}
 
-	cacheKey := "login_key:uid:" + fmt.Sprintf("%d", uid)
+	cacheKey := dbcache.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(uid, 10))
 	redis := autodb.Redis(ctx)
-	cached, _ := redis.Do(ctx, "GET", cacheKey)
+	cached, err := redis.Do(ctx, "GET", cacheKey)
+	if err != nil {
+		r.Response.WriteJsonExit(g.Map{"code": -1, "msg": "Verify: 缓存校验失败"})
+		return
+	}
 	if !cached.IsNil() {
 		if cached.String() == loginKey {
 			r.Middleware.Next()
@@ -44,7 +49,7 @@ func Verify(r *ghttp.Request) {
 		return
 	}
 
-	keyData, err := dao.UserLoginkey.Ctx(ctx).Where("uid", uid).Where("login_key", loginKey).One()
+	keyData, err := dao.UserLoginkey.Ctx(ctx).Where("uid", uid).Where("key", loginKey).One()
 	if err != nil {
 		r.Response.WriteJsonExit(g.Map{"code": -1, "msg": "Verify: 查询失败"})
 		return
@@ -54,6 +59,26 @@ func Verify(r *ghttp.Request) {
 		return
 	}
 
-	redis.Do(ctx, "SETEX", cacheKey, 7200, loginKey)
+	fillScript := `
+local current = redis.call('GET', KEYS[1])
+if current == false then
+	redis.call('SETEX', KEYS[1], ARGV[2], ARGV[1])
+	return 1
+end
+if current == ARGV[1] then
+	redis.call('EXPIRE', KEYS[1], ARGV[2])
+	return 1
+end
+return -1
+`
+	fillResult, err := redis.Do(ctx, "EVAL", fillScript, 1, cacheKey, loginKey, 7200)
+	if err != nil {
+		r.Response.WriteJsonExit(g.Map{"code": -1, "msg": "Verify: 缓存写入失败"})
+		return
+	}
+	if fillResult.Int() == -1 {
+		r.Response.WriteJsonExit(g.Map{"code": -1035, "msg": "Verify: 该账号已在其他地方登陆"})
+		return
+	}
 	r.Middleware.Next()
 }

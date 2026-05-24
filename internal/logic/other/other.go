@@ -2,11 +2,11 @@ package other
 
 import (
 	"context"
-	"fmt"
 
 	"server_go/internal/autodb"
 	"server_go/internal/dao"
 	"server_go/internal/service"
+	"server_go/utility/dbcache"
 	"server_go/utility/secretutil"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -20,7 +20,7 @@ func init() {
 
 func (s *sOther) GetResVersion(ctx context.Context, key string) (g.Map, error) {
 	redis := autodb.Redis(ctx)
-	rkey := fmt.Sprintf("res_version.%s", key)
+	rkey := dbcache.BuildKey(ctx, "res_version", key)
 
 	exists, err := redis.Do(ctx, "EXISTS", rkey)
 	if err != nil {

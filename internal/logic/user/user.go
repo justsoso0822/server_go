@@ -3,16 +3,17 @@ package user
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"server_go/internal/autodb"
 	"server_go/internal/dao"
 	"server_go/internal/model/entity"
 	"server_go/internal/runtime/lock"
 	"server_go/internal/service"
+	"server_go/utility/dbcache"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
@@ -76,7 +77,7 @@ func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform
 	}
 
 	// 记录登录日志（异步执行并 recover）
-	bgCtx := gctx.NeverDone(ctx)
+	bgCtx := autodb.BackgroundWithChannel(ctx)
 	go func() {
 		defer func() { recover() }()
 		_, _ = dao.LogLogin.Ctx(bgCtx).Data(g.Map{"uid": uid, "platform": platform}).Insert()
@@ -90,7 +91,7 @@ func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform
 		return nil, err
 	}
 	// 同步更新 Redis 缓存（2小时TTL），保证后续请求命中缓存
-	autodb.Redis(ctx).Do(ctx, "SETEX", "login_key:uid:"+fmt.Sprintf("%d", uid), 7200, loginKey)
+	autodb.Redis(ctx).Do(ctx, "SETEX", dbcache.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(uid, 10)), 7200, loginKey)
 
 	out["datas"], err = dao.UserData.Ctx(ctx).Where("uid", uid).All()
 	if err != nil {

@@ -37,6 +37,13 @@ database:
     # 是否开启 SQL 调试日志
     debug: true
 
+  # 多渠道示例：database.<channel> 必须与 redis.<channel> 同名配置。
+  # 路由 /ios/api/... 会走 database.ios + redis.ios。
+  # ios:
+  #   link: "mysql:root:root@tcp(127.0.0.1:331)/game_db_ios?charset=utf8mb4&parseTime=true&loc=Local"
+  #   debug: true
+  #   cache: true
+
 redis:
   default:
     # Redis 地址
@@ -48,6 +55,12 @@ redis:
     
     # Redis 数据库编号
     db: 0
+
+  # 多渠道示例：redis.<channel> 与 database.<channel> 成对启用。
+  # ios:
+  #   address: "127.0.0.1:638"
+  #   pass: "root"
+  #   db: 0
 
 logger:
   # 日志级别: debug | info | warn | error
