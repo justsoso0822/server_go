@@ -1,10 +1,10 @@
 // =================================================================================
-// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
+// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
 // =================================================================================
 
 package entity
 
-// UserData 是表 user_data 的 Go 结构体。
+// UserData is the golang structure for table user_data.
 type UserData struct {
 	Uid   int    `json:"uid"   orm:"uid"   description:""`
 	Key   string `json:"key"   orm:"key"   description:""`

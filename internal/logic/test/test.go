@@ -2,9 +2,9 @@ package test
 
 import (
 	"context"
-	"server_go/internal/service"
 
-	"github.com/gogf/gf/v2/frame/g"
+	"server_go/internal/autodb"
+	"server_go/internal/service"
 )
 
 type sTest struct{}
@@ -14,8 +14,7 @@ func init() {
 }
 
 func (s *sTest) Index(ctx context.Context) (any, error) {
-	ret, err := g.Model("user u").
-		Ctx(ctx).
+	ret, err := autodb.Model(ctx, "user u").
 		LeftJoin("log_login log", "u.uid=log.uid").
 		Fields("u.uid, u.openid, log.time").
 		Where("u.uid", 13081).
@@ -28,8 +27,7 @@ func (s *sTest) Index(ctx context.Context) (any, error) {
 }
 
 func (s *sTest) TestDb(ctx context.Context) (any, error) {
-	// ret, err := g.DB().GetAll(ctx, "select * from user where uid = ?", 13081)
-	ret, err := g.DB().GetOne(ctx, "select * from user where uid = ?", 13081)
+	ret, err := autodb.DB(ctx).GetOne(ctx, "select * from user where uid = ?", 13081)
 	if err != nil {
 		return nil, err
 	}

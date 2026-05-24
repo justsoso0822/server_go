@@ -7,3 +7,4 @@ gfcli:
         overwriteDao: true
         overwriteDo: true
         overwriteEntity: true
+        tplDaoInternalPath: "./hack/tpl/dao_internal.tpl"

@@ -42,57 +42,64 @@ var (
 				s.SetAddr(":" + strings.TrimPrefix(appPort, ":"))
 			}
 
-			// 游戏接口路由
-			s.Group("/api", func(group *ghttp.RouterGroup) {
-				group.Middleware(
-					middleware.DrainGuard,
-					middleware.Sign,
-					middleware.Verify,
-					ghttp.MiddlewareHandlerResponse,
-				)
-				group.Bind(
-					userController.NewV1(),
-					gameController.NewV1(),
-					bagController.NewV1(),
-					gridController.NewV1(),
-					resController.NewV1(),
-				)
-			})
-
-			// 其他路由（不校验签名和登录态）
-			s.Group("/other", func(group *ghttp.RouterGroup) {
-				group.Middleware(
-					middleware.DrainGuard,
-					ghttp.MiddlewareHandlerResponse,
-				)
-				group.Bind(
-					otherController.NewV1(),
-				)
-			})
-
-			// 健康检查路由（无中间件）
-			s.Group("/health", func(group *ghttp.RouterGroup) {
-				group.Bind(
-					healthController.NewV1(),
-				)
-			})
-
-			// 内部控制路由（无中间件）
+			// 内部控制路由不走渠道分流，供部署脚本直接控制当前容器状态。
 			s.Group("/internal/control", func(group *ghttp.RouterGroup) {
-				group.Bind(
-					controlController.NewV1(),
-				)
+				group.Bind(controlController.NewV1())
 			})
 
-			s.Group("/test", func(group *ghttp.RouterGroup) {
-				group.Middleware(
-					middleware.TestEnvGuard,
-					middleware.DrainGuard,
-					ghttp.MiddlewareHandlerResponse,
-				)
-				group.Bind(
-					testController.NewV1(),
-				)
+			// 健康检查路由不走渠道分流，供 Traefik 和部署脚本使用固定路径。
+			s.Group("/health", func(group *ghttp.RouterGroup) {
+				group.Bind(healthController.NewV1())
+			})
+
+			registerChannelRoutes := func(channel *ghttp.RouterGroup) {
+				// 游戏接口路由
+				channel.Group("/api", func(group *ghttp.RouterGroup) {
+					group.Middleware(
+						middleware.DrainGuard,
+						middleware.Sign,
+						middleware.Verify,
+						ghttp.MiddlewareHandlerResponse,
+					)
+					group.Bind(
+						userController.NewV1(),
+						gameController.NewV1(),
+						bagController.NewV1(),
+						gridController.NewV1(),
+						resController.NewV1(),
+					)
+				})
+
+				// 其他路由（不校验签名和登录态）
+				channel.Group("/other", func(group *ghttp.RouterGroup) {
+					group.Middleware(
+						middleware.DrainGuard,
+						ghttp.MiddlewareHandlerResponse,
+					)
+					group.Bind(otherController.NewV1())
+				})
+
+				// 测试路由（仅 local/test 环境可用）
+				channel.Group("/test", func(group *ghttp.RouterGroup) {
+					group.Middleware(
+						middleware.TestEnvGuard,
+						middleware.DrainGuard,
+						ghttp.MiddlewareHandlerResponse,
+					)
+					group.Bind(testController.NewV1())
+				})
+			}
+
+			// 无渠道前缀入口默认走 default 渠道。
+			s.Group("/", func(group *ghttp.RouterGroup) {
+				group.Middleware(middleware.DefaultChannel)
+				registerChannelRoutes(group)
+			})
+
+			// 带渠道前缀入口走指定渠道。
+			s.Group("/{channel}", func(channel *ghttp.RouterGroup) {
+				channel.Middleware(middleware.Channel)
+				registerChannelRoutes(channel)
 			})
 
 			s.Run()

@@ -1,5 +1,5 @@
 // ==========================================================================
-// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
+// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
 // ==========================================================================
 
 package internal
@@ -7,8 +7,9 @@ package internal
 import (
 	"context"
 
+	"server_go/internal/autodb"
+
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/frame/g"
 )
 
 // PrfTaskDao is the data access object for the table prf_task.
@@ -47,9 +48,9 @@ func NewPrfTaskDao(handlers ...gdb.ModelHandler) *PrfTaskDao {
 	}
 }
 
-// DB retrieves and returns the underlying raw database management object of the current DAO.
-func (dao *PrfTaskDao) DB() gdb.DB {
-	return g.DB(dao.group)
+// DB retrieves and returns the raw database management object of the current DAO using request context.
+func (dao *PrfTaskDao) DB(ctx context.Context) gdb.DB {
+	return autodb.DB(ctx, dao.group)
 }
 
 // Table returns the table name of the current DAO.
@@ -69,7 +70,7 @@ func (dao *PrfTaskDao) Group() string {
 
 // Ctx creates and returns a Model for the current DAO. It automatically sets the context for the current operation.
 func (dao *PrfTaskDao) Ctx(ctx context.Context) *gdb.Model {
-	model := dao.DB().Model(dao.table)
+	model := autodb.DB(ctx, dao.group).Model(dao.table)
 	for _, handler := range dao.handlers {
 		model = handler(model)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"server_go/internal/autodb"
 	"server_go/internal/dao"
 	"server_go/internal/service"
 	"server_go/utility/secretutil"
@@ -18,7 +19,7 @@ func init() {
 }
 
 func (s *sOther) GetResVersion(ctx context.Context, key string) (g.Map, error) {
-	redis := g.Redis()
+	redis := autodb.Redis(ctx)
 	rkey := fmt.Sprintf("res_version.%s", key)
 
 	exists, err := redis.Do(ctx, "EXISTS", rkey)

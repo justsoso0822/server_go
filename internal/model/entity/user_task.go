@@ -1,10 +1,10 @@
 // =================================================================================
-// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
+// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
 // =================================================================================
 
 package entity
 
-// UserTask 是表 user_task 的 Go 结构体。
+// UserTask is the golang structure for table user_task.
 type UserTask struct {
 	Uid    int `json:"uid"    orm:"uid"    description:""`
 	Taskid int `json:"taskid" orm:"taskid" description:""`

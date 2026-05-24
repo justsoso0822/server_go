@@ -1,10 +1,10 @@
 // =================================================================================
-// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
+// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
 // =================================================================================
 
 package entity
 
-// MemConfig 是表 mem_config 的 Go 结构体。
+// MemConfig is the golang structure for table mem_config.
 type MemConfig struct {
 	Id    int    `json:"id"    orm:"id"    description:""`
 	Value string `json:"value" orm:"value" description:""`

@@ -1,5 +1,5 @@
 // =================================================================================
-// 代码由 GoFrame CLI 工具生成并维护。请勿编辑。
+// Code generated and maintained by GoFrame CLI tool. DO NOT EDIT.
 // =================================================================================
 
 package entity
@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// LogMsg 是表 log_msg 的 Go 结构体。
+// LogMsg is the golang structure for table log_msg.
 type LogMsg struct {
 	Id   int         `json:"id"   orm:"id"   description:""`
 	Uid  int         `json:"uid"  orm:"uid"  description:""`

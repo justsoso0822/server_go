@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"server_go/internal/autodb"
 	"server_go/internal/dao"
 	"server_go/internal/model/entity"
 	"server_go/internal/runtime/lock"
@@ -53,7 +54,7 @@ func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform
 	} else {
 		out["newbie"] = 1
 		nowDay := gtime.Now().StartOfDay().Timestamp()
-		err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+		err = autodb.DB(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 			_, e := dao.User.Ctx(ctx).TX(tx).Data(g.Map{
 				"uid": uid, "platform": platform, "openid": openid,
 			}).Insert()
@@ -89,7 +90,7 @@ func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform
 		return nil, err
 	}
 	// 同步更新 Redis 缓存（2小时TTL），保证后续请求命中缓存
-	g.Redis().Do(ctx, "SETEX", "login_key:uid:"+fmt.Sprintf("%d", uid), 7200, loginKey)
+	autodb.Redis(ctx).Do(ctx, "SETEX", "login_key:uid:"+fmt.Sprintf("%d", uid), 7200, loginKey)
 
 	out["datas"], err = dao.UserData.Ctx(ctx).Where("uid", uid).All()
 	if err != nil {
