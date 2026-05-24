@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"server_go/internal/autodb"
 	bagController "server_go/internal/controller/bag"
 	controlController "server_go/internal/controller/control"
 	gameController "server_go/internal/controller/game"
@@ -30,25 +31,25 @@ var (
 		Usage: "main",
 		Brief: "start http server",
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
+			// 启动期一次性构建合法 channel 集合（含保留名/缺 redis 校验），失败直接 fatal。
+			channels, err := autodb.LoadConfiguredChannels(ctx)
+			if err != nil {
+				g.Log().Fatalf(ctx, "load channels: %v", err)
+				return err
+			}
+			g.Log().Infof(ctx, "configured channels: %v", channels)
+
 			// 每个 channel 独立按 database.<channel>.cache 决定是否启用 ORM 查询缓存，
-			// 启用时使用同 channel 的 redis 作为缓存载体；缺 redis 配置则回退 noop。
+			// 启用时使用同 channel 的 redis 作为缓存载体。
 			applyDBCache := func(group string) {
 				if g.Cfg().MustGet(ctx, "database."+group+".cache").Bool() {
-					redisCfg, _ := g.Cfg().Get(ctx, "redis."+group)
-					if !redisCfg.IsNil() {
-						g.DB(group).GetCache().SetAdapter(gcache.NewAdapterRedis(g.Redis(group)))
-						return
-					}
-					g.Log().Warningf(ctx, "channel %q 启用 DB cache 但缺少 redis.%s 配置，回退 noop", group, group)
+					g.DB(group).GetCache().SetAdapter(gcache.NewAdapterRedis(g.Redis(group)))
+					return
 				}
 				g.DB(group).GetCache().SetAdapter(&dbcache.NoopAdapter{})
 			}
-
-			dbGroupsVar, _ := g.Cfg().Get(ctx, "database")
-			if !dbGroupsVar.IsNil() {
-				for group := range dbGroupsVar.Map() {
-					applyDBCache(group)
-				}
+			for _, group := range channels {
+				applyDBCache(group)
 			}
 
 			s := g.Server()

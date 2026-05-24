@@ -11,7 +11,7 @@ import (
 
 // DefaultChannel 将无渠道前缀的请求注入 default channel。
 func DefaultChannel(r *ghttp.Request) {
-	channel := "default"
+	channel := autodb.DefaultChannelName
 	if !autodb.IsConfiguredChannel(r.GetCtx(), channel) {
 		r.Response.WriteJsonExit(g.Map{"code": -1, "msg": "channel invalid"})
 		return

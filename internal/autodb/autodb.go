@@ -2,7 +2,10 @@ package autodb
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
+	"sync"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/database/gredis"
@@ -13,6 +16,85 @@ import (
 type channelKey struct{}
 
 var ctxKey = channelKey{}
+
+// DefaultChannelName 是无渠道前缀请求默认绑定的 channel 名。
+const DefaultChannelName = "default"
+
+// reservedChannelNames 是 HTTP 路由层占用的保留前缀，不允许作为 channel 名使用，
+// 否则会与 /health、/internal/control 等固定路由或渠道内部子路径冲突。
+var reservedChannelNames = map[string]struct{}{
+	"health":   {},
+	"internal": {},
+	"api":      {},
+	"other":    {},
+	"test":     {},
+}
+
+var (
+	channelsMu         sync.RWMutex
+	configuredChannels = map[string]struct{}{}
+	channelList        []string
+	channelsLoaded     bool
+)
+
+// LoadConfiguredChannels 启动期扫描 database.* 与 redis.*，构建合法 channel 集合。
+// 要求：每个 database.<name> 必须有同名 redis.<name>；name 不在保留前缀列表中；必须包含 default。
+// 仅在进程启动时调用一次，运行期不再读配置。
+func LoadConfiguredChannels(ctx context.Context) ([]string, error) {
+	dbVar, err := g.Cfg().Get(ctx, "database")
+	if err != nil {
+		return nil, fmt.Errorf("read database config: %w", err)
+	}
+	if dbVar.IsNil() {
+		return nil, fmt.Errorf("database config is missing")
+	}
+
+	dbMap := dbVar.Map()
+	set := make(map[string]struct{}, len(dbMap))
+	list := make([]string, 0, len(dbMap))
+
+	for raw := range dbMap {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
+		}
+		if _, hit := reservedChannelNames[name]; hit {
+			return nil, fmt.Errorf("channel name %q is reserved by routing layer", name)
+		}
+		redisVar, err := g.Cfg().Get(ctx, "redis."+name)
+		if err != nil {
+			return nil, fmt.Errorf("read redis.%s: %w", name, err)
+		}
+		if redisVar.IsNil() {
+			return nil, fmt.Errorf("channel %q requires redis.%s config", name, name)
+		}
+		set[name] = struct{}{}
+		list = append(list, name)
+	}
+
+	if _, ok := set[DefaultChannelName]; !ok {
+		return nil, fmt.Errorf("default channel (database.%s + redis.%s) is required", DefaultChannelName, DefaultChannelName)
+	}
+
+	sort.Strings(list)
+
+	channelsMu.Lock()
+	configuredChannels = set
+	channelList = list
+	channelsLoaded = true
+	channelsMu.Unlock()
+
+	return list, nil
+}
+
+// ConfiguredChannels 返回启动期构建的合法 channel 列表（有序拷贝）。
+func ConfiguredChannels() []string {
+	channelsMu.RLock()
+	defer channelsMu.RUnlock()
+	out := make([]string, len(channelList))
+	copy(out, channelList)
+	return out
+}
 
 // WithChannel 将请求的 channel 写入上下文，供 DAO、Redis 和原生 SQL 统一读取。
 func WithChannel(ctx context.Context, channel string) context.Context {
@@ -92,20 +174,15 @@ func DefaultRedis() *gredis.Redis {
 	return g.Redis(gredis.DefaultGroupName)
 }
 
-func IsConfiguredChannel(ctx context.Context, channel string) bool {
+func IsConfiguredChannel(_ context.Context, channel string) bool {
 	channel = strings.TrimSpace(channel)
 	if channel == "" {
 		return false
 	}
-	dbConfig, err := g.Cfg().Get(ctx, "database."+channel)
-	if err != nil || dbConfig.IsNil() {
-		return false
-	}
-	redisConfig, err := g.Cfg().Get(ctx, "redis."+channel)
-	if err != nil || redisConfig.IsNil() {
-		return false
-	}
-	return true
+	channelsMu.RLock()
+	_, ok := configuredChannels[channel]
+	channelsMu.RUnlock()
+	return ok
 }
 
 func resolveGroup(ctx context.Context, fallback string, defaultGroup string) string {
