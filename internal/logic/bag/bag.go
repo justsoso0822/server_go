@@ -6,6 +6,7 @@ import (
 	"server_go/internal/dao"
 	"server_go/internal/service"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -20,6 +21,9 @@ func (s *sBag) GetUserBag(ctx context.Context, uid int64, chapter int) (g.Map, e
 	if err != nil {
 		return nil, err
 	}
+	if rows == nil {
+		rows = gdb.Result{}
+	}
 	return g.Map{"uid": uid, "chapter": chapter, "bag": rows}, nil
 }
 
@@ -27,6 +31,9 @@ func (s *sBag) GetUserBagTp(ctx context.Context, uid int64, chapter int) (g.Map,
 	rows, err := dao.UserBagTp.Ctx(ctx).Where("uid", uid).Where("chapter", chapter).All()
 	if err != nil {
 		return nil, err
+	}
+	if rows == nil {
+		rows = gdb.Result{}
 	}
 	return g.Map{"uid": uid, "chapter": chapter, "bag": rows}, nil
 }

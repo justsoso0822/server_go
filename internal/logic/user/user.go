@@ -88,6 +88,8 @@ func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform
 	if err != nil {
 		return nil, err
 	}
+	// 同步更新 Redis 缓存（2小时TTL），保证后续请求命中缓存
+	g.Redis().Do(ctx, "SETEX", "login_key:uid:"+fmt.Sprintf("%d", uid), 7200, loginKey)
 
 	out["datas"], err = dao.UserData.Ctx(ctx).Where("uid", uid).All()
 	if err != nil {

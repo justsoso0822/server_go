@@ -2,6 +2,7 @@ package grid
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"server_go/internal/service"
@@ -24,7 +25,16 @@ func (s *sGrid) GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, err
 	wg.Add(3)
 
 	go func() {
-		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("GetUserBag panic: %v", r)
+				}
+				mu.Unlock()
+			}
+			wg.Done()
+		}()
 		result, err := service.Bag().GetUserBag(ctx, uid, chapter)
 		if err != nil {
 			mu.Lock()
@@ -40,7 +50,16 @@ func (s *sGrid) GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, err
 	}()
 
 	go func() {
-		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("GetUserBagTp panic: %v", r)
+				}
+				mu.Unlock()
+			}
+			wg.Done()
+		}()
 		result, err := service.Bag().GetUserBagTp(ctx, uid, chapter)
 		if err != nil {
 			mu.Lock()
@@ -56,7 +75,16 @@ func (s *sGrid) GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, err
 	}()
 
 	go func() {
-		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("InitTasks panic: %v", r)
+				}
+				mu.Unlock()
+			}
+			wg.Done()
+		}()
 		tasks, err := service.Task().InitTasks(ctx, uid)
 		if err != nil {
 			mu.Lock()

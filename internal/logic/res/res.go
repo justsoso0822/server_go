@@ -74,6 +74,10 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 	}
 
 	newCnt := oldCnt + cnt
+	// 扣减时校验余额是否足够
+	if cnt < 0 && newCnt < 0 {
+		return nil, fmt.Errorf("%s余额不足", resName)
+	}
 	if newCnt < 0 {
 		newCnt = 0
 	}

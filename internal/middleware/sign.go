@@ -16,6 +16,12 @@ func Sign(r *ghttp.Request) {
 	for key := range r.GetRouterMap() {
 		delete(params, key)
 	}
+	// 过滤掉空字符串参数，避免签名不一致
+	for k, v := range params {
+		if vStr, ok := v.(string); ok && vStr == "" {
+			delete(params, k)
+		}
+	}
 
 	// 从参数或请求头获取 sign
 	sign := r.Get("sign").String()
