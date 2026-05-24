@@ -44,6 +44,16 @@ func GetChannel(ctx context.Context) string {
 	return ""
 }
 
+// BackgroundWithChannel 创建后台 context，保留当前请求的 channel 信息。
+// 用于异步 goroutine 中保持渠道分流。
+func BackgroundWithChannel(ctx context.Context) context.Context {
+	channel := GetChannel(ctx)
+	if channel == "" {
+		return context.Background()
+	}
+	return WithChannel(context.Background(), channel)
+}
+
 // DB 返回数据库实例；未指定 group 或 group 为 default 时，优先使用当前请求的 channel。
 func DB(ctx context.Context, groups ...string) gdb.DB {
 	group := ""

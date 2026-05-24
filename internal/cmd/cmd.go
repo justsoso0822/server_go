@@ -30,11 +30,25 @@ var (
 		Usage: "main",
 		Brief: "start http server",
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
-			// 根据配置决定是否启用 ORM 查询缓存
-			if g.Cfg().MustGet(ctx, "database.default.cache").Bool() {
-				g.DB().GetCache().SetAdapter(gcache.NewAdapterRedis(g.Redis()))
-			} else {
-				g.DB().GetCache().SetAdapter(&dbcache.NoopAdapter{})
+			// 每个 channel 独立按 database.<channel>.cache 决定是否启用 ORM 查询缓存，
+			// 启用时使用同 channel 的 redis 作为缓存载体；缺 redis 配置则回退 noop。
+			applyDBCache := func(group string) {
+				if g.Cfg().MustGet(ctx, "database."+group+".cache").Bool() {
+					redisCfg, _ := g.Cfg().Get(ctx, "redis."+group)
+					if !redisCfg.IsNil() {
+						g.DB(group).GetCache().SetAdapter(gcache.NewAdapterRedis(g.Redis(group)))
+						return
+					}
+					g.Log().Warningf(ctx, "channel %q 启用 DB cache 但缺少 redis.%s 配置，回退 noop", group, group)
+				}
+				g.DB(group).GetCache().SetAdapter(&dbcache.NoopAdapter{})
+			}
+
+			dbGroupsVar, _ := g.Cfg().Get(ctx, "database")
+			if !dbGroupsVar.IsNil() {
+				for group := range dbGroupsVar.Map() {
+					applyDBCache(group)
+				}
 			}
 
 			s := g.Server()

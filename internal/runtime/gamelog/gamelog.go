@@ -4,10 +4,10 @@ import (
 	"context"
 	"math"
 
+	"server_go/internal/autodb"
 	"server_go/internal/dao"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gctx"
 )
 
 // TraceRes 异步记录资源变化。
@@ -25,12 +25,12 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 		resName = "-" + resName
 	}
 	absNum := int64(math.Abs(float64(num)))
-	bgCtx := gctx.NeverDone(ctx)
+	bgCtx := autodb.BackgroundWithChannel(ctx)
 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				g.Log().Errorf(context.Background(), "TraceRes panic: %v", r)
+				g.Log().Errorf(bgCtx, "TraceRes panic: %v", r)
 			}
 		}()
 		_, _ = dao.LogTrace.Ctx(bgCtx).Data(g.Map{
@@ -42,11 +42,11 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 
 // Log 异步记录消息。
 func Log(ctx context.Context, uid int64, msg string) {
-	bgCtx := gctx.NeverDone(ctx)
+	bgCtx := autodb.BackgroundWithChannel(ctx)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				g.Log().Errorf(context.Background(), "Log panic: %v", r)
+				g.Log().Errorf(bgCtx, "Log panic: %v", r)
 			}
 		}()
 		_, _ = dao.LogMsg.Ctx(bgCtx).Data(g.Map{"uid": uid, "msg": msg}).Insert()
