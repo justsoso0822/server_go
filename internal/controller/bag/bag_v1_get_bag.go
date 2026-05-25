@@ -4,13 +4,13 @@ import (
 	"context"
 
 	"server_go/api/bag/v1"
-	"server_go/internal/service"
+	bagService "server_go/internal/service/bag"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )
 
 func (c *ControllerV1) GetBag(ctx context.Context, req *v1.GetBagReq) (res *v1.GetBagRes, err error) {
-	out, err := service.Bag().GetUserBag(ctx, req.Uid, req.Chapter)
+	out, err := bagService.GetUserBag(ctx, req.Uid, req.Chapter)
 	if err != nil {
 		return nil, err
 	}

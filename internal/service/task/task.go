@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"server_go/internal/dao"
-	"server_go/internal/service"
 	"server_go/utility/dbcache"
 	"server_go/utility/tools"
 
@@ -13,13 +12,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-type sTask struct{}
-
-func init() {
-	service.RegisterTask(&sTask{})
-}
-
-func (s *sTask) InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error) {
+func InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error) {
 	taskConf, err := dao.UserData.Ctx(ctx).Where("uid", uid).Where("key", "task_conf").Value("value")
 	if err != nil {
 		return nil, err

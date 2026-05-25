@@ -4,13 +4,13 @@ import (
 	"context"
 
 	"server_go/api/user/v1"
-	"server_go/internal/service"
+	userService "server_go/internal/service/user"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )
 
 func (c *ControllerV1) Login(ctx context.Context, req *v1.LoginReq) (res *v1.LoginRes, err error) {
-	out, err := service.User().Login(ctx, req.Uid, req.LoginKey, req.Openid, req.Platform, req.Version)
+	out, err := userService.Login(ctx, req.Uid, req.LoginKey, req.Openid, req.Platform, req.Version)
 	if err != nil {
 		return nil, err
 	}

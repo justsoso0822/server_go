@@ -9,7 +9,7 @@ import (
 	"server_go/internal/dao"
 	"server_go/internal/model/entity"
 	"server_go/internal/runtime/lock"
-	"server_go/internal/service"
+	resService "server_go/internal/service/res"
 	"server_go/utility/dbcache"
 
 	"github.com/gogf/gf/v2/database/gdb"
@@ -17,13 +17,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-type sUser struct{}
-
-func init() {
-	service.RegisterUser(&sUser{})
-}
-
-func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform, version string) (g.Map, error) {
+func Login(ctx context.Context, uid int64, loginKey, openid, platform, version string) (g.Map, error) {
 	if openid == "" {
 		return nil, fmt.Errorf("参数错误: openid 必填")
 	}
@@ -40,18 +34,18 @@ func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform
 
 	out := g.Map{"uid": uid}
 
-	var user *entity.User
-	err = dao.User.Ctx(ctx).Where("uid", uid).Scan(&user)
+	var one *entity.User
+	err = dao.User.Ctx(ctx).Where("uid", uid).Scan(&one)
 	if err != nil {
 		return nil, err
 	}
 
-	if user != nil {
-		if user.Platform != platform || user.Openid != openid {
+	if one != nil {
+		if one.Platform != platform || one.Openid != openid {
 			return nil, fmt.Errorf("账号信息不匹配")
 		}
 		out["newbie"] = 0
-		out["user"] = user
+		out["user"] = one
 	} else {
 		out["newbie"] = 1
 		nowDay := gtime.Now().StartOfDay().Timestamp()
@@ -71,26 +65,21 @@ func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform
 		if err != nil {
 			return nil, err
 		}
-		out["user"] = &entity.User{
-			Uid: uint(uid), Platform: platform, Openid: openid,
-		}
+		out["user"] = &entity.User{Uid: uint(uid), Platform: platform, Openid: openid}
 	}
 
-	// 记录登录日志（异步执行并 recover）
 	bgCtx := autodb.BackgroundWithChannel(ctx)
 	go func() {
 		defer func() { recover() }()
 		_, _ = dao.LogLogin.Ctx(bgCtx).Data(g.Map{"uid": uid, "platform": platform}).Insert()
 	}()
 
-	// 写入或更新登录密钥。串行化登录后，最后完成的一次登录会成为唯一有效客户端。
 	_, err = dao.UserLoginkey.Ctx(ctx).Data(g.Map{
 		"uid": uid, "key": loginKey, "ver": version, "time": gtime.Timestamp(),
 	}).Save()
 	if err != nil {
 		return nil, err
 	}
-	// 同步更新 Redis 缓存（2小时TTL），保证后续请求命中缓存
 	autodb.Redis(ctx).Do(ctx, "SETEX", dbcache.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(uid, 10)), 7200, loginKey)
 
 	out["datas"], err = dao.UserData.Ctx(ctx).Where("uid", uid).All()
@@ -113,7 +102,7 @@ func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform
 		return nil, err
 	}
 
-	out["res"], err = s.GetUserRes(ctx, uid)
+	out["res"], err = resService.Check(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -124,25 +113,4 @@ func (s *sUser) Login(ctx context.Context, uid int64, loginKey, openid, platform
 	}
 
 	return out, nil
-}
-
-func (s *sUser) GetUser(ctx context.Context, uid int64) (*entity.User, error) {
-	var user *entity.User
-	err := dao.User.Ctx(ctx).Where("uid", uid).Scan(&user)
-	return user, err
-}
-
-func (s *sUser) GetUserRes(ctx context.Context, uid int64) (*entity.UserRes, error) {
-	var res *entity.UserRes
-	err := dao.UserRes.Ctx(ctx).Where("uid", uid).Scan(&res)
-	if err != nil || res == nil {
-		return res, err
-	}
-	nowDay := int(gtime.Now().StartOfDay().Timestamp())
-	if res.DayTime != nowDay {
-		_, _ = dao.UserRes.Ctx(ctx).Where("uid", uid).Data(g.Map{"day_conf": "", "day_time": nowDay}).Update()
-		res.DayConf = ""
-		res.DayTime = nowDay
-	}
-	return res, nil
 }

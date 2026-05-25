@@ -8,34 +8,27 @@ import (
 	"server_go/internal/model/entity"
 	"server_go/internal/runtime/gamelog"
 	"server_go/internal/runtime/lock"
-	"server_go/internal/service"
 
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-type sRes struct{}
-
-func init() {
-	service.RegisterRes(&sRes{})
-}
-
-func (s *sRes) UpdateDiamond(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
+func UpdateDiamond(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
 	return updateResField(ctx, uid, cnt, reason, "diamond", "钻石")
 }
 
-func (s *sRes) UpdateGold(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
+func UpdateGold(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
 	return updateResField(ctx, uid, cnt, reason, "gold", "金币")
 }
 
-func (s *sRes) UpdateTili(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
+func UpdateTili(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
 	return updateResField(ctx, uid, cnt, reason, "tili", "体力")
 }
 
-func (s *sRes) UpdateExp(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
+func UpdateExp(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
 	return updateResField(ctx, uid, cnt, reason, "exp", "经验")
 }
 
-func (s *sRes) UpdateStar(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
+func UpdateStar(ctx context.Context, uid int64, cnt int64, reason string) (g.Map, error) {
 	return updateResField(ctx, uid, cnt, reason, "star", "星星")
 }
 
@@ -50,31 +43,30 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 	}
 	defer func() { _ = lock.Unlock(ctx, lockKey, token) }()
 
-	var res *entity.UserRes
-	err = dao.UserRes.Ctx(ctx).Where("uid", uid).Scan(&res)
+	var one *entity.UserRes
+	err = dao.UserRes.Ctx(ctx).Where("uid", uid).Scan(&one)
 	if err != nil {
 		return nil, err
 	}
-	if res == nil {
+	if one == nil {
 		return nil, fmt.Errorf("用户资源不存在")
 	}
 
 	var oldCnt int64
 	switch field {
 	case "diamond":
-		oldCnt = int64(res.Diamond)
+		oldCnt = int64(one.Diamond)
 	case "gold":
-		oldCnt = int64(res.Gold)
+		oldCnt = int64(one.Gold)
 	case "tili":
-		oldCnt = int64(res.Tili)
+		oldCnt = int64(one.Tili)
 	case "exp":
-		oldCnt = int64(res.Exp)
+		oldCnt = int64(one.Exp)
 	case "star":
-		oldCnt = int64(res.Star)
+		oldCnt = int64(one.Star)
 	}
 
 	newCnt := oldCnt + cnt
-	// 扣减时校验余额是否足够
 	if cnt < 0 && newCnt < 0 {
 		return nil, fmt.Errorf("%s余额不足", resName)
 	}
@@ -82,7 +74,7 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 		newCnt = 0
 	}
 	if newCnt == oldCnt {
-		return g.Map{"res": res, "add_value": 0}, nil
+		return g.Map{"res": one, "add_value": 0}, nil
 	}
 
 	_, err = dao.UserRes.Ctx(ctx).Where("uid", uid).Data(g.Map{field: newCnt}).Update()
@@ -93,17 +85,17 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 
 	switch field {
 	case "diamond":
-		res.Diamond = int(newCnt)
+		one.Diamond = int(newCnt)
 	case "gold":
-		res.Gold = int(newCnt)
+		one.Gold = int(newCnt)
 	case "tili":
-		res.Tili = int(newCnt)
+		one.Tili = int(newCnt)
 	case "exp":
-		res.Exp = int(newCnt)
+		one.Exp = int(newCnt)
 	case "star":
-		res.Star = int(newCnt)
+		one.Star = int(newCnt)
 	}
 
 	gamelog.TraceRes(ctx, uid, oldCnt, newCnt, resName, reason)
-	return g.Map{"res": res, "add_value": newCnt - oldCnt}, nil
+	return g.Map{"res": one, "add_value": newCnt - oldCnt}, nil
 }

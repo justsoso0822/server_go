@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"server_go/api/res/v1"
-	"server_go/internal/service"
+	resService "server_go/internal/service/res"
 )
 
 func (c *ControllerV1) AddGold(ctx context.Context, req *v1.AddGoldReq) (res *v1.AddGoldRes, err error) {
-	out, err := service.Res().UpdateGold(ctx, req.Uid, 50, "测试增加金币")
+	out, err := resService.UpdateGold(ctx, req.Uid, 50, "测试增加金币")
 	if err != nil {
 		return nil, err
 	}

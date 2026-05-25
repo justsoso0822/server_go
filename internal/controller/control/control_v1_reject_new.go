@@ -4,7 +4,7 @@ import (
 	"context"
 
 	v1 "server_go/api/control/v1"
-	"server_go/internal/service"
+	controlService "server_go/internal/service/control"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -15,7 +15,7 @@ func (c *ControllerV1) RejectNew(ctx context.Context, req *v1.RejectNewReq) (res
 	if !ensureInternalAccess(r) {
 		return
 	}
-	state, err := service.Control().RejectNew()
+	state, err := controlService.RejectNew()
 	if err != nil {
 		return nil, err
 	}

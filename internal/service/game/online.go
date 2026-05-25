@@ -4,19 +4,12 @@ import (
 	"context"
 
 	"server_go/internal/dao"
-	"server_go/internal/service"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-type sGame struct{}
-
-func init() {
-	service.RegisterGame(&sGame{})
-}
-
-func (s *sGame) Online(ctx context.Context, uid int64, seconds int64) error {
+func Online(ctx context.Context, uid int64, seconds int64) error {
 	now := gtime.Now()
 	dayStr := now.Format("Y-m-d, H:00:00")
 

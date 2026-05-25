@@ -5,20 +5,13 @@ import (
 
 	"server_go/internal/autodb"
 	"server_go/internal/dao"
-	"server_go/internal/service"
 	"server_go/utility/dbcache"
 	"server_go/utility/secretutil"
 
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-type sOther struct{}
-
-func init() {
-	service.RegisterOther(&sOther{})
-}
-
-func (s *sOther) GetResVersion(ctx context.Context, key string) (g.Map, error) {
+func GetResVersion(ctx context.Context, key string) (g.Map, error) {
 	redis := autodb.Redis(ctx)
 	rkey := dbcache.BuildKey(ctx, "res_version", key)
 

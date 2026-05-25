@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"server_go/api/res/v1"
-	"server_go/internal/service"
+	resService "server_go/internal/service/res"
 )
 
 func (c *ControllerV1) AddDiamond(ctx context.Context, req *v1.AddDiamondReq) (res *v1.AddDiamondRes, err error) {
-	out, err := service.Res().UpdateDiamond(ctx, req.Uid, 50, "测试增加钻石")
+	out, err := resService.UpdateDiamond(ctx, req.Uid, 50, "测试增加钻石")
 	if err != nil {
 		return nil, err
 	}

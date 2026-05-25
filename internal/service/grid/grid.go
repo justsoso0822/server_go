@@ -5,18 +5,13 @@ import (
 	"fmt"
 	"sync"
 
-	"server_go/internal/service"
+	"server_go/internal/service/bag"
+	"server_go/internal/service/task"
 
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-type sGrid struct{}
-
-func init() {
-	service.RegisterGrid(&sGrid{})
-}
-
-func (s *sGrid) GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, error) {
+func GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, error) {
 	out := g.Map{}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -35,7 +30,7 @@ func (s *sGrid) GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, err
 			}
 			wg.Done()
 		}()
-		result, err := service.Bag().GetUserBag(ctx, uid, chapter)
+		result, err := bag.GetUserBag(ctx, uid, chapter)
 		if err != nil {
 			mu.Lock()
 			if firstErr == nil {
@@ -60,7 +55,7 @@ func (s *sGrid) GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, err
 			}
 			wg.Done()
 		}()
-		result, err := service.Bag().GetUserBagTp(ctx, uid, chapter)
+		result, err := bag.GetUserBagTp(ctx, uid, chapter)
 		if err != nil {
 			mu.Lock()
 			if firstErr == nil {
@@ -85,7 +80,7 @@ func (s *sGrid) GetGrid(ctx context.Context, uid int64, chapter int) (g.Map, err
 			}
 			wg.Done()
 		}()
-		tasks, err := service.Task().InitTasks(ctx, uid)
+		tasks, err := task.InitTasks(ctx, uid)
 		if err != nil {
 			mu.Lock()
 			if firstErr == nil {

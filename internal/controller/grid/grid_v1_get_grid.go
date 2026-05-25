@@ -5,18 +5,18 @@ import (
 
 	"server_go/api/bag/v1"
 	gridV1 "server_go/api/grid/v1"
-	"server_go/internal/service"
+	gridService "server_go/internal/service/grid"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
 func (c *ControllerV1) GetGrid(ctx context.Context, req *gridV1.GetGridReq) (res *gridV1.GetGridRes, err error) {
-	out, err := service.Grid().GetGrid(ctx, req.Uid, req.Chapter)
+	out, err := gridService.GetGrid(ctx, req.Uid, req.Chapter)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var bag, bagTp *v1.BagRes
 	if out["bag"] != nil {
 		bagData := out["bag"].(g.Map)
@@ -34,7 +34,7 @@ func (c *ControllerV1) GetGrid(ctx context.Context, req *gridV1.GetGridReq) (res
 			Bag:     bagTpData["bag"].(gdb.Result),
 		}
 	}
-	
+
 	return &gridV1.GetGridRes{
 		Bag:   bag,
 		BagTp: bagTp,
