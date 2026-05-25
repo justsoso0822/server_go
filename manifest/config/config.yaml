@@ -33,8 +33,6 @@ database:
     # 数据库连接字符串
     # 连接本地 Docker 数据库，端口映射到 127.0.0.1:330
     link: "mysql:root:root@tcp(127.0.0.1:330)/huayuan?charset=utf8mb4&parseTime=true&loc=Local"
-    # 直连测试服数据库，测试用
-    # link: "mysql:root:WZtest1@DB@tcp(172.10.1.15:3014)/huayuan?charset=utf8mb4&parseTime=true&loc=Local"
     
     # 是否开启 SQL 调试日志
     debug: true
