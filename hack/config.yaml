@@ -1,7 +1,7 @@
 gfcli:
   gen:
     dao:
-      - link: "mysql:root:root@tcp(127.0.0.1:330)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
+      - link: "mysql:root:WZtest1@DB@tcp(172.10.1.15:3014)/huayuan?charset=utf8mb4&parseTime=true&loc=Local"
         descriptionTag: true
         noModelComment: true
         overwriteDao: true

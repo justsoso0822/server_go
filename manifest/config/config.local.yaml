@@ -30,7 +30,7 @@ database:
   default:
     # 数据库连接字符串
     # 容器内使用服务名 mysql:3306，宿主机开发使用 127.0.0.1:330
-    link: "mysql:root:root@tcp(mysql:3306)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
+    link: "mysql:root:root@tcp(mysql:3306)/huayuan?charset=utf8mb4&parseTime=true&loc=Local"
     
     # 是否开启 SQL 调试日志
     debug: true

@@ -50,3 +50,6 @@ docker/redis/data/
 
 # CherryStudio
 .cherry-studio/
+
+/manifest/config/config.test.yaml
+/manifest/config/config.production.yaml
