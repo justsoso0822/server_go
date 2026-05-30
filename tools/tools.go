@@ -5,21 +5,6 @@ import (
 	"strconv"
 )
 
-type ResItem struct {
-	Type int `json:"type"`
-	Id   int `json:"id"`
-	Cnt  int `json:"cnt"`
-}
-
-const (
-	ResTypeDiamond   = 1
-	ResTypeGold      = 2
-	ResTypeTili      = 3
-	ResTypeExp       = 4
-	ResTypeStar      = 5
-	ResTypeItemOther = 6
-)
-
 func PickNumbers(s string) []int {
 	var result []int
 	current := ""

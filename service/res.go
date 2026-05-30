@@ -7,7 +7,6 @@ import (
 	"server_gin/dao"
 	"server_gin/dao/model"
 	"server_gin/state"
-	"server_gin/tools/logger"
 )
 
 func UpdateDiamond(ctx context.Context, uid int64, cnt int64, reason string) (map[string]any, error) {
@@ -75,12 +74,12 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 	}
 
 	if err = dao.UpdateUserResField(ctx, uid, field, newCnt); err != nil {
-		logger.LogMsg(ctx, uid, fmt.Sprintf("更新用户资源失败 %s %d %s %v", field, cnt, reason, err))
+		LogMsg(ctx, uid, fmt.Sprintf("更新用户资源失败 %s %d %s %v", field, cnt, reason, err))
 		return nil, err
 	}
 
 	updateResStruct(res, field, int(newCnt))
-	logger.TraceRes(ctx, uid, oldCnt, newCnt, resName, reason)
+	TraceRes(ctx, uid, oldCnt, newCnt, resName, reason)
 
 	return map[string]any{"res": res, "add_value": newCnt - oldCnt}, nil
 }
