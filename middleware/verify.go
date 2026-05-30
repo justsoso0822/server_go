@@ -28,8 +28,6 @@ func Verify() gin.HandlerFunc {
 			LoginKey: firstStr(c.Query("login_key"), c.PostForm("login_key")),
 			Platform: firstStr(c.Query("platform"), c.PostForm("platform")),
 			Version:  firstStr(c.Query("version"), c.PostForm("version")),
-			Tick:     firstStr(c.Query("tick"), c.PostForm("tick")),
-			Sign:     firstStr(c.Query("sign"), c.PostForm("sign"), c.GetHeader("x-sign"), c.GetHeader("x-signature")),
 		})
 		if result.Code != 0 {
 			c.AbortWithStatusJSON(http.StatusOK, gin.H{"code": result.Code, "msg": result.Msg})

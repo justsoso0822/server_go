@@ -1,4 +1,5 @@
 *.log
+.claude/
 .deploy.tmp/
 .DS_Store
 Thumbs.db

@@ -30,8 +30,6 @@ type AuthInput struct {
 	LoginKey string
 	Platform string
 	Version  string
-	Tick     string
-	Sign     string
 }
 
 type AuthResult struct {
@@ -40,7 +38,7 @@ type AuthResult struct {
 }
 
 func VerifyLoginKey(ctx context.Context, in AuthInput) AuthResult {
-	if in.Uid == 0 || in.LoginKey == "" || in.Platform == "" || in.Version == "" || in.Tick == "" || in.Sign == "" {
+	if in.Uid == 0 || in.LoginKey == "" || in.Platform == "" || in.Version == "" {
 		return AuthResult{Code: -1, Msg: "Verify: 参数错误"}
 	}
 

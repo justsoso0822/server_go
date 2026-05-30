@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"net/http"
-	"strings"
 
 	"server_gin/config"
 	signutil "server_gin/tools/sign"
@@ -13,27 +12,8 @@ import (
 // Sign 校验请求的 HMAC-SHA256 签名。
 func Sign(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		params := map[string]interface{}{}
-		for k, v := range c.Request.URL.Query() {
-			params[k] = strings.Join(v, ",")
-		}
-		if c.Request.Method == "POST" {
-			_ = c.Request.ParseForm()
-			for k, v := range c.Request.PostForm {
-				params[k] = strings.Join(v, ",")
-			}
-		}
-
-		sign := ""
-		if s, ok := params["sign"]; ok {
-			sign = s.(string)
-		}
-		if sign == "" {
-			sign = c.GetHeader("x-sign")
-		}
-		if sign == "" {
-			sign = c.GetHeader("x-signature")
-		}
+		params := collectRequestParams(c)
+		sign := requestSign(c, params)
 		if sign == "" {
 			c.AbortWithStatusJSON(http.StatusOK, gin.H{"code": -1, "msg": "非法调用"})
 			return

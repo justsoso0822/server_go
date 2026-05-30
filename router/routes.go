@@ -29,6 +29,7 @@ func registerAPI(group *gin.RouterGroup, app *bootstrap.App) {
 	api.Use(
 		middleware.DrainGuard(),
 		middleware.Sign(app.Config),
+		middleware.ReplayGuard(),
 		middleware.Verify(),
 	)
 	Handle(api, "/user/login", handler.UserLogin)
