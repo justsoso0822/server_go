@@ -1,55 +1,6 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-bin/
-temp/
-
-# Output of the go coverage tool
-*.out
-
-# Dependency directories
-vendor/
-
-# Go workspace file
-go.work
-
-# IDE
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
+*.log
+.deploy.tmp/
 .DS_Store
 Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Docker volumes
-docker/mysql/data/
-docker/redis/data/
-
-# Deploy lock files
-.deploy.*.lock
-# Deploy 临时 env 文件目录
-.deploy.tmp/
-
-# Claude
-.claude
-/.claude
-
-# CherryStudio
-.cherry-studio/
-
-/manifest/config/config.test.yaml
-/manifest/config/config.production.yaml
+*.exe
+main

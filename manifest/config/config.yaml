@@ -1,74 +1,24 @@
 # 本地开发环境配置
-# 用于宿主机直接运行: go run main.go
-
 server:
-  # HTTP 服务监听地址
   address: ":7001"
-  
-  # OpenAPI 文档路径
-  openapiPath: "/api.json"
-  
-  # Swagger UI 路径
-  swaggerPath: "/swagger"
-  
-  # 优雅关闭
-  graceful: true
-  
-  # 优雅关闭超时时间（秒）
   gracefulTimeout: 15
-  
-  # 访问日志
-  # logPath: "stdout"
-  logStdout: true
-  accessLogEnabled: true
 
 app:
-  # 应用密钥，用于加密和签名
-  # 生产环境务必修改
   keys:
     - "SzNg8LgHjEUgTAc4"
 
 database:
   default:
-    # 数据库连接字符串
-    # 连接本地 Docker 数据库，端口映射到 127.0.0.1:330
-    link: "mysql:root:root@tcp(127.0.0.1:330)/huayuan?charset=utf8mb4&parseTime=true&loc=Local"
-    
-    # 是否开启 SQL 调试日志
+    link: "mysql:root:root@tcp(127.0.0.1:330)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
     debug: true
-
-  # 多渠道示例：database.<channel> 必须与 redis.<channel> 同名配置。
-  # 路由 /ios/api/... 会走 database.ios + redis.ios。
-  # ios:
-  #   link: "mysql:root:root@tcp(127.0.0.1:331)/game_db_ios?charset=utf8mb4&parseTime=true&loc=Local"
-  #   debug: true
-  #   cache: true
 
 redis:
   default:
-    # Redis 地址
-    # 连接本地 Docker Redis，端口映射到 127.0.0.1:637
     address: "127.0.0.1:637"
-    
-    # Redis 密码
     pass: "root"
-    
-    # Redis 数据库编号
     db: 0
 
-  # 多渠道示例：redis.<channel> 与 database.<channel> 成对启用。
-  # ios:
-  #   address: "127.0.0.1:638"
-  #   pass: "root"
-  #   db: 0
-
 logger:
-  # 日志级别: debug | info | warn | error
   level: "debug"
-  
-  # 输出到标准输出
   stdout: true
-  
-  # 是否禁用颜色输出
-  # false = 带颜色，便于本地开发查看
   stdoutColorDisabled: false

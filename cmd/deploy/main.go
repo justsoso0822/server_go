@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	defaultAppName               = "server-go"
+	defaultAppName               = "server-gin"
 	defaultLocalVersion          = "1.0.0"
 	defaultGatewayHostPort       = "7001"
 	defaultGatewayInternalPort   = "7001"
@@ -1396,7 +1396,7 @@ func containerExists(name string) (bool, error) {
 
 // 检查多行输出中是否包含精确匹配的行。
 func hasLine(output, expected string) bool {
-	for line := range strings.SplitSeq(output, "\n") {
+	for _, line := range strings.Split(output, "\n") {
 		if strings.TrimSpace(line) == expected {
 			return true
 		}

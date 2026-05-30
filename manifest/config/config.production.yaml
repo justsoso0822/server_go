@@ -1,0 +1,28 @@
+# 生产环境配置
+server:
+  address: ":7001"
+  gracefulTimeout: 15
+
+app:
+  keys:
+    - "SzNg8LgHjEUgTAc4"
+
+database:
+  default:
+    link: "mysql:root:change_me@tcp(192.168.0.10:3219)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
+    debug: false
+    cache: true
+    maxIdle: 10
+    maxOpen: 100
+    maxLifetime: 3600
+
+redis:
+  default:
+    address: "192.168.0.20:6379"
+    pass: "change_me"
+    db: 0
+
+logger:
+  level: "info"
+  stdout: true
+  stdoutColorDisabled: true
