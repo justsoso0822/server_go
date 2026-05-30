@@ -3,7 +3,7 @@ package dao
 import (
 	"context"
 
-	"server_gin/autodb"
+	"server_gin/tools/autodb"
 
 	"gorm.io/gorm"
 )

@@ -6,7 +6,8 @@ import (
 
 	"server_gin/dao"
 	"server_gin/dao/model"
-	"server_gin/runtime"
+	"server_gin/state"
+	"server_gin/tools/logger"
 )
 
 func UpdateDiamond(ctx context.Context, uid int64, cnt int64, reason string) (map[string]any, error) {
@@ -31,14 +32,14 @@ func UpdateStar(ctx context.Context, uid int64, cnt int64, reason string) (map[s
 
 func updateResField(ctx context.Context, uid int64, cnt int64, reason string, field dao.UserResField, resName string) (map[string]any, error) {
 	lockKey := fmt.Sprintf("update_%s:%d", field, uid)
-	token, err := runtime.Lock(ctx, lockKey)
+	token, err := state.Lock(ctx, lockKey)
 	if err != nil {
 		return nil, err
 	}
 	if token == "" {
 		return nil, fmt.Errorf("系统繁忙，请稍后再试")
 	}
-	defer func() { _ = runtime.Unlock(ctx, lockKey, token) }()
+	defer func() { _ = state.Unlock(ctx, lockKey, token) }()
 
 	res, err := dao.GetUserRes(ctx, uid)
 	if err != nil {
@@ -74,12 +75,12 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 	}
 
 	if err = dao.UpdateUserResField(ctx, uid, field, newCnt); err != nil {
-		runtime.LogMsg(ctx, uid, fmt.Sprintf("更新用户资源失败 %s %d %s %v", field, cnt, reason, err))
+		logger.LogMsg(ctx, uid, fmt.Sprintf("更新用户资源失败 %s %d %s %v", field, cnt, reason, err))
 		return nil, err
 	}
 
 	updateResStruct(res, field, int(newCnt))
-	runtime.TraceRes(ctx, uid, oldCnt, newCnt, resName, reason)
+	logger.TraceRes(ctx, uid, oldCnt, newCnt, resName, reason)
 
 	return map[string]any{"res": res, "add_value": newCnt - oldCnt}, nil
 }

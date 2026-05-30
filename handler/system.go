@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"server_gin/runtime"
+	"server_gin/state"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,14 +34,14 @@ func HealthDetail(c *gin.Context) {
 		"pid":            os.Getpid(),
 		"uptime":         int(time.Since(startTime).Seconds()),
 		"timestamp":      time.Now().Format("2006/01/02 15:04:05"),
-		"draining":       runtime.IsTrafficShift(),
-		"rejecting":      runtime.IsRejecting(),
-		"activeRequests": runtime.GetActiveRequests(),
+		"draining":       state.IsTrafficShift(),
+		"rejecting":      state.IsRejecting(),
+		"activeRequests": state.GetActiveRequests(),
 	})
 }
 
 func HealthLb(c *gin.Context) {
-	if runtime.IsTrafficShift() {
+	if state.IsTrafficShift() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "draining"})
 		return
 	}
@@ -49,17 +49,17 @@ func HealthLb(c *gin.Context) {
 }
 
 func TrafficShift(c *gin.Context) {
-	runtime.StartTrafficShift()
+	state.StartTrafficShift()
 	c.JSON(http.StatusOK, gin.H{"ok": true, "state": "traffic-shift"})
 }
 
 func RejectNew(c *gin.Context) {
-	runtime.StartRejectNew()
+	state.StartRejectNew()
 	c.JSON(http.StatusOK, gin.H{"ok": true, "state": "reject-new-requests"})
 }
 
 func ResumeTraffic(c *gin.Context) {
-	runtime.Resume()
+	state.Resume()
 	c.JSON(http.StatusOK, gin.H{"ok": true, "state": "resume-traffic"})
 }
 

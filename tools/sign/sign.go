@@ -1,4 +1,4 @@
-package signutil
+package sign
 
 import (
 	"crypto/hmac"

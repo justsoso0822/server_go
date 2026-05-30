@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"server_gin/autodb"
 	"server_gin/dao"
 	"server_gin/dao/model"
-	"server_gin/runtime"
+	"server_gin/state"
+	"server_gin/tools/autodb"
 
 	"gorm.io/gorm"
 )
@@ -20,14 +20,14 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 	}
 
 	lockKey := fmt.Sprintf("user_login:%d", uid)
-	token, err := runtime.Lock(ctx, lockKey)
+	token, err := state.Lock(ctx, lockKey)
 	if err != nil {
 		return nil, err
 	}
 	if token == "" {
 		return nil, fmt.Errorf("系统繁忙，请稍后再试")
 	}
-	defer func() { _ = runtime.Unlock(ctx, lockKey, token) }()
+	defer func() { _ = state.Unlock(ctx, lockKey, token) }()
 
 	out := map[string]any{"uid": uid}
 
@@ -74,7 +74,7 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 	}
 
 	rc := autodb.Redis(ctx)
-	cacheKey := runtime.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(uid, 10))
+	cacheKey := state.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(uid, 10))
 	rc.SetEx(ctx, cacheKey, loginKey, 7200*time.Second)
 
 	datas, err := dao.GetUserDatas(ctx, uid)

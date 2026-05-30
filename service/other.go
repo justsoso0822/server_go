@@ -4,15 +4,15 @@ import (
 	"context"
 	"time"
 
-	"server_gin/autodb"
 	"server_gin/dao"
-	"server_gin/runtime"
-	"server_gin/secretutil"
+	"server_gin/state"
+	"server_gin/tools/autodb"
+	secretutil "server_gin/tools/secret"
 )
 
 func GetResVersion(ctx context.Context, key string) (map[string]interface{}, error) {
 	rc := autodb.Redis(ctx)
-	rkey := runtime.BuildKey(ctx, "res_version", key)
+	rkey := state.BuildKey(ctx, "res_version", key)
 
 	exists, err := rc.Exists(ctx, rkey).Result()
 	if err != nil {

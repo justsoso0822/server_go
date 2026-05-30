@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"server_gin/autodb"
+	"server_gin/tools/autodb"
 
 	"github.com/gin-gonic/gin"
 )

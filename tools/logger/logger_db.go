@@ -1,12 +1,12 @@
-package runtime
+package logger
 
 import (
 	"context"
 	"math"
 
-	"server_gin/autodb"
 	"server_gin/dao"
 	"server_gin/dao/model"
+	"server_gin/tools/autodb"
 )
 
 // TraceRes 异步记录资源变化到 log_trace。

@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"time"
 
-	"server_gin/autodb"
 	"server_gin/dao"
-	"server_gin/runtime"
+	"server_gin/state"
+	"server_gin/tools/autodb"
 )
 
 const loginKeyTTL = 2 * time.Hour
@@ -45,7 +45,7 @@ func VerifyLoginKey(ctx context.Context, in AuthInput) AuthResult {
 	}
 
 	rc := autodb.Redis(ctx)
-	cacheKey := runtime.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(in.Uid, 10))
+	cacheKey := state.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(in.Uid, 10))
 
 	if cached, err := rc.Get(ctx, cacheKey).Result(); err == nil {
 		if cached == in.LoginKey {

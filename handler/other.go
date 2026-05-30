@@ -3,8 +3,8 @@ package handler
 import (
 	"strconv"
 
-	"server_gin/autodb"
 	"server_gin/service"
+	"server_gin/tools/autodb"
 
 	"github.com/gin-gonic/gin"
 )

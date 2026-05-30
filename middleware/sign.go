@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"server_gin/config"
-	"server_gin/signutil"
+	signutil "server_gin/tools/sign"
 
 	"github.com/gin-gonic/gin"
 )
