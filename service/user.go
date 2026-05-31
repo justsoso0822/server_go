@@ -75,7 +75,9 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 
 	rc := autodb.Redis(ctx)
 	cacheKey := state.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(uid, 10))
-	rc.SetEx(ctx, cacheKey, loginKey, 7200*time.Second)
+	if err = rc.SetEx(ctx, cacheKey, loginKey, 7200*time.Second).Err(); err != nil {
+		return nil, fmt.Errorf("cache login_key: %w", err)
+	}
 
 	datas, err := dao.GetUserDatas(ctx, uid)
 	if err != nil {
