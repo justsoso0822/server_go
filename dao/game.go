@@ -53,21 +53,19 @@ func GetUserOnline(ctx context.Context, uid int64, day string) (*model.UserOnlin
 	return row, err
 }
 
-// InsertUserOnline 保留原始 map + Table 写法：user_online.tm_update 为
-// NULL DEFAULT NULL 且 model 无 default 标签，若用 struct Create，未赋值的
-// time.Time 零值（0001-01-01）会触发 MySQL datetime 越界。这里只插入 3 列，
-// 让 tm_update 走 DB 默认值（NULL）。
+// InsertUserOnline only inserts uid/day/tm_online and leaves tm_update to DB default.
+// user_online.tm_update is NULL DEFAULT NULL; a full struct Create may write the
+// zero time.Time value and exceed MySQL datetime's valid range.
 func InsertUserOnline(ctx context.Context, o *model.UserOnline) error {
-	return db(ctx).Table("user_online").Create(map[string]interface{}{
-		"uid": o.UID, "day": o.Day, "tm_online": o.TmOnline,
-	}).Error
+	uo := q(ctx).UserOnline
+	return uo.WithContext(ctx).Select(uo.UID, uo.Day, uo.TmOnline).Create(o)
 }
 
 func UpdateUserOnline(ctx context.Context, uid int64, day string, tmOnline int64, tmUpdate string) error {
 	o := q(ctx).UserOnline
 	_, err := o.WithContext(ctx).
 		Where(o.UID.Eq(int32(uid)), o.Day.Eq(parseDateTime(day))).
-		Updates(map[string]interface{}{"tm_online": tmOnline, "tm_update": tmUpdate})
+		UpdateSimple(o.TmOnline.Value(int32(tmOnline)), o.TmUpdate.Value(parseDateTime(tmUpdate)))
 	return err
 }
 
@@ -120,4 +118,3 @@ func GetLoopStartPrfTask(ctx context.Context, ser int) (int, error) {
 	}
 	return int(row.ID), nil
 }
-
