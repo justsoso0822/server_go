@@ -306,9 +306,12 @@ func DB(ctx context.Context) *gorm.DB {
 	}
 	mu.RLock()
 	db, ok := dbs[channel]
-	mu.RUnlock()
 	if !ok {
-		return dbs[DefaultChannelName]
+		db = dbs[DefaultChannelName]
+	}
+	mu.RUnlock()
+	if db == nil {
+		return nil
 	}
 	return db.WithContext(ctx)
 }
