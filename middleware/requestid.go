@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"strings"
-
 	"server_gin/tools/autodb"
 
 	"github.com/gin-gonic/gin"
@@ -10,16 +8,11 @@ import (
 )
 
 const requestIDHeader = "X-Request-Id"
-const maxRequestIDLen = 128
 
-// RequestID propagates an inbound request id or creates one for application logs.
+// RequestID creates a server-side request id for application logs.
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		requestID := strings.TrimSpace(c.GetHeader(requestIDHeader))
-		if requestID == "" || len(requestID) > maxRequestIDLen {
-			requestID = uuid.NewString()
-		}
-
+		requestID := uuid.NewString()
 		c.Writer.Header().Set(requestIDHeader, requestID)
 		c.Request.Header.Set(requestIDHeader, requestID)
 		c.Request = c.Request.WithContext(autodb.WithRequestID(c.Request.Context(), requestID))

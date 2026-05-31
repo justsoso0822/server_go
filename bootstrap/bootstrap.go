@@ -25,6 +25,7 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init logger: %w", err)
 	}
+	zap.ReplaceGlobals(log)
 
 	if err := autodb.Init(cfg, log); err != nil {
 		_ = log.Sync()

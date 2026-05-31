@@ -11,6 +11,7 @@ import (
 	"server_gin/state"
 	"server_gin/tools/autodb"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -62,8 +63,24 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 
 	bgCtx := autodb.BackgroundWithChannel(ctx)
 	go func() {
-		defer func() { recover() }()
-		_ = dao.InsertLogLogin(bgCtx, &model.LogLogin{UID: int32(uid), Platform: platform})
+		defer func() {
+			if r := recover(); r != nil {
+				logAsyncPanic(bgCtx, "async login log panic", r,
+					zap.Int64("uid", uid),
+					zap.String("platform", platform),
+				)
+			}
+		}()
+		if err := dao.InsertLogLogin(bgCtx, &model.LogLogin{
+			UID:       int32(uid),
+			Platform:  platform,
+			RequestID: autodb.GetRequestID(bgCtx),
+		}); err != nil {
+			logAsyncError(bgCtx, "async login log failed", err,
+				zap.Int64("uid", uid),
+				zap.String("platform", platform),
+			)
+		}
 	}()
 
 	ver, _ := strconv.ParseInt(version, 10, 32)

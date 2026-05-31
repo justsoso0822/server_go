@@ -12,10 +12,11 @@ const TableNameLogLogin = "log_login"
 
 // LogLogin mapped from table <log_login>
 type LogLogin struct {
-	ID       int32     `gorm:"column:id;type:int;primaryKey;autoIncrement:true" json:"id"`
-	UID      int32     `gorm:"column:uid;type:int;index:idx_uid,priority:1" json:"uid"`
-	Platform string    `gorm:"column:platform;type:varchar(64)" json:"platform"`
-	Time     time.Time `gorm:"column:time;type:datetime;index:idx_time,priority:1;default:CURRENT_TIMESTAMP" json:"time"`
+	ID        int32     `gorm:"column:id;type:int;primaryKey;autoIncrement:true" json:"id"`
+	UID       int32     `gorm:"column:uid;type:int;index:idx_uid,priority:1" json:"uid"`
+	Platform  string    `gorm:"column:platform;type:varchar(64)" json:"platform"`
+	RequestID string    `gorm:"column:request_id;type:varchar(64);index:idx_request_id,priority:1" json:"request_id"`
+	Time      time.Time `gorm:"column:time;type:datetime;index:idx_time,priority:1;default:CURRENT_TIMESTAMP" json:"time"`
 }
 
 // TableName LogLogin's table name

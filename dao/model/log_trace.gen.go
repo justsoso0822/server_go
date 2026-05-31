@@ -12,14 +12,15 @@ const TableNameLogTrace = "log_trace"
 
 // LogTrace 记录各种货币的获得及使用情况.
 type LogTrace struct {
-	ID     int64     `gorm:"column:id;type:bigint;primaryKey;autoIncrement:true" json:"id"`
-	UID    int32     `gorm:"column:uid;type:int;index:uid,priority:1" json:"uid"`
-	Type   string    `gorm:"column:type;type:varchar(32);index:ty,priority:1" json:"type"`
-	Num    int32     `gorm:"column:num;type:int" json:"num"`
-	Before int32     `gorm:"column:before;type:int" json:"before"`
-	After  int32     `gorm:"column:after;type:int" json:"after"`
-	Reason string    `gorm:"column:reason;type:varchar(128)" json:"reason"`
-	Time   time.Time `gorm:"column:time;type:datetime;index:tm,priority:1;default:CURRENT_TIMESTAMP" json:"time"`
+	ID        int64     `gorm:"column:id;type:bigint;primaryKey;autoIncrement:true" json:"id"`
+	UID       int32     `gorm:"column:uid;type:int;index:uid,priority:1" json:"uid"`
+	Type      string    `gorm:"column:type;type:varchar(32);index:ty,priority:1" json:"type"`
+	Num       int32     `gorm:"column:num;type:int" json:"num"`
+	Before    int32     `gorm:"column:before;type:int" json:"before"`
+	After     int32     `gorm:"column:after;type:int" json:"after"`
+	Reason    string    `gorm:"column:reason;type:varchar(128)" json:"reason"`
+	RequestID string    `gorm:"column:request_id;type:varchar(64);index:rid,priority:1" json:"request_id"`
+	Time      time.Time `gorm:"column:time;type:datetime;index:tm,priority:1;default:CURRENT_TIMESTAMP" json:"time"`
 }
 
 // TableName LogTrace's table name
