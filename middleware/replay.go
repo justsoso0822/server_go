@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"server_gin/state"
-	"server_gin/tools/autodb"
+	"server_go/state"
+	"server_go/tools/autodb"
 
 	"github.com/gin-gonic/gin"
 )

@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"server_gin/dao"
-	"server_gin/dao/model"
-	"server_gin/state"
-	"server_gin/tools/autodb"
+	"server_go/dao"
+	"server_go/dao/model"
+	"server_go/state"
+	"server_go/tools/autodb"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -58,7 +58,11 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 		if err != nil {
 			return nil, err
 		}
-		out["user"] = &model.User{UID: int32(uid), Platform: platform, Openid: openid}
+		created, err := dao.GetUser(ctx, uid)
+		if err != nil {
+			return nil, err
+		}
+		out["user"] = created
 	}
 
 	bgCtx := autodb.BackgroundWithChannel(ctx)

@@ -1,4 +1,4 @@
-module server_gin
+module server_go
 
 go 1.25.0
 

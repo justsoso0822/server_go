@@ -17,7 +17,7 @@ import (
 
 	"gorm.io/plugin/dbresolver"
 
-	"server_gin/dao/model"
+	"server_go/dao/model"
 )
 
 func newLogMsg(db *gorm.DB, opts ...gen.DOOption) logMsg {

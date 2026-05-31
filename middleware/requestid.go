@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"server_gin/tools/autodb"
+	"server_go/tools/autodb"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

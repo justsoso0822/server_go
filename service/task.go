@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"server_gin/dao"
-	"server_gin/dao/model"
-	"server_gin/tools"
+	"server_go/dao"
+	"server_go/dao/model"
+	"server_go/tools"
 )
 
 func InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error) {

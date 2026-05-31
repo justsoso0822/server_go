@@ -17,7 +17,7 @@ import (
 
 	"gorm.io/plugin/dbresolver"
 
-	"server_gin/dao/model"
+	"server_go/dao/model"
 )
 
 func newUser(db *gorm.DB, opts ...gen.DOOption) user {

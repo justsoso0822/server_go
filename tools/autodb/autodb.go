@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"server_gin/config"
+	"server_go/config"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"

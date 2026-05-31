@@ -4,27 +4,26 @@ import (
 	"context"
 	"time"
 
-	"server_gin/dao"
-	"server_gin/state"
-	"server_gin/tools/autodb"
-	secretutil "server_gin/tools/secret"
+	"server_go/dao"
+	"server_go/state"
+	"server_go/tools/autodb"
+	secretutil "server_go/tools/secret"
 )
 
 func GetResVersion(ctx context.Context, key string) (map[string]interface{}, error) {
+	if !secretutil.CheckSecret(key) {
+		return map[string]interface{}{"code": -1, "msg": "参数错误"}, nil
+	}
+
 	rc := autodb.Redis(ctx)
 	rkey := state.BuildKey(ctx, "res_version", key)
 
-	exists, err := rc.Exists(ctx, rkey).Result()
+	ok, err := rc.SetNX(ctx, rkey, "1", time.Hour).Result()
 	if err != nil {
 		return nil, err
 	}
-	if exists > 0 {
+	if !ok {
 		return map[string]interface{}{"code": -1036, "msg": "get_res_version: 不能重复调用"}, nil
-	}
-	rc.Set(ctx, rkey, "1", time.Hour)
-
-	if !secretutil.CheckSecret(key) {
-		return map[string]interface{}{"code": -1, "msg": "参数错误"}, nil
 	}
 
 	ver, err := dao.GetMemConfigValue(ctx, 50)

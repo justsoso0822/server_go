@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"time"
 
-	"server_gin/dao"
-	"server_gin/state"
-	"server_gin/tools/autodb"
+	"server_go/dao"
+	"server_go/state"
+	"server_go/tools/autodb"
+
+	"github.com/redis/go-redis/v9"
 )
 
 const loginKeyTTL = 2 * time.Hour
@@ -45,11 +48,15 @@ func VerifyLoginKey(ctx context.Context, in AuthInput) AuthResult {
 	rc := autodb.Redis(ctx)
 	cacheKey := state.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(in.Uid, 10))
 
-	if cached, err := rc.Get(ctx, cacheKey).Result(); err == nil {
+	cached, err := rc.Get(ctx, cacheKey).Result()
+	switch {
+	case err == nil:
 		if cached == in.LoginKey {
 			return AuthResult{Code: 0}
 		}
 		return AuthResult{Code: -1035, Msg: "Verify: 该账号已在其他地方登陆"}
+	case !errors.Is(err, redis.Nil):
+		return AuthResult{Code: -1, Msg: "Verify: 缓存读取失败"}
 	}
 
 	keyData, err := dao.GetUserLoginkey(ctx, in.Uid, in.LoginKey)

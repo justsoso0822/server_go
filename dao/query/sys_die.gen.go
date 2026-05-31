@@ -17,7 +17,7 @@ import (
 
 	"gorm.io/plugin/dbresolver"
 
-	"server_gin/dao/model"
+	"server_go/dao/model"
 )
 
 func newSysDie(db *gorm.DB, opts ...gen.DOOption) sysDie {

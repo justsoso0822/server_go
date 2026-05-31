@@ -3,7 +3,7 @@ package handler
 import (
 	"strconv"
 
-	"server_gin/service"
+	"server_go/service"
 
 	"github.com/gin-gonic/gin"
 )

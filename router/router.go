@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"server_gin/bootstrap"
-	"server_gin/middleware"
+	"server_go/bootstrap"
+	"server_go/middleware"
 
 	"github.com/gin-gonic/gin"
 )

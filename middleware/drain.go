@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"server_gin/state"
+	"server_go/state"
 
 	"github.com/gin-gonic/gin"
 )

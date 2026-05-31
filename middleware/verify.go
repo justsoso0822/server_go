@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"server_gin/service"
-	"server_gin/tools/autodb"
+	"server_go/service"
+	"server_go/tools/autodb"
 
 	"github.com/gin-gonic/gin"
 )

@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	defaultAppName               = "server-gin"
+	defaultAppName               = "server-go"
 	defaultLocalVersion          = "1.0.0"
 	defaultGatewayHostPort       = "7001"
 	defaultGatewayInternalPort   = "7001"

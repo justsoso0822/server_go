@@ -8,11 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"server_gin/config"
+	"server_go/config"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gen"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 const defaultOutPath = "./dao/query"
@@ -64,6 +65,16 @@ func run() error {
 		FieldWithIndexTag: true,
 		FieldWithTypeTag:  true,
 	})
+
+	// gorm 默认 NamingStrategy 会用 inflection 把表名“单数化”再转驼峰，
+	// 导致 user_res->UserRe、user_data->UserDatum、prf_res->PrfRe 这类错误命名。
+	// 用 SingularTable:true 的策略跳过单数化，只做下划线转驼峰，
+	// 使 user_res 稳定生成为 UserRes，与现有手写 dao/service 引用保持一致。
+	modelNaming := schema.NamingStrategy{SingularTable: true}
+	g.WithModelNameStrategy(func(tableName string) string {
+		return modelNaming.SchemaName(tableName)
+	})
+
 	g.UseDB(db)
 
 	models, err := generateModels(g, tables)

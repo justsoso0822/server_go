@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---- 构建阶段 ----
-FROM golang:1.26-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /app
 
 ARG GOPROXY=https://proxy.golang.org,direct

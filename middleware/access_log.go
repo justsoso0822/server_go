@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"server_gin/tools/autodb"
+	"server_go/tools/autodb"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

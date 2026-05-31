@@ -17,7 +17,7 @@ import (
 
 	"gorm.io/plugin/dbresolver"
 
-	"server_gin/dao/model"
+	"server_go/dao/model"
 )
 
 func newMemConfig(db *gorm.DB, opts ...gen.DOOption) memConfig {

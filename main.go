@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"server_gin/bootstrap"
-	"server_gin/router"
+	"server_go/bootstrap"
+	"server_go/router"
 
 	"go.uber.org/zap"
 )

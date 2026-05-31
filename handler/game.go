@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	"server_gin/service"
+	"server_go/service"
 
 	"github.com/gin-gonic/gin"
 )
