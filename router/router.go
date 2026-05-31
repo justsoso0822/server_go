@@ -15,6 +15,8 @@ func Setup(app *bootstrap.App) *gin.Engine {
 	configureGinMode()
 
 	r := gin.New()
+	r.Use(middleware.RequestID())
+	r.Use(middleware.AccessLog(app.Logger))
 	r.Use(middleware.Recovery(app.Logger))
 
 	registerHealth(r)

@@ -28,6 +28,7 @@ services:
             # 启用访问日志
             - --accesslog=true
             - --accesslog.format=${TRAEFIK_ACCESSLOG_FORMAT:-json}
+            - --accesslog.fields.headers.names.X-Request-Id=keep
             - --log.level=INFO
             # 启用 /ping 端点（healthcheck 依赖）
             - --ping=true

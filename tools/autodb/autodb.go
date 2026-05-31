@@ -17,8 +17,14 @@ import (
 )
 
 type channelKey struct{}
+type requestIDContextKey struct{}
+type logUIDContextKey struct{}
+type logOpenIDContextKey struct{}
 
 var ctxKey = channelKey{}
+var reqIDKey = requestIDContextKey{}
+var logUIDKey = logUIDContextKey{}
+var logOpenIDKey = logOpenIDContextKey{}
 
 const DefaultChannelName = "default"
 const connectTimeout = 5 * time.Second
@@ -219,11 +225,78 @@ func GetChannel(ctx context.Context) string {
 }
 
 func BackgroundWithChannel(ctx context.Context) context.Context {
-	channel := GetChannel(ctx)
-	if channel == "" {
-		return context.Background()
+	bgCtx := context.Background()
+	if channel := GetChannel(ctx); channel != "" {
+		bgCtx = WithChannel(bgCtx, channel)
 	}
-	return WithChannel(context.Background(), channel)
+	if requestID := GetRequestID(ctx); requestID != "" {
+		bgCtx = WithRequestID(bgCtx, requestID)
+	}
+	if uid := GetLogUID(ctx); uid != 0 {
+		bgCtx = WithLogUID(bgCtx, uid)
+	}
+	if openid := GetLogOpenID(ctx); openid != "" {
+		bgCtx = WithLogOpenID(bgCtx, openid)
+	}
+	return bgCtx
+}
+
+func WithRequestID(ctx context.Context, requestID string) context.Context {
+	return context.WithValue(ctx, reqIDKey, strings.TrimSpace(requestID))
+}
+
+func GetRequestID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if v := ctx.Value(reqIDKey); v != nil {
+		if s, ok := v.(string); ok {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
+
+func WithLogIdentity(ctx context.Context, uid int64, openid string) context.Context {
+	if uid != 0 {
+		ctx = WithLogUID(ctx, uid)
+	}
+	if openid != "" {
+		ctx = WithLogOpenID(ctx, openid)
+	}
+	return ctx
+}
+
+func WithLogUID(ctx context.Context, uid int64) context.Context {
+	return context.WithValue(ctx, logUIDKey, uid)
+}
+
+func GetLogUID(ctx context.Context) int64 {
+	if ctx == nil {
+		return 0
+	}
+	if v := ctx.Value(logUIDKey); v != nil {
+		if uid, ok := v.(int64); ok {
+			return uid
+		}
+	}
+	return 0
+}
+
+func WithLogOpenID(ctx context.Context, openid string) context.Context {
+	return context.WithValue(ctx, logOpenIDKey, strings.TrimSpace(openid))
+}
+
+func GetLogOpenID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if v := ctx.Value(logOpenIDKey); v != nil {
+		if openid, ok := v.(string); ok {
+			return strings.TrimSpace(openid)
+		}
+	}
+	return ""
 }
 
 func DB(ctx context.Context) *gorm.DB {

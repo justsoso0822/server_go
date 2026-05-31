@@ -16,6 +16,7 @@ services:
             - --providers.docker.constraints=Label(`traefik.enable`,`true`)
             - --accesslog=true
             - --accesslog.format=${TRAEFIK_ACCESSLOG_FORMAT:-json}
+            - --accesslog.fields.headers.names.X-Request-Id=keep
             - --log.level=INFO
             - --ping=true
         ports:

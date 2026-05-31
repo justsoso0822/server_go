@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"server_gin/service"
+	"server_gin/tools/autodb"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,8 +23,10 @@ func Verify() gin.HandlerFunc {
 		if v := firstStr(c.Query("uid"), c.PostForm("uid")); v != "" {
 			uid, _ = strconv.ParseInt(v, 10, 64)
 		}
+		ctx := autodb.WithLogUID(c.Request.Context(), uid)
+		c.Request = c.Request.WithContext(ctx)
 
-		result := service.VerifyLoginKey(c.Request.Context(), service.AuthInput{
+		result := service.VerifyLoginKey(ctx, service.AuthInput{
 			Uid:      uid,
 			LoginKey: firstStr(c.Query("login_key"), c.PostForm("login_key")),
 			Platform: firstStr(c.Query("platform"), c.PostForm("platform")),

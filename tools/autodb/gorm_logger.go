@@ -69,7 +69,7 @@ func (l *zapGormLogger) Error(_ context.Context, msg string, args ...any) {
 	l.log.Error(fmt.Sprintf(msg, args...), zap.String("db_channel", l.channel))
 }
 
-func (l *zapGormLogger) Trace(_ context.Context, begin time.Time, fc func() (string, int64), err error) {
+func (l *zapGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
 	if l.level <= gormlogger.Silent {
 		return
 	}
@@ -78,22 +78,29 @@ func (l *zapGormLogger) Trace(_ context.Context, begin time.Time, fc func() (str
 	switch {
 	case err != nil && l.level >= gormlogger.Error && !errors.Is(err, gorm.ErrRecordNotFound):
 		sql, rows := fc()
-		l.log.Error("gorm query error", l.fields(sql, rows, elapsed, zap.Error(err))...)
+		l.log.Error("gorm query error", l.fields(ctx, sql, rows, elapsed, zap.Error(err))...)
 	case elapsed > l.slowThreshold && l.level >= gormlogger.Warn:
 		sql, rows := fc()
-		l.log.Warn("gorm slow query", l.fields(sql, rows, elapsed)...)
+		l.log.Warn("gorm slow query", l.fields(ctx, sql, rows, elapsed)...)
 	case l.level >= gormlogger.Info:
 		sql, rows := fc()
-		l.log.Info("gorm query", l.fields(sql, rows, elapsed)...)
+		l.log.Info("gorm query", l.fields(ctx, sql, rows, elapsed)...)
 	}
 }
 
-func (l *zapGormLogger) fields(sql string, rows int64, elapsed time.Duration, extra ...zap.Field) []zap.Field {
+func (l *zapGormLogger) fields(ctx context.Context, sql string, rows int64, elapsed time.Duration, extra ...zap.Field) []zap.Field {
 	fields := []zap.Field{
+		zap.String("request_id", GetRequestID(ctx)),
 		zap.String("db_channel", l.channel),
 		zap.String("sql", sql),
 		zap.Int64("rows", rows),
 		zap.Float64("elapsed_ms", float64(elapsed.Microseconds())/1000),
+	}
+	if uid := GetLogUID(ctx); uid != 0 {
+		fields = append(fields, zap.Int64("uid", uid))
+	}
+	if openid := GetLogOpenID(ctx); openid != "" {
+		fields = append(fields, zap.String("openid", openid))
 	}
 	return append(fields, extra...)
 }

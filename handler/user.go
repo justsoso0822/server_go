@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"server_gin/service"
+	"server_gin/tools/autodb"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,6 +21,8 @@ func UserLogin(c *gin.Context) {
 		fail(c, errParam)
 		return
 	}
+	ctx = autodb.WithLogIdentity(ctx, uid, openid)
+	c.Request = c.Request.WithContext(ctx)
 
 	out, err := service.UserLogin(ctx, uid, loginKey, openid, platform, version)
 	if err != nil {
