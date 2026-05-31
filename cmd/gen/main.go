@@ -4,8 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	importpath "path"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"server_gin/config"
@@ -75,7 +75,7 @@ func run() error {
 	}
 	g.Execute()
 
-	if err := moveGeneratedModel(outPath); err != nil {
+	if err := moveGeneratedModel(outPath, modelPkg); err != nil {
 		return err
 	}
 
@@ -86,54 +86,19 @@ func run() error {
 func generateModels(g *gen.Generator, tables string) ([]any, error) {
 	items := splitCSV(tables)
 	if len(items) == 0 {
-		items = knownTables()
+		return g.GenerateAllTable(), nil
 	}
 
 	models := make([]any, 0, len(items))
 	for _, table := range items {
-		if name, ok := modelNameByTable[table]; ok {
-			models = append(models, g.GenerateModelAs(table, name))
-			continue
-		}
 		models = append(models, g.GenerateModel(table))
 	}
 	return models, nil
 }
 
-var modelNameByTable = map[string]string{
-	"log_login":        "LogLogin",
-	"log_msg":          "LogMsg",
-	"log_trace":        "LogTrace",
-	"mem_config":       "MemConfig",
-	"prf_flower":       "PrfFlower",
-	"prf_flower_level": "PrfFlowerLevel",
-	"prf_item":         "PrfItem",
-	"prf_res":          "PrfRes",
-	"prf_task":         "PrfTask",
-	"sys_die":          "SysDie",
-	"sys_gm":           "SysGm",
-	"user":             "User",
-	"user_bag":         "UserBag",
-	"user_bag_tp":      "UserBagTp",
-	"user_data":        "UserData",
-	"user_item":        "UserItem",
-	"user_loginkey":    "UserLoginkey",
-	"user_online":      "UserOnline",
-	"user_res":         "UserRes",
-	"user_task":        "UserTask",
-}
-
-func knownTables() []string {
-	out := make([]string, 0, len(modelNameByTable))
-	for table := range modelNameByTable {
-		out = append(out, table)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func moveGeneratedModel(outPath string) error {
-	generatedModelPath := filepath.Join(outPath, "model")
+func moveGeneratedModel(outPath, modelPkg string) error {
+	modelPkgPath := filepath.Clean(filepath.FromSlash(modelPkg))
+	generatedModelPath := filepath.Join(outPath, modelPkgPath)
 	if _, err := os.Stat(generatedModelPath); err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -141,17 +106,24 @@ func moveGeneratedModel(outPath string) error {
 		return err
 	}
 
-	targetModelPath := filepath.Clean(filepath.Join(outPath, "..", "model"))
+	targetModelPath := filepath.Clean(filepath.Join(outPath, "..", filepath.Base(modelPkgPath)))
 	if err := os.RemoveAll(targetModelPath); err != nil {
 		return err
 	}
 	if err := os.Rename(generatedModelPath, targetModelPath); err != nil {
 		return err
 	}
-	return rewriteQueryModelImports(outPath)
+	return rewriteQueryModelImports(outPath, modelPkgPath, targetModelPath)
 }
 
-func rewriteQueryModelImports(outPath string) error {
+func rewriteQueryModelImports(outPath, modelPkgPath, targetModelPath string) error {
+	module, err := readModulePath()
+	if err != nil {
+		return err
+	}
+	fromImport := importpath.Join(module, filepath.ToSlash(filepath.Clean(outPath)), filepath.ToSlash(modelPkgPath))
+	toImport := importpath.Join(module, filepath.ToSlash(targetModelPath))
+
 	return filepath.WalkDir(outPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -163,9 +135,26 @@ func rewriteQueryModelImports(outPath string) error {
 		if err != nil {
 			return err
 		}
-		s := strings.ReplaceAll(string(b), "server_gin/dao/query/model", "server_gin/dao/model")
+		s := strings.ReplaceAll(string(b), fromImport, toImport)
 		return os.WriteFile(path, []byte(s), 0644)
 	})
+}
+
+func readModulePath() (string, error) {
+	b, err := os.ReadFile("go.mod")
+	if err != nil {
+		return "", fmt.Errorf("read go.mod: %w", err)
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			module := strings.TrimSpace(strings.TrimPrefix(line, "module "))
+			if module != "" {
+				return module, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("module path not found in go.mod")
 }
 
 func splitCSV(s string) []string {
