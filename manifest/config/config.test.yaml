@@ -14,6 +14,7 @@ database:
     maxIdle: 10
     maxOpen: 100
     maxLifetime: 3600
+    slowThreshold: 300
 
 redis:
   default:
@@ -23,5 +24,6 @@ redis:
 
 logger:
   level: "info"
+  format: "json"
   stdout: true
   stdoutColorDisabled: true

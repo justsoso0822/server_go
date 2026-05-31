@@ -11,9 +11,9 @@ import (
 	"server_gin/config"
 
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 type channelKey struct{}
@@ -38,7 +38,7 @@ var (
 	redisClients       = map[string]*redis.Client{}
 )
 
-func Init(cfg *config.Config) error {
+func Init(cfg *config.Config, log *zap.Logger) error {
 	if _, ok := cfg.Database[DefaultChannelName]; !ok {
 		return fmt.Errorf("default channel (database.default + redis.default) is required")
 	}
@@ -74,7 +74,7 @@ func Init(cfg *config.Config) error {
 
 	for _, name := range list {
 		dbCfg := cfg.Database[name]
-		db, err := openDB(dbCfg)
+		db, err := openDB(name, dbCfg, log)
 		if err != nil {
 			cleanup()
 			return fmt.Errorf("open db %s: %w", name, err)
@@ -100,17 +100,12 @@ func Init(cfg *config.Config) error {
 	return nil
 }
 
-func openDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
+func openDB(name string, cfg config.DatabaseConfig, log *zap.Logger) (*gorm.DB, error) {
 	// link 格式: "mysql:user:pass@tcp(host:port)/dbname?params"
 	dsn := strings.TrimPrefix(cfg.Link, "mysql:")
 
-	logLevel := logger.Silent
-	if cfg.Debug {
-		logLevel = logger.Info
-	}
-
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logLevel),
+		Logger: newGormLogger(log, name, cfg.Debug, cfg.SlowThreshold),
 	})
 	if err != nil {
 		return nil, err

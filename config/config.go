@@ -26,12 +26,13 @@ type AppConfig struct {
 }
 
 type DatabaseConfig struct {
-	Link        string `mapstructure:"link"`
-	Debug       bool   `mapstructure:"debug"`
-	Cache       bool   `mapstructure:"cache"`
-	MaxIdle     int    `mapstructure:"maxIdle"`
-	MaxOpen     int    `mapstructure:"maxOpen"`
-	MaxLifetime int    `mapstructure:"maxLifetime"`
+	Link          string `mapstructure:"link"`
+	Debug         bool   `mapstructure:"debug"`
+	Cache         bool   `mapstructure:"cache"`
+	MaxIdle       int    `mapstructure:"maxIdle"`
+	MaxOpen       int    `mapstructure:"maxOpen"`
+	MaxLifetime   int    `mapstructure:"maxLifetime"`
+	SlowThreshold int    `mapstructure:"slowThreshold"`
 }
 
 type RedisConfig struct {
@@ -42,6 +43,7 @@ type RedisConfig struct {
 
 type LoggerConfig struct {
 	Level               string `mapstructure:"level"`
+	Format              string `mapstructure:"format"`
 	Stdout              bool   `mapstructure:"stdout"`
 	StdoutColorDisabled bool   `mapstructure:"stdoutColorDisabled"`
 }

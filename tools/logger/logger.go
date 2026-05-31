@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"strings"
+
 	"server_gin/config"
 
 	"go.uber.org/zap"
@@ -12,18 +14,37 @@ func New(cfg config.LoggerConfig) *zap.Logger {
 	_ = level.UnmarshalText([]byte(cfg.Level))
 
 	var zapCfg zap.Config
-	if cfg.StdoutColorDisabled {
+	switch loggerFormat(cfg) {
+	case "json":
 		zapCfg = zap.NewProductionConfig()
-	} else {
+	default:
 		zapCfg = zap.NewDevelopmentConfig()
+		if cfg.StdoutColorDisabled {
+			zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+		}
 	}
 
 	zapCfg.Level = zap.NewAtomicLevelAt(level)
-	zapCfg.OutputPaths = []string{"stdout"}
+	if cfg.Stdout {
+		zapCfg.OutputPaths = []string{"stdout"}
+	} else {
+		zapCfg.OutputPaths = nil
+	}
 
 	log, err := zapCfg.Build()
 	if err != nil {
 		log = zap.NewNop()
 	}
 	return log
+}
+
+func loggerFormat(cfg config.LoggerConfig) string {
+	format := strings.ToLower(strings.TrimSpace(cfg.Format))
+	if format != "" {
+		return format
+	}
+	if cfg.StdoutColorDisabled {
+		return "json"
+	}
+	return "console"
 }

@@ -23,7 +23,7 @@ func New() (*App, error) {
 
 	log := logger.New(cfg.Logger)
 
-	if err := autodb.Init(cfg); err != nil {
+	if err := autodb.Init(cfg, log); err != nil {
 		_ = log.Sync()
 		return nil, fmt.Errorf("init db: %w", err)
 	}
