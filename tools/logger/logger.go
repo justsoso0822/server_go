@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"strings"
 
 	"server_gin/config"
@@ -9,9 +10,11 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func New(cfg config.LoggerConfig) *zap.Logger {
+func New(cfg config.LoggerConfig) (*zap.Logger, error) {
 	level := zapcore.InfoLevel
-	_ = level.UnmarshalText([]byte(cfg.Level))
+	if err := level.UnmarshalText([]byte(cfg.Level)); err != nil {
+		return nil, fmt.Errorf("parse logger level %q: %w", cfg.Level, err)
+	}
 
 	var zapCfg zap.Config
 	switch loggerFormat(cfg) {
@@ -33,9 +36,9 @@ func New(cfg config.LoggerConfig) *zap.Logger {
 
 	log, err := zapCfg.Build()
 	if err != nil {
-		log = zap.NewNop()
+		return nil, fmt.Errorf("build logger: %w", err)
 	}
-	return log
+	return log, nil
 }
 
 func loggerFormat(cfg config.LoggerConfig) string {

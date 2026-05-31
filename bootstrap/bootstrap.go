@@ -21,7 +21,10 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	log := logger.New(cfg.Logger)
+	log, err := logger.New(cfg.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("init logger: %w", err)
+	}
 
 	if err := autodb.Init(cfg, log); err != nil {
 		_ = log.Sync()
