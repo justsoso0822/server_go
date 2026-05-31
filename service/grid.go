@@ -6,8 +6,8 @@ import (
 	"sync"
 )
 
-func GetGrid(ctx context.Context, uid int64, chapter int) (map[string]interface{}, error) {
-	out := map[string]interface{}{}
+func GetGrid(ctx context.Context, uid int64, chapter int) (map[string]any, error) {
+	out := map[string]any{}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	var firstErr error

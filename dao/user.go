@@ -65,7 +65,7 @@ func UpdateUserResField(ctx context.Context, uid int64, resField UserResField, v
 func UpdateUserResDayConf(ctx context.Context, uid int64, dayConf string, dayTime int32) error {
 	r := q(ctx).UserRes
 	_, err := r.WithContext(ctx).Where(r.UID.Eq(int32(uid))).
-		Updates(map[string]any{"day_conf": dayConf, "day_time": dayTime})
+		UpdateSimple(r.DayConf.Value(dayConf), r.DayTime.Value(dayTime))
 	return err
 }
 

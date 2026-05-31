@@ -10,9 +10,9 @@ import (
 	secretutil "server_go/tools/secret"
 )
 
-func GetResVersion(ctx context.Context, key string) (map[string]interface{}, error) {
+func GetResVersion(ctx context.Context, key string) (map[string]any, error) {
 	if !secretutil.CheckSecret(key) {
-		return map[string]interface{}{"code": -1, "msg": "参数错误"}, nil
+		return map[string]any{"code": -1, "msg": "参数错误"}, nil
 	}
 
 	rc := autodb.Redis(ctx)
@@ -23,12 +23,12 @@ func GetResVersion(ctx context.Context, key string) (map[string]interface{}, err
 		return nil, err
 	}
 	if !ok {
-		return map[string]interface{}{"code": -1036, "msg": "get_res_version: 不能重复调用"}, nil
+		return map[string]any{"code": -1036, "msg": "get_res_version: 不能重复调用"}, nil
 	}
 
 	ver, err := dao.GetMemConfigValue(ctx, 50)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"code": 0, "ver": ver}, nil
+	return map[string]any{"code": 0, "ver": ver}, nil
 }

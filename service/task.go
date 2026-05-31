@@ -10,7 +10,7 @@ import (
 	"server_go/tools"
 )
 
-func InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error) {
+func InitTasks(ctx context.Context, uid int64) ([]map[string]any, error) {
 	confStr, err := dao.GetUserDataValue(ctx, uid, "task_conf")
 	if err != nil {
 		return nil, err
@@ -21,7 +21,7 @@ func InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error)
 	}
 
 	serList := tools.PickNumbers(confStr)
-	var arr []map[string]interface{}
+	var arr []map[string]any
 	for _, ser := range serList {
 		task, e := getOneTask(ctx, uid, ser)
 		if e != nil {
@@ -35,7 +35,7 @@ func InitTasks(ctx context.Context, uid int64) ([]map[string]interface{}, error)
 	return arr, nil
 }
 
-func getOneTask(ctx context.Context, uid int64, ser int) (map[string]interface{}, error) {
+func getOneTask(ctx context.Context, uid int64, ser int) (map[string]any, error) {
 	minId, maxId, err := dao.GetPrfTaskMinMax(ctx, ser)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func getOneTask(ctx context.Context, uid int64, ser int) (map[string]interface{}
 	if err != nil || t == nil {
 		return nil, err
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"id":         t.ID,
 		"ser":        t.Ser,
 		"tid":        t.Tid,
