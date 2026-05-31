@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,9 +20,23 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		writeStartupError(err)
 		os.Exit(1)
 	}
+}
+
+func writeStartupError(err error) {
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	if env == "" || env == "local" {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
+	}
+
+	_ = json.NewEncoder(os.Stderr).Encode(map[string]any{
+		"level": "error",
+		"msg":   "startup failed",
+		"error": err.Error(),
+	})
 }
 
 func run() error {

@@ -534,6 +534,7 @@ func writeReleaseEnvFile(cfg deployConfig) string {
 	}
 
 	releaseEnv := []string{
+		fmt.Sprintf("APP_ENV=%s", cfg.Env),
 		fmt.Sprintf("APP_IMAGE=%s", formatImageName(cfg.AppName, cfg.Registry, cfg.Version)),
 		fmt.Sprintf("APP_VERSION=%s", cfg.Version),
 		fmt.Sprintf("APP_PORT=%s", cfg.AppPort),

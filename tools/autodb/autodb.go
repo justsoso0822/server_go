@@ -21,6 +21,7 @@ type channelKey struct{}
 var ctxKey = channelKey{}
 
 const DefaultChannelName = "default"
+const connectTimeout = 5 * time.Second
 
 var reservedChannelNames = map[string]struct{}{
 	"health":   {},
@@ -87,6 +88,14 @@ func Init(cfg *config.Config, log *zap.Logger) error {
 			Password: rCfg.Pass,
 			DB:       rCfg.DB,
 		})
+		pingCtx, cancel := context.WithTimeout(context.Background(), connectTimeout)
+		if err := rc.Ping(pingCtx).Err(); err != nil {
+			cancel()
+			cleanup()
+			_ = rc.Close()
+			return fmt.Errorf("ping redis %s: %w", name, err)
+		}
+		cancel()
 		nextRedisClients[name] = rc
 	}
 
@@ -115,6 +124,13 @@ func openDB(name string, cfg config.DatabaseConfig, log *zap.Logger) (*gorm.DB, 
 	if err != nil {
 		return nil, err
 	}
+	pingCtx, cancel := context.WithTimeout(context.Background(), connectTimeout)
+	if err := sqlDB.PingContext(pingCtx); err != nil {
+		cancel()
+		_ = sqlDB.Close()
+		return nil, err
+	}
+	cancel()
 
 	maxIdle := cfg.MaxIdle
 	if maxIdle <= 0 {
