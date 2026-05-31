@@ -31,6 +31,7 @@ func newLogMsg(db *gorm.DB, opts ...gen.DOOption) logMsg {
 	_logMsg.ID = field.NewInt32(tableName, "id")
 	_logMsg.UID = field.NewInt32(tableName, "uid")
 	_logMsg.Msg = field.NewString(tableName, "msg")
+	_logMsg.RequestID = field.NewString(tableName, "request_id")
 	_logMsg.Time = field.NewTime(tableName, "time")
 
 	_logMsg.fillFieldMap()
@@ -41,11 +42,12 @@ func newLogMsg(db *gorm.DB, opts ...gen.DOOption) logMsg {
 type logMsg struct {
 	logMsgDo
 
-	ALL  field.Asterisk
-	ID   field.Int32
-	UID  field.Int32
-	Msg  field.String
-	Time field.Time
+	ALL       field.Asterisk
+	ID        field.Int32
+	UID       field.Int32
+	Msg       field.String
+	RequestID field.String
+	Time      field.Time
 
 	fieldMap map[string]field.Expr
 }
@@ -65,6 +67,7 @@ func (l *logMsg) updateTableName(table string) *logMsg {
 	l.ID = field.NewInt32(table, "id")
 	l.UID = field.NewInt32(table, "uid")
 	l.Msg = field.NewString(table, "msg")
+	l.RequestID = field.NewString(table, "request_id")
 	l.Time = field.NewTime(table, "time")
 
 	l.fillFieldMap()
@@ -82,10 +85,11 @@ func (l *logMsg) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (l *logMsg) fillFieldMap() {
-	l.fieldMap = make(map[string]field.Expr, 4)
+	l.fieldMap = make(map[string]field.Expr, 5)
 	l.fieldMap["id"] = l.ID
 	l.fieldMap["uid"] = l.UID
 	l.fieldMap["msg"] = l.Msg
+	l.fieldMap["request_id"] = l.RequestID
 	l.fieldMap["time"] = l.Time
 }
 

@@ -15,7 +15,7 @@ type LogMsg struct {
 	ID        int32     `gorm:"column:id;type:int;primaryKey;autoIncrement:true" json:"id"`
 	UID       int32     `gorm:"column:uid;type:int;index:idx_uid,priority:1" json:"uid"`
 	Msg       string    `gorm:"column:msg;type:text" json:"msg"`
-	RequestID string    `gorm:"column:request_id;type:varchar(64);index:idx_request_id,priority:1" json:"request_id"`
+	RequestID string    `gorm:"column:request_id;type:varchar(64);not null;index:idx_request_id,priority:1" json:"request_id"`
 	Time      time.Time `gorm:"column:time;type:datetime;index:idx_tm,priority:1;default:CURRENT_TIMESTAMP" json:"time"`
 }
 

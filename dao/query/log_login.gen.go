@@ -31,6 +31,7 @@ func newLogLogin(db *gorm.DB, opts ...gen.DOOption) logLogin {
 	_logLogin.ID = field.NewInt32(tableName, "id")
 	_logLogin.UID = field.NewInt32(tableName, "uid")
 	_logLogin.Platform = field.NewString(tableName, "platform")
+	_logLogin.RequestID = field.NewString(tableName, "request_id")
 	_logLogin.Time = field.NewTime(tableName, "time")
 
 	_logLogin.fillFieldMap()
@@ -41,11 +42,12 @@ func newLogLogin(db *gorm.DB, opts ...gen.DOOption) logLogin {
 type logLogin struct {
 	logLoginDo
 
-	ALL      field.Asterisk
-	ID       field.Int32
-	UID      field.Int32
-	Platform field.String
-	Time     field.Time
+	ALL       field.Asterisk
+	ID        field.Int32
+	UID       field.Int32
+	Platform  field.String
+	RequestID field.String
+	Time      field.Time
 
 	fieldMap map[string]field.Expr
 }
@@ -65,6 +67,7 @@ func (l *logLogin) updateTableName(table string) *logLogin {
 	l.ID = field.NewInt32(table, "id")
 	l.UID = field.NewInt32(table, "uid")
 	l.Platform = field.NewString(table, "platform")
+	l.RequestID = field.NewString(table, "request_id")
 	l.Time = field.NewTime(table, "time")
 
 	l.fillFieldMap()
@@ -82,10 +85,11 @@ func (l *logLogin) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (l *logLogin) fillFieldMap() {
-	l.fieldMap = make(map[string]field.Expr, 4)
+	l.fieldMap = make(map[string]field.Expr, 5)
 	l.fieldMap["id"] = l.ID
 	l.fieldMap["uid"] = l.UID
 	l.fieldMap["platform"] = l.Platform
+	l.fieldMap["request_id"] = l.RequestID
 	l.fieldMap["time"] = l.Time
 }
 

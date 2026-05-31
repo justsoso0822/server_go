@@ -35,6 +35,7 @@ func newLogTrace(db *gorm.DB, opts ...gen.DOOption) logTrace {
 	_logTrace.Before = field.NewInt32(tableName, "before")
 	_logTrace.After = field.NewInt32(tableName, "after")
 	_logTrace.Reason = field.NewString(tableName, "reason")
+	_logTrace.RequestID = field.NewString(tableName, "request_id")
 	_logTrace.Time = field.NewTime(tableName, "time")
 
 	_logTrace.fillFieldMap()
@@ -46,15 +47,16 @@ func newLogTrace(db *gorm.DB, opts ...gen.DOOption) logTrace {
 type logTrace struct {
 	logTraceDo
 
-	ALL    field.Asterisk
-	ID     field.Int64
-	UID    field.Int32
-	Type   field.String
-	Num    field.Int32
-	Before field.Int32
-	After  field.Int32
-	Reason field.String
-	Time   field.Time
+	ALL       field.Asterisk
+	ID        field.Int64
+	UID       field.Int32
+	Type      field.String
+	Num       field.Int32
+	Before    field.Int32
+	After     field.Int32
+	Reason    field.String
+	RequestID field.String
+	Time      field.Time
 
 	fieldMap map[string]field.Expr
 }
@@ -78,6 +80,7 @@ func (l *logTrace) updateTableName(table string) *logTrace {
 	l.Before = field.NewInt32(table, "before")
 	l.After = field.NewInt32(table, "after")
 	l.Reason = field.NewString(table, "reason")
+	l.RequestID = field.NewString(table, "request_id")
 	l.Time = field.NewTime(table, "time")
 
 	l.fillFieldMap()
@@ -95,7 +98,7 @@ func (l *logTrace) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (l *logTrace) fillFieldMap() {
-	l.fieldMap = make(map[string]field.Expr, 8)
+	l.fieldMap = make(map[string]field.Expr, 9)
 	l.fieldMap["id"] = l.ID
 	l.fieldMap["uid"] = l.UID
 	l.fieldMap["type"] = l.Type
@@ -103,6 +106,7 @@ func (l *logTrace) fillFieldMap() {
 	l.fieldMap["before"] = l.Before
 	l.fieldMap["after"] = l.After
 	l.fieldMap["reason"] = l.Reason
+	l.fieldMap["request_id"] = l.RequestID
 	l.fieldMap["time"] = l.Time
 }
 

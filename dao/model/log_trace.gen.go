@@ -19,7 +19,7 @@ type LogTrace struct {
 	Before    int32     `gorm:"column:before;type:int" json:"before"`
 	After     int32     `gorm:"column:after;type:int" json:"after"`
 	Reason    string    `gorm:"column:reason;type:varchar(128)" json:"reason"`
-	RequestID string    `gorm:"column:request_id;type:varchar(64);index:rid,priority:1" json:"request_id"`
+	RequestID string    `gorm:"column:request_id;type:varchar(64);not null;index:rid,priority:1" json:"request_id"`
 	Time      time.Time `gorm:"column:time;type:datetime;index:tm,priority:1;default:CURRENT_TIMESTAMP" json:"time"`
 }
 
