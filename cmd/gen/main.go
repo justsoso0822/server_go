@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	importpath "path"
-	"path/filepath"
 	"strings"
 
 	"server_go/config"
@@ -86,10 +84,6 @@ func run() error {
 	}
 	g.Execute()
 
-	if err := moveGeneratedModel(outPath, modelPkg); err != nil {
-		return err
-	}
-
 	fmt.Printf("generated %d model(s) into %s\n", len(models), outPath)
 	return nil
 }
@@ -105,67 +99,6 @@ func generateModels(g *gen.Generator, tables string) ([]any, error) {
 		models = append(models, g.GenerateModel(table))
 	}
 	return models, nil
-}
-
-func moveGeneratedModel(outPath, modelPkg string) error {
-	modelPkgPath := filepath.Clean(filepath.FromSlash(modelPkg))
-	generatedModelPath := filepath.Join(outPath, modelPkgPath)
-	if _, err := os.Stat(generatedModelPath); err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-
-	targetModelPath := filepath.Clean(filepath.Join(outPath, "..", filepath.Base(modelPkgPath)))
-	if err := os.RemoveAll(targetModelPath); err != nil {
-		return err
-	}
-	if err := os.Rename(generatedModelPath, targetModelPath); err != nil {
-		return err
-	}
-	return rewriteQueryModelImports(outPath, modelPkgPath, targetModelPath)
-}
-
-func rewriteQueryModelImports(outPath, modelPkgPath, targetModelPath string) error {
-	module, err := readModulePath()
-	if err != nil {
-		return err
-	}
-	fromImport := importpath.Join(module, filepath.ToSlash(filepath.Clean(outPath)), filepath.ToSlash(modelPkgPath))
-	toImport := importpath.Join(module, filepath.ToSlash(targetModelPath))
-
-	return filepath.WalkDir(outPath, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		s := strings.ReplaceAll(string(b), fromImport, toImport)
-		return os.WriteFile(path, []byte(s), 0644)
-	})
-}
-
-func readModulePath() (string, error) {
-	b, err := os.ReadFile("go.mod")
-	if err != nil {
-		return "", fmt.Errorf("read go.mod: %w", err)
-	}
-	for _, line := range strings.Split(string(b), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "module ") {
-			module := strings.TrimSpace(strings.TrimPrefix(line, "module "))
-			if module != "" {
-				return module, nil
-			}
-		}
-	}
-	return "", fmt.Errorf("module path not found in go.mod")
 }
 
 func splitCSV(s string) []string {
