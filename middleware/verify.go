@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,7 +15,7 @@ import (
 // Verify 校验 login_key，登录接口本身跳过。
 func Verify() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if strings.HasSuffix(c.Request.URL.Path, "/user/login") {
+		if strings.HasSuffix(c.FullPath(), "/user/login") {
 			c.Next()
 			return
 		}
@@ -22,6 +23,9 @@ func Verify() gin.HandlerFunc {
 		uid := int64(0)
 		if v := firstStr(c.Query("uid"), c.PostForm("uid")); v != "" {
 			uid, _ = strconv.ParseInt(v, 10, 64)
+			if uid > math.MaxInt32 {
+				uid = math.MaxInt32
+			}
 		}
 		ctx := autodb.WithLogUID(c.Request.Context(), uid)
 		c.Request = c.Request.WithContext(ctx)

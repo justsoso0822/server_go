@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"server_go/dao"
@@ -25,18 +26,21 @@ func GetUserBagTp(ctx context.Context, uid int64, chapter int) (map[string]any, 
 }
 
 func GameOnline(ctx context.Context, uid int64, seconds int64) error {
+	if seconds > math.MaxInt32 {
+		seconds = math.MaxInt32
+	}
 	now := time.Now()
 	day := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, now.Location())
-	nowStr := now.Format("2006-01-02 15:04:05")
 
-	row, err := dao.GetUserOnline(ctx, uid, day.Format("2006-01-02 15:04:05"))
+	// Atomic increment: UPDATE ... SET tm_online = tm_online + ? WHERE uid = ? AND day = ?
+	affected, err := dao.IncrUserOnlineTime(ctx, uid, day, int32(seconds), now)
 	if err != nil {
 		return err
 	}
-	if row != nil {
-		seconds += int64(row.TmOnline)
-		return dao.UpdateUserOnline(ctx, uid, day.Format("2006-01-02 15:04:05"), seconds, nowStr)
+	if affected > 0 {
+		return nil
 	}
+	// Row doesn't exist yet, insert it.
 	return dao.InsertUserOnline(ctx, &model.UserOnline{
 		UID: int32(uid), Day: day, TmOnline: int32(seconds),
 	})

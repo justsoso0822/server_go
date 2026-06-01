@@ -75,7 +75,8 @@ func appendUIDField(fields []zap.Field, uid string) []zap.Field {
 
 func shouldSkipAccessLog(path string) bool {
 	path = strings.TrimRight(path, "/")
-	return path == "/health" || strings.HasPrefix(path, "/health/")
+	return path == "/health" || strings.HasPrefix(path, "/health/") ||
+		strings.HasPrefix(path, "/internal/control/")
 }
 
 func requestParam(c *gin.Context, key string) string {

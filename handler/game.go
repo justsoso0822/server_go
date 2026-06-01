@@ -15,7 +15,7 @@ func GameTime(c *gin.Context) {
 
 func GameOnline(c *gin.Context) {
 	ctx := c.Request.Context()
-	uid, _ := strconv.ParseInt(firstParam(c, "uid"), 10, 64)
+	uid := parseUID(firstParam(c, "uid"))
 	seconds, _ := strconv.ParseInt(firstParam(c, "seconds"), 10, 64)
 
 	if uid == 0 || seconds < 0 {

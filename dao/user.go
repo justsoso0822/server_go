@@ -3,6 +3,8 @@ package dao
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 
 	"server_go/dao/model"
 
@@ -60,6 +62,28 @@ func UpdateUserResField(ctx context.Context, uid int64, resField UserResField, v
 	}
 	_, err := r.Where(r.UID.Eq(int32(uid))).Update(column, value)
 	return err
+}
+
+// IncrUserResField 原子地增减用户资源，delta 为正表示增加、负表示减少。
+// 即使上层锁失效，数据库层面也会通过 WHERE 守卫确保余额不为负且不超 int32 上限，
+// 并发写入是安全的：MySQL UPDATE 会对匹配的行加行锁串行执行。
+func IncrUserResField(ctx context.Context, uid int64, field UserResField, delta int64) error {
+	colName := string(field)
+
+	result := db(ctx).
+		Model(&model.UserRes{}).
+		Where("uid = ?", int32(uid)).
+		Where(colName+" + ? >= 0", delta).
+		Where(colName+" + ? <= ?", delta, math.MaxInt32).
+		Update(colName, gorm.Expr(colName+" + ?", delta))
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("资源变更失败")
+	}
+	return nil
 }
 
 func UpdateUserResDayConf(ctx context.Context, uid int64, dayConf string, dayTime int32) error {

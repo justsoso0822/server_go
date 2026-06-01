@@ -17,8 +17,19 @@ const replayWindow = 5 * time.Minute
 // ReplayGuard 校验 tick 有效期，并拒绝已使用过的签名请求。
 func ReplayGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		params := collectRequestParams(c)
-		sign := requestSign(c, params)
+		// 优先从 context 读取 Sign 中间件已解析的参数和签名，避免重复解析。
+		var params map[string]interface{}
+		var sign string
+		if v, ok := c.Get("_params"); ok {
+			params = v.(map[string]interface{})
+		} else {
+			params = collectRequestParams(c)
+		}
+		if v, ok := c.Get("_sign"); ok {
+			sign = v.(string)
+		} else {
+			sign = requestSign(c, params)
+		}
 		tick := paramString(params, "tick")
 		if sign == "" || tick == "" {
 			c.AbortWithStatusJSON(http.StatusOK, gin.H{"code": -1, "msg": "非法调用"})

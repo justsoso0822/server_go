@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"strconv"
-
 	"server_go/service"
 
 	"github.com/gin-gonic/gin"
@@ -10,7 +8,7 @@ import (
 
 func AddTili(c *gin.Context) {
 	ctx := c.Request.Context()
-	uid, _ := strconv.ParseInt(firstParam(c, "uid"), 10, 64)
+	uid := parseUID(firstParam(c, "uid"))
 	if uid == 0 {
 		fail(c, errParam)
 		return
@@ -25,7 +23,7 @@ func AddTili(c *gin.Context) {
 
 func AddGold(c *gin.Context) {
 	ctx := c.Request.Context()
-	uid, _ := strconv.ParseInt(firstParam(c, "uid"), 10, 64)
+	uid := parseUID(firstParam(c, "uid"))
 	if uid == 0 {
 		fail(c, errParam)
 		return
@@ -40,7 +38,7 @@ func AddGold(c *gin.Context) {
 
 func AddDiamond(c *gin.Context) {
 	ctx := c.Request.Context()
-	uid, _ := strconv.ParseInt(firstParam(c, "uid"), 10, 64)
+	uid := parseUID(firstParam(c, "uid"))
 	if uid == 0 {
 		fail(c, errParam)
 		return

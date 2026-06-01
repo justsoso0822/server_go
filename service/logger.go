@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"math"
+	"time"
 
 	"server_go/dao"
 	"server_go/dao/model"
@@ -10,6 +11,27 @@ import (
 
 	"go.uber.org/zap"
 )
+
+const asyncLogTimeout = 10 * time.Second
+
+// clampInt32 将 int64 安全地钳位到 int32 范围，避免溢出截断。
+func clampInt32(v int64) int32 {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if v < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(v)
+}
+
+// absInt64 返回 int64 的绝对值，避免 float64 精度损失。
+func absInt64(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
 
 // TraceRes 异步记录资源变化到 log_trace。
 func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason string) {
@@ -26,7 +48,7 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 	} else {
 		label = "-" + resName
 	}
-	absNum := int64(math.Abs(float64(num)))
+	absNum := absInt64(num)
 	bgCtx := autodb.BackgroundWithChannel(ctx)
 
 	go func() {
@@ -40,12 +62,14 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 				)
 			}
 		}()
-		if err := dao.InsertLogTrace(bgCtx, &model.LogTrace{
+		tCtx, cancel := context.WithTimeout(bgCtx, asyncLogTimeout)
+		defer cancel()
+		if err := dao.InsertLogTrace(tCtx, &model.LogTrace{
 			UID:       int32(uid),
 			Type:      label,
-			Num:       int32(absNum),
-			Before:    int32(old),
-			After:     int32(now),
+			Num:       clampInt32(absNum),
+			Before:    clampInt32(old),
+			After:     clampInt32(now),
 			Reason:    reason,
 			RequestID: autodb.GetRequestID(bgCtx),
 		}); err != nil {
@@ -71,7 +95,9 @@ func LogMsg(ctx context.Context, uid int64, msg string) {
 				)
 			}
 		}()
-		if err := dao.InsertLogMsg(bgCtx, &model.LogMsg{
+		tCtx, cancel := context.WithTimeout(bgCtx, asyncLogTimeout)
+		defer cancel()
+		if err := dao.InsertLogMsg(tCtx, &model.LogMsg{
 			UID:       int32(uid),
 			Msg:       msg,
 			RequestID: autodb.GetRequestID(bgCtx),

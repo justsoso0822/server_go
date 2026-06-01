@@ -35,12 +35,18 @@ func derefSlice[T any](in []*T) []T {
 	return out
 }
 
-// parseDateTime 将 "2006-01-02 15:04:05" 文本解析为本地时区 time.Time，
+// parseDateTime 将 "2006-01-02 15:04:05" 文本解析为 Asia/Shanghai 时区 time.Time，
 // 供 gorm gen 的强类型 datetime 字段条件使用。解析失败返回零值。
 func parseDateTime(s string) time.Time {
-	t, err := time.ParseInLocation("2006-01-02 15:04:05", s, time.Local)
+	t, err := time.ParseInLocation("2006-01-02 15:04:05", s, shanghai)
 	if err != nil {
 		return time.Time{}
 	}
 	return t
+}
+
+var shanghai *time.Location
+
+func init() {
+	shanghai, _ = time.LoadLocation("Asia/Shanghai")
 }

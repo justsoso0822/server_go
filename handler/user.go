@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"strconv"
-
 	"server_go/service"
 	"server_go/tools/autodb"
 
@@ -11,7 +9,7 @@ import (
 
 func UserLogin(c *gin.Context) {
 	ctx := c.Request.Context()
-	uid, _ := strconv.ParseInt(firstParam(c, "uid"), 10, 64)
+	uid := parseUID(firstParam(c, "uid"))
 	loginKey := firstParam(c, "login_key")
 	openid := firstParam(c, "openid")
 	platform := firstParam(c, "platform")

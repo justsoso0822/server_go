@@ -438,7 +438,7 @@ func stopLocalDB() {
 
 // 确保 Traefik 网关容器运行且对外服务端口与配置一致。
 func ensureGateway(cfg deployConfig) {
-	gatewayRunning, err := containerExists(gatewayContainerName(cfg.AppName))
+	gatewayRunning, err := containerRunning(gatewayContainerName(cfg.AppName))
 	if err != nil {
 		panic(fmt.Errorf("failed to inspect gateway: %w", err))
 	}
@@ -471,7 +471,7 @@ func waitForGatewayHealthy(cfg deployConfig) {
 			return
 		}
 		if err == nil && status == "" {
-			running, _ := containerExists(name)
+			running, _ := containerRunning(name)
 			if running {
 				fmt.Printf("[release] gateway %s running (no healthcheck configured)\n", name)
 				return
@@ -550,11 +550,11 @@ func writeReleaseEnvFile(cfg deployConfig) string {
 
 // 检测当前活跃颜色和目标部署颜色。
 func detectDeploymentColors(cfg deployConfig) (string, string) {
-	blueRunning, err := containerExists(appContainerName(cfg.AppName, "blue"))
+	blueRunning, err := containerRunning(appContainerName(cfg.AppName, "blue"))
 	if err != nil {
 		panic(fmt.Errorf("failed to inspect blue container: %w", err))
 	}
-	greenRunning, err := containerExists(appContainerName(cfg.AppName, "green"))
+	greenRunning, err := containerRunning(appContainerName(cfg.AppName, "green"))
 	if err != nil {
 		panic(fmt.Errorf("failed to inspect green container: %w", err))
 	}
@@ -1345,6 +1345,22 @@ func getOutputWithTimeout(timeout time.Duration, name string, args ...string) (s
 	return strings.TrimSpace(string(output)), nil
 }
 
+// 执行外部命令并捕获 stdout/stderr 输出，调用方可根据原始输出判断错误类型。
+func getOutputWithError(name string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultGetOutputTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = projectRoot()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", fmt.Errorf("%s %s: timed out after %s", name, strings.Join(args, " "), defaultGetOutputTimeout)
+		}
+		return strings.TrimSpace(string(output)), fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
 // 解析 /health 接口返回的 JSON。
 type healthResponse struct {
 	Color   string `json:"color"`
@@ -1387,12 +1403,15 @@ func probeGatewayRoute(port string) (healthResponse, error) {
 }
 
 // 检查指定名称的容器是否正在运行。
-func containerExists(name string) (bool, error) {
-	output, err := getOutput("docker", "ps", "--format", "{{.Names}}")
+func containerRunning(name string) (bool, error) {
+	output, err := getOutputWithError("docker", "inspect", "--format", "{{.State.Running}}", name)
 	if err != nil {
+		if strings.Contains(output, "No such object") {
+			return false, nil
+		}
 		return false, err
 	}
-	return hasLine(output, name), nil
+	return output == "true", nil
 }
 
 // 检查多行输出中是否包含精确匹配的行。

@@ -3,6 +3,7 @@ package dao
 import (
 	"context"
 	"errors"
+	"time"
 
 	"server_go/dao/model"
 
@@ -44,15 +45,6 @@ func DeleteDoneUserTasks(ctx context.Context, uid int64, minId, maxId int) error
 	return err
 }
 
-func GetUserOnline(ctx context.Context, uid int64, day string) (*model.UserOnline, error) {
-	o := q(ctx).UserOnline
-	row, err := o.Where(o.UID.Eq(int32(uid)), o.Day.Eq(parseDateTime(day))).First()
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
-	}
-	return row, err
-}
-
 // InsertUserOnline only inserts uid/day/tm_online and leaves tm_update to DB default.
 // user_online.tm_update is NULL DEFAULT NULL; a full struct Create may write the
 // zero time.Time value and exceed MySQL datetime's valid range.
@@ -61,12 +53,20 @@ func InsertUserOnline(ctx context.Context, o *model.UserOnline) error {
 	return uo.Select(uo.UID, uo.Day, uo.TmOnline).Create(o)
 }
 
-func UpdateUserOnline(ctx context.Context, uid int64, day string, tmOnline int64, tmUpdate string) error {
+// IncrUserOnlineTime atomically increments tm_online by delta and sets tm_update,
+// returning the number of affected rows (0 means the row does not exist).
+func IncrUserOnlineTime(ctx context.Context, uid int64, day time.Time, delta int32, tmUpdate time.Time) (int64, error) {
 	o := q(ctx).UserOnline
-	_, err := o.
-		Where(o.UID.Eq(int32(uid)), o.Day.Eq(parseDateTime(day))).
-		UpdateSimple(o.TmOnline.Value(int32(tmOnline)), o.TmUpdate.Value(parseDateTime(tmUpdate)))
-	return err
+	info, err := o.
+		Where(o.UID.Eq(int32(uid)), o.Day.Eq(day)).
+		Updates(map[string]interface{}{
+			"tm_online": gorm.Expr("tm_online + ?", delta),
+			"tm_update": tmUpdate,
+		})
+	if err != nil {
+		return 0, err
+	}
+	return info.RowsAffected, nil
 }
 
 func GetPrfTaskMinMax(ctx context.Context, ser int) (minId, maxId int, err error) {

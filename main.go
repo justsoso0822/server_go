@@ -47,8 +47,12 @@ func run() error {
 	defer func() { _ = app.Close() }()
 
 	srv := &http.Server{
-		Addr:    app.Config.Server.Address,
-		Handler: router.Setup(app),
+		Addr:              app.Config.Server.Address,
+		Handler:           router.Setup(app),
+		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	serverErr := make(chan error, 1)

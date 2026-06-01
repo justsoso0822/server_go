@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"server_go/dao"
 	"server_go/dao/model"
@@ -69,23 +70,25 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 	if newCnt < 0 {
 		newCnt = 0
 	}
+	if newCnt > math.MaxInt32 {
+		return nil, fmt.Errorf("%s数量超出上限", resName)
+	}
 	if newCnt == oldCnt {
 		return map[string]any{"res": res, "add_value": int64(0)}, nil
 	}
 
-	if err = dao.UpdateUserResField(ctx, uid, field, newCnt); err != nil {
+	if err = dao.IncrUserResField(ctx, uid, field, cnt); err != nil {
 		LogMsg(ctx, uid, fmt.Sprintf("更新用户资源失败 %s %d %s %v", field, cnt, reason, err))
 		return nil, err
 	}
 
-	updateResStruct(res, field, int(newCnt))
+	updateResStruct(res, field, int32(newCnt))
 	TraceRes(ctx, uid, oldCnt, newCnt, resName, reason)
 
 	return map[string]any{"res": res, "add_value": newCnt - oldCnt}, nil
 }
 
-func updateResStruct(res *model.UserRes, field dao.UserResField, val int) {
-	v := int32(val)
+func updateResStruct(res *model.UserRes, field dao.UserResField, v int32) {
 	switch field {
 	case dao.UserResFieldDiamond:
 		res.Diamond = v

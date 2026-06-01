@@ -10,7 +10,7 @@ import (
 
 func GetBag(c *gin.Context) {
 	ctx := c.Request.Context()
-	uid, _ := strconv.ParseInt(firstParam(c, "uid"), 10, 64)
+	uid := parseUID(firstParam(c, "uid"))
 	chapter, _ := strconv.Atoi(c.Param("chapter"))
 
 	if uid == 0 {
@@ -28,7 +28,7 @@ func GetBag(c *gin.Context) {
 
 func GetBagTp(c *gin.Context) {
 	ctx := c.Request.Context()
-	uid, _ := strconv.ParseInt(firstParam(c, "uid"), 10, 64)
+	uid := parseUID(firstParam(c, "uid"))
 	chapter, _ := strconv.Atoi(c.Param("chapter"))
 
 	if uid == 0 {
@@ -46,7 +46,7 @@ func GetBagTp(c *gin.Context) {
 
 func GetGrid(c *gin.Context) {
 	ctx := c.Request.Context()
-	uid, _ := strconv.ParseInt(firstParam(c, "uid"), 10, 64)
+	uid := parseUID(firstParam(c, "uid"))
 	chapter, _ := strconv.Atoi(c.Param("chapter"))
 
 	if uid == 0 {

@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"math"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,6 +18,18 @@ func firstParam(c interface {
 		return v
 	}
 	return c.PostForm(key)
+}
+
+// parseUID 将 uid 字符串转为 int64，超过 int32 上限时钳位避免后续转换溢出。
+func parseUID(v string) int64 {
+	uid, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return 0
+	}
+	if uid > math.MaxInt32 {
+		uid = math.MaxInt32
+	}
+	return uid
 }
 
 func ok(c *gin.Context, data any) {

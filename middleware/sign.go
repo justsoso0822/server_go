@@ -14,6 +14,9 @@ func Sign(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		params := collectRequestParams(c)
 		sign := requestSign(c, params)
+		// 存入 context 供下游中间件（ReplayGuard）复用，避免重复解析。
+		c.Set("_params", params)
+		c.Set("_sign", sign)
 		if sign == "" {
 			c.AbortWithStatusJSON(http.StatusOK, gin.H{"code": -1, "msg": "非法调用"})
 			return

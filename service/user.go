@@ -75,7 +75,9 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 				)
 			}
 		}()
-		if err := dao.InsertLogLogin(bgCtx, &model.LogLogin{
+		tCtx, cancel := context.WithTimeout(bgCtx, asyncLogTimeout)
+		defer cancel()
+		if err := dao.InsertLogLogin(tCtx, &model.LogLogin{
 			UID:       int32(uid),
 			Platform:  platform,
 			RequestID: autodb.GetRequestID(bgCtx),
