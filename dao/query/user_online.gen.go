@@ -28,7 +28,7 @@ func newUserOnline(db *gorm.DB, opts ...gen.DOOption) userOnline {
 
 	tableName := _userOnline.userOnlineDo.TableName()
 	_userOnline.ALL = field.NewAsterisk(tableName)
-	_userOnline.UID = field.NewInt32(tableName, "uid")
+	_userOnline.UID = field.NewInt64(tableName, "uid")
 	_userOnline.Day = field.NewTime(tableName, "day")
 	_userOnline.TmOnline = field.NewInt32(tableName, "tm_online")
 	_userOnline.TmUpdate = field.NewTime(tableName, "tm_update")
@@ -42,7 +42,7 @@ type userOnline struct {
 	userOnlineDo
 
 	ALL      field.Asterisk
-	UID      field.Int32
+	UID      field.Int64
 	Day      field.Time
 	TmOnline field.Int32
 	TmUpdate field.Time
@@ -62,7 +62,7 @@ func (u userOnline) As(alias string) *userOnline {
 
 func (u *userOnline) updateTableName(table string) *userOnline {
 	u.ALL = field.NewAsterisk(table)
-	u.UID = field.NewInt32(table, "uid")
+	u.UID = field.NewInt64(table, "uid")
 	u.Day = field.NewTime(table, "day")
 	u.TmOnline = field.NewInt32(table, "tm_online")
 	u.TmUpdate = field.NewTime(table, "tm_update")

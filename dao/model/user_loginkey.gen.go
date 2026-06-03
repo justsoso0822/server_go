@@ -8,7 +8,7 @@ const TableNameUserLoginkey = "user_loginkey"
 
 // UserLoginkey mapped from table <user_loginkey>
 type UserLoginkey struct {
-	UID  int32  `gorm:"column:uid;type:int;primaryKey" json:"uid"`
+	UID  int64  `gorm:"column:uid;type:bigint;primaryKey" json:"uid"`
 	Key  string `gorm:"column:key;type:varchar(255)" json:"key"`
 	Ver  int32  `gorm:"column:ver;type:int;comment:客户端版本号" json:"ver"`                           // 客户端版本号
 	Time int32  `gorm:"column:time;type:int;index:idx_time,priority:1;comment:登录时间" json:"time"` // 登录时间

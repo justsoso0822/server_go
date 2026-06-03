@@ -8,7 +8,7 @@ const TableNameUserData = "user_data"
 
 // UserData mapped from table <user_data>
 type UserData struct {
-	UID   int32  `gorm:"column:uid;type:int;primaryKey;index:idx_uid,priority:1" json:"uid"`
+	UID   int64  `gorm:"column:uid;type:bigint;primaryKey;index:idx_uid,priority:1" json:"uid"`
 	Key   string `gorm:"column:key;type:varchar(128);primaryKey" json:"key"`
 	Value string `gorm:"column:value;type:text" json:"value"`
 }

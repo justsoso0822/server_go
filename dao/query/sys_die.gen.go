@@ -28,7 +28,7 @@ func newSysDie(db *gorm.DB, opts ...gen.DOOption) sysDie {
 
 	tableName := _sysDie.sysDieDo.TableName()
 	_sysDie.ALL = field.NewAsterisk(tableName)
-	_sysDie.UID = field.NewInt32(tableName, "uid")
+	_sysDie.UID = field.NewInt64(tableName, "uid")
 	_sysDie.Tips = field.NewString(tableName, "tips")
 	_sysDie.Time = field.NewTime(tableName, "time")
 
@@ -42,7 +42,7 @@ type sysDie struct {
 	sysDieDo
 
 	ALL  field.Asterisk
-	UID  field.Int32
+	UID  field.Int64
 	Tips field.String // 封掉用户登陆时候的错误提示
 	Time field.Time
 
@@ -61,7 +61,7 @@ func (s sysDie) As(alias string) *sysDie {
 
 func (s *sysDie) updateTableName(table string) *sysDie {
 	s.ALL = field.NewAsterisk(table)
-	s.UID = field.NewInt32(table, "uid")
+	s.UID = field.NewInt64(table, "uid")
 	s.Tips = field.NewString(table, "tips")
 	s.Time = field.NewTime(table, "time")
 

@@ -16,7 +16,7 @@ func InitTasks(ctx context.Context, uid int64) ([]map[string]any, error) {
 		return nil, err
 	}
 	if confStr == "" {
-		_ = dao.InsertUserData(ctx, &model.UserData{UID: int32(uid), Key: "task_conf", Value: "4"})
+		_ = dao.InsertUserData(ctx, &model.UserData{UID: uid, Key: "task_conf", Value: "4"})
 		confStr = "4"
 	}
 
@@ -55,7 +55,7 @@ func getOneTask(ctx context.Context, uid int64, ser int) (map[string]any, error)
 
 	if row == nil {
 		taskId = minId
-		_ = dao.InsertUserTask(ctx, &model.UserTask{UID: int32(uid), Taskid: int32(taskId), Addtm: int32(now)})
+		_ = dao.InsertUserTask(ctx, &model.UserTask{UID: uid, Taskid: int32(taskId), Addtm: int32(now)})
 	} else if row.Done != 0 {
 		taskId = int(row.Taskid)
 		if taskId >= maxId {
@@ -67,7 +67,7 @@ func getOneTask(ctx context.Context, uid int64, ser int) (map[string]any, error)
 			return nil, err
 		}
 		needClear = true
-		_ = dao.InsertUserTask(ctx, &model.UserTask{UID: int32(uid), Taskid: int32(taskId), Addtm: int32(now)})
+		_ = dao.InsertUserTask(ctx, &model.UserTask{UID: uid, Taskid: int32(taskId), Addtm: int32(now)})
 	} else {
 		taskId = int(row.Taskid)
 	}

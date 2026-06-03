@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,9 +22,6 @@ func Verify() gin.HandlerFunc {
 		uid := int64(0)
 		if v := firstStr(c.Query("uid"), c.PostForm("uid")); v != "" {
 			uid, _ = strconv.ParseInt(v, 10, 64)
-			if uid > math.MaxInt32 {
-				uid = math.MaxInt32
-			}
 		}
 		ctx := autodb.WithLogUID(c.Request.Context(), uid)
 		c.Request = c.Request.WithContext(ctx)

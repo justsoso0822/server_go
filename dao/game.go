@@ -12,20 +12,20 @@ import (
 
 func GetUserBag(ctx context.Context, uid int64, chapter int) ([]model.UserBag, error) {
 	b := q(ctx).UserBag
-	rows, err := b.Where(b.UID.Eq(int32(uid)), b.Chapter.Eq(int32(chapter))).Find()
+	rows, err := b.Where(b.UID.Eq(uid), b.Chapter.Eq(int32(chapter))).Find()
 	return derefSlice(rows), err
 }
 
 func GetUserBagTp(ctx context.Context, uid int64, chapter int) ([]model.UserBagTp, error) {
 	b := q(ctx).UserBagTp
-	rows, err := b.Where(b.UID.Eq(int32(uid)), b.Chapter.Eq(int32(chapter))).Find()
+	rows, err := b.Where(b.UID.Eq(uid), b.Chapter.Eq(int32(chapter))).Find()
 	return derefSlice(rows), err
 }
 
 func GetUserTask(ctx context.Context, uid int64, minId, maxId int) (*model.UserTask, error) {
 	t := q(ctx).UserTask
 	row, err := t.
-		Where(t.UID.Eq(int32(uid)), t.Taskid.Gte(int32(minId)), t.Taskid.Lte(int32(maxId))).
+		Where(t.UID.Eq(uid), t.Taskid.Gte(int32(minId)), t.Taskid.Lte(int32(maxId))).
 		Limit(1).First()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
@@ -40,7 +40,7 @@ func InsertUserTask(ctx context.Context, t *model.UserTask) error {
 func DeleteDoneUserTasks(ctx context.Context, uid int64, minId, maxId int) error {
 	t := q(ctx).UserTask
 	_, err := t.
-		Where(t.UID.Eq(int32(uid)), t.Taskid.Gte(int32(minId)), t.Taskid.Lte(int32(maxId)), t.Done.Eq(1)).
+		Where(t.UID.Eq(uid), t.Taskid.Gte(int32(minId)), t.Taskid.Lte(int32(maxId)), t.Done.Eq(1)).
 		Delete()
 	return err
 }
@@ -58,7 +58,7 @@ func InsertUserOnline(ctx context.Context, o *model.UserOnline) error {
 func IncrUserOnlineTime(ctx context.Context, uid int64, day time.Time, delta int32, tmUpdate time.Time) (int64, error) {
 	o := q(ctx).UserOnline
 	info, err := o.
-		Where(o.UID.Eq(int32(uid)), o.Day.Eq(day)).
+		Where(o.UID.Eq(uid), o.Day.Eq(day)).
 		Updates(map[string]interface{}{
 			"tm_online": gorm.Expr("tm_online + ?", delta),
 			"tm_update": tmUpdate,

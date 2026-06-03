@@ -28,7 +28,7 @@ func newUserRes(db *gorm.DB, opts ...gen.DOOption) userRes {
 
 	tableName := _userRes.userResDo.TableName()
 	_userRes.ALL = field.NewAsterisk(tableName)
-	_userRes.UID = field.NewInt32(tableName, "uid")
+	_userRes.UID = field.NewInt64(tableName, "uid")
 	_userRes.Gold = field.NewInt32(tableName, "gold")
 	_userRes.Diamond = field.NewInt32(tableName, "diamond")
 	_userRes.Star = field.NewInt32(tableName, "star")
@@ -48,7 +48,7 @@ type userRes struct {
 	userResDo
 
 	ALL      field.Asterisk
-	UID      field.Int32
+	UID      field.Int64
 	Gold     field.Int32
 	Diamond  field.Int32
 	Star     field.Int32
@@ -74,7 +74,7 @@ func (u userRes) As(alias string) *userRes {
 
 func (u *userRes) updateTableName(table string) *userRes {
 	u.ALL = field.NewAsterisk(table)
-	u.UID = field.NewInt32(table, "uid")
+	u.UID = field.NewInt64(table, "uid")
 	u.Gold = field.NewInt32(table, "gold")
 	u.Diamond = field.NewInt32(table, "diamond")
 	u.Star = field.NewInt32(table, "star")

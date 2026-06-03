@@ -29,7 +29,7 @@ func newLogTrace(db *gorm.DB, opts ...gen.DOOption) logTrace {
 	tableName := _logTrace.logTraceDo.TableName()
 	_logTrace.ALL = field.NewAsterisk(tableName)
 	_logTrace.ID = field.NewInt64(tableName, "id")
-	_logTrace.UID = field.NewInt32(tableName, "uid")
+	_logTrace.UID = field.NewInt64(tableName, "uid")
 	_logTrace.Type = field.NewString(tableName, "type")
 	_logTrace.Num = field.NewInt32(tableName, "num")
 	_logTrace.Before = field.NewInt32(tableName, "before")
@@ -49,7 +49,7 @@ type logTrace struct {
 
 	ALL       field.Asterisk
 	ID        field.Int64
-	UID       field.Int32
+	UID       field.Int64
 	Type      field.String
 	Num       field.Int32
 	Before    field.Int32
@@ -74,7 +74,7 @@ func (l logTrace) As(alias string) *logTrace {
 func (l *logTrace) updateTableName(table string) *logTrace {
 	l.ALL = field.NewAsterisk(table)
 	l.ID = field.NewInt64(table, "id")
-	l.UID = field.NewInt32(table, "uid")
+	l.UID = field.NewInt64(table, "uid")
 	l.Type = field.NewString(table, "type")
 	l.Num = field.NewInt32(table, "num")
 	l.Before = field.NewInt32(table, "before")

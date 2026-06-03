@@ -28,6 +28,6 @@ func GetMemConfigValue(ctx context.Context, id int) (string, error) {
 
 func IsGm(ctx context.Context, uid int64) (bool, error) {
 	g := q(ctx).SysGm
-	count, err := g.Where(g.UID.Eq(int32(uid))).Count()
+	count, err := g.Where(g.UID.Eq(uid)).Count()
 	return count > 0, err
 }

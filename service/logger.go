@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"math"
 	"time"
 
 	"server_go/dao"
@@ -14,18 +13,6 @@ import (
 
 const asyncLogTimeout = 10 * time.Second
 
-// clampInt32 将 int64 安全地钳位到 int32 范围，避免溢出截断。
-func clampInt32(v int64) int32 {
-	if v > math.MaxInt32 {
-		return math.MaxInt32
-	}
-	if v < math.MinInt32 {
-		return math.MinInt32
-	}
-	return int32(v)
-}
-
-// absInt64 返回 int64 的绝对值，避免 float64 精度损失。
 func absInt64(v int64) int64 {
 	if v < 0 {
 		return -v
@@ -33,7 +20,6 @@ func absInt64(v int64) int64 {
 	return v
 }
 
-// TraceRes 异步记录资源变化到 log_trace。
 func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason string) {
 	if uid == 0 {
 		return
@@ -65,11 +51,11 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 		tCtx, cancel := context.WithTimeout(bgCtx, asyncLogTimeout)
 		defer cancel()
 		if err := dao.InsertLogTrace(tCtx, &model.LogTrace{
-			UID:       int32(uid),
+			UID:       uid,
 			Type:      label,
-			Num:       clampInt32(absNum),
-			Before:    clampInt32(old),
-			After:     clampInt32(now),
+			Num:       int32(absNum),
+			Before:    int32(old),
+			After:     int32(now),
 			Reason:    reason,
 			RequestID: autodb.GetRequestID(bgCtx),
 		}); err != nil {
@@ -83,7 +69,6 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 	}()
 }
 
-// LogMsg 异步记录消息到 log_msg。
 func LogMsg(ctx context.Context, uid int64, msg string) {
 	bgCtx := autodb.BackgroundWithChannel(ctx)
 	go func() {
@@ -98,7 +83,7 @@ func LogMsg(ctx context.Context, uid int64, msg string) {
 		tCtx, cancel := context.WithTimeout(bgCtx, asyncLogTimeout)
 		defer cancel()
 		if err := dao.InsertLogMsg(tCtx, &model.LogMsg{
-			UID:       int32(uid),
+			UID:       uid,
 			Msg:       msg,
 			RequestID: autodb.GetRequestID(bgCtx),
 		}); err != nil {

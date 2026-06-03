@@ -8,7 +8,7 @@ const TableNameUserItem = "user_item"
 
 // UserItem mapped from table <user_item>
 type UserItem struct {
-	UID int32 `gorm:"column:uid;type:int;primaryKey" json:"uid"`
+	UID int64 `gorm:"column:uid;type:bigint;primaryKey" json:"uid"`
 	Tid int32 `gorm:"column:tid;type:int;primaryKey" json:"tid"`
 	Cnt int32 `gorm:"column:cnt;type:int" json:"cnt"`
 }

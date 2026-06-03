@@ -12,7 +12,7 @@ const TableNameUser = "user"
 
 // User mapped from table <user>
 type User struct {
-	UID      int32     `gorm:"column:uid;type:int unsigned;primaryKey" json:"uid"`
+	UID      int64     `gorm:"column:uid;type:bigint;primaryKey" json:"uid"`
 	Platform string    `gorm:"column:platform;type:varchar(32);not null;index:idx_platform_openid,priority:1" json:"platform"`
 	Openid   string    `gorm:"column:openid;type:varchar(64);not null;index:idx_openid,priority:1;index:idx_platform_openid,priority:2" json:"openid"`
 	Sid      int32     `gorm:"column:sid;type:int unsigned;not null;index:idx_sid,priority:1" json:"sid"`

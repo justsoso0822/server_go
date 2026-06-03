@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"math"
 	"net/http"
 	"strconv"
 
@@ -25,9 +24,6 @@ func parseUID(v string) int64 {
 	uid, err := strconv.ParseInt(v, 10, 64)
 	if err != nil {
 		return 0
-	}
-	if uid > math.MaxInt32 {
-		uid = math.MaxInt32
 	}
 	return uid
 }

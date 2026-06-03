@@ -28,7 +28,7 @@ func newSysGm(db *gorm.DB, opts ...gen.DOOption) sysGm {
 
 	tableName := _sysGm.sysGmDo.TableName()
 	_sysGm.ALL = field.NewAsterisk(tableName)
-	_sysGm.UID = field.NewInt32(tableName, "uid")
+	_sysGm.UID = field.NewInt64(tableName, "uid")
 	_sysGm.Tips = field.NewString(tableName, "tips")
 	_sysGm.Time = field.NewTime(tableName, "time")
 
@@ -42,7 +42,7 @@ type sysGm struct {
 	sysGmDo
 
 	ALL  field.Asterisk
-	UID  field.Int32
+	UID  field.Int64
 	Tips field.String
 	Time field.Time
 
@@ -61,7 +61,7 @@ func (s sysGm) As(alias string) *sysGm {
 
 func (s *sysGm) updateTableName(table string) *sysGm {
 	s.ALL = field.NewAsterisk(table)
-	s.UID = field.NewInt32(table, "uid")
+	s.UID = field.NewInt64(table, "uid")
 	s.Tips = field.NewString(table, "tips")
 	s.Time = field.NewTime(table, "time")
 

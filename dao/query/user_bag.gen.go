@@ -29,7 +29,7 @@ func newUserBag(db *gorm.DB, opts ...gen.DOOption) userBag {
 	tableName := _userBag.userBagDo.TableName()
 	_userBag.ALL = field.NewAsterisk(tableName)
 	_userBag.ID = field.NewInt64(tableName, "id")
-	_userBag.UID = field.NewInt32(tableName, "uid")
+	_userBag.UID = field.NewInt64(tableName, "uid")
 	_userBag.Chapter = field.NewInt32(tableName, "chapter")
 	_userBag.Time = field.NewInt32(tableName, "time")
 	_userBag.Itemid = field.NewInt32(tableName, "itemid")
@@ -47,7 +47,7 @@ type userBag struct {
 
 	ALL     field.Asterisk
 	ID      field.Int64
-	UID     field.Int32
+	UID     field.Int64
 	Chapter field.Int32  // 副本id - 0-主格子
 	Time    field.Int32  // 操作更新时间
 	Itemid  field.Int32  // 物品id, 0=空
@@ -70,7 +70,7 @@ func (u userBag) As(alias string) *userBag {
 func (u *userBag) updateTableName(table string) *userBag {
 	u.ALL = field.NewAsterisk(table)
 	u.ID = field.NewInt64(table, "id")
-	u.UID = field.NewInt32(table, "uid")
+	u.UID = field.NewInt64(table, "uid")
 	u.Chapter = field.NewInt32(table, "chapter")
 	u.Time = field.NewInt32(table, "time")
 	u.Itemid = field.NewInt32(table, "itemid")

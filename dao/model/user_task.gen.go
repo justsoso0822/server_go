@@ -8,7 +8,7 @@ const TableNameUserTask = "user_task"
 
 // UserTask mapped from table <user_task>
 type UserTask struct {
-	UID    int32 `gorm:"column:uid;type:int;primaryKey;index:idx_uid_taskid_addtm_done,priority:1" json:"uid"`
+	UID    int64 `gorm:"column:uid;type:bigint;primaryKey;index:idx_uid_taskid_addtm_done,priority:1" json:"uid"`
 	Taskid int32 `gorm:"column:taskid;type:int;primaryKey;index:idx_uid_taskid_addtm_done,priority:2" json:"taskid"`
 	Addtm  int32 `gorm:"column:addtm;type:int;index:idx_uid_taskid_addtm_done,priority:3;comment:添加时间" json:"addtm"`   // 添加时间
 	Done   int32 `gorm:"column:done;type:tinyint;index:idx_uid_taskid_addtm_done,priority:4;comment:是否完成" json:"done"` // 是否完成

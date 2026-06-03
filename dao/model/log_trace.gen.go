@@ -13,7 +13,7 @@ const TableNameLogTrace = "log_trace"
 // LogTrace 记录各种货币的获得及使用情况.
 type LogTrace struct {
 	ID        int64     `gorm:"column:id;type:bigint;primaryKey;autoIncrement:true" json:"id"`
-	UID       int32     `gorm:"column:uid;type:int;index:uid,priority:1" json:"uid"`
+	UID       int64     `gorm:"column:uid;type:bigint;index:uid,priority:1" json:"uid"`
 	Type      string    `gorm:"column:type;type:varchar(32);index:ty,priority:1" json:"type"`
 	Num       int32     `gorm:"column:num;type:int" json:"num"`
 	Before    int32     `gorm:"column:before;type:int" json:"before"`

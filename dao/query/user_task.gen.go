@@ -28,7 +28,7 @@ func newUserTask(db *gorm.DB, opts ...gen.DOOption) userTask {
 
 	tableName := _userTask.userTaskDo.TableName()
 	_userTask.ALL = field.NewAsterisk(tableName)
-	_userTask.UID = field.NewInt32(tableName, "uid")
+	_userTask.UID = field.NewInt64(tableName, "uid")
 	_userTask.Taskid = field.NewInt32(tableName, "taskid")
 	_userTask.Addtm = field.NewInt32(tableName, "addtm")
 	_userTask.Done = field.NewInt32(tableName, "done")
@@ -43,7 +43,7 @@ type userTask struct {
 	userTaskDo
 
 	ALL    field.Asterisk
-	UID    field.Int32
+	UID    field.Int64
 	Taskid field.Int32
 	Addtm  field.Int32 // 添加时间
 	Done   field.Int32 // 是否完成
@@ -64,7 +64,7 @@ func (u userTask) As(alias string) *userTask {
 
 func (u *userTask) updateTableName(table string) *userTask {
 	u.ALL = field.NewAsterisk(table)
-	u.UID = field.NewInt32(table, "uid")
+	u.UID = field.NewInt64(table, "uid")
 	u.Taskid = field.NewInt32(table, "taskid")
 	u.Addtm = field.NewInt32(table, "addtm")
 	u.Done = field.NewInt32(table, "done")

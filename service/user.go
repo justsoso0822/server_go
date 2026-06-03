@@ -47,11 +47,11 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 		out["newbie"] = 1
 		nowDay := int32(startOfDay(time.Now()).Unix())
 		err = autodb.DB(ctx).Transaction(func(tx *gorm.DB) error {
-			if e := tx.Create(&model.User{UID: int32(uid), Platform: platform, Openid: openid}).Error; e != nil {
+			if e := tx.Create(&model.User{UID: uid, Platform: platform, Openid: openid}).Error; e != nil {
 				return e
 			}
 			return tx.Create(&model.UserRes{
-				UID: int32(uid), Gold: 200, Diamond: 100, Star: 0,
+				UID: uid, Gold: 200, Diamond: 100, Star: 0,
 				Tili: 100, TiliTime: 0, Exp: 0, Level: 1, DayTime: nowDay,
 			}).Error
 		})
@@ -78,7 +78,7 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 		tCtx, cancel := context.WithTimeout(bgCtx, asyncLogTimeout)
 		defer cancel()
 		if err := dao.InsertLogLogin(tCtx, &model.LogLogin{
-			UID:       int32(uid),
+			UID:       uid,
 			Platform:  platform,
 			RequestID: autodb.GetRequestID(bgCtx),
 		}); err != nil {
@@ -91,7 +91,7 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 
 	ver, _ := strconv.ParseInt(version, 10, 32)
 	if err = dao.SaveUserLoginkey(ctx, &model.UserLoginkey{
-		UID: int32(uid), Key: loginKey, Ver: int32(ver), Time: int32(time.Now().Unix()),
+		UID: uid, Key: loginKey, Ver: int32(ver), Time: int32(time.Now().Unix()),
 	}); err != nil {
 		return nil, err
 	}

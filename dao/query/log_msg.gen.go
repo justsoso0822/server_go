@@ -29,7 +29,7 @@ func newLogMsg(db *gorm.DB, opts ...gen.DOOption) logMsg {
 	tableName := _logMsg.logMsgDo.TableName()
 	_logMsg.ALL = field.NewAsterisk(tableName)
 	_logMsg.ID = field.NewInt32(tableName, "id")
-	_logMsg.UID = field.NewInt32(tableName, "uid")
+	_logMsg.UID = field.NewInt64(tableName, "uid")
 	_logMsg.Msg = field.NewString(tableName, "msg")
 	_logMsg.RequestID = field.NewString(tableName, "request_id")
 	_logMsg.Time = field.NewTime(tableName, "time")
@@ -44,7 +44,7 @@ type logMsg struct {
 
 	ALL       field.Asterisk
 	ID        field.Int32
-	UID       field.Int32
+	UID       field.Int64
 	Msg       field.String
 	RequestID field.String
 	Time      field.Time
@@ -65,7 +65,7 @@ func (l logMsg) As(alias string) *logMsg {
 func (l *logMsg) updateTableName(table string) *logMsg {
 	l.ALL = field.NewAsterisk(table)
 	l.ID = field.NewInt32(table, "id")
-	l.UID = field.NewInt32(table, "uid")
+	l.UID = field.NewInt64(table, "uid")
 	l.Msg = field.NewString(table, "msg")
 	l.RequestID = field.NewString(table, "request_id")
 	l.Time = field.NewTime(table, "time")

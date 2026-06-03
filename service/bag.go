@@ -42,6 +42,6 @@ func GameOnline(ctx context.Context, uid int64, seconds int64) error {
 	}
 	// Row doesn't exist yet, insert it.
 	return dao.InsertUserOnline(ctx, &model.UserOnline{
-		UID: int32(uid), Day: day, TmOnline: int32(seconds),
+		UID: uid, Day: day, TmOnline: int32(seconds),
 	})
 }

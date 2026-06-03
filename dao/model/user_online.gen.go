@@ -12,7 +12,7 @@ const TableNameUserOnline = "user_online"
 
 // UserOnline mapped from table <user_online>
 type UserOnline struct {
-	UID      int32     `gorm:"column:uid;type:int;primaryKey" json:"uid"`
+	UID      int64     `gorm:"column:uid;type:bigint;primaryKey" json:"uid"`
 	Day      time.Time `gorm:"column:day;type:datetime;primaryKey" json:"day"`
 	TmOnline int32     `gorm:"column:tm_online;type:int" json:"tm_online"`
 	TmUpdate time.Time `gorm:"column:tm_update;type:datetime;index:idx_tm_update,priority:1" json:"tm_update"`

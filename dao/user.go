@@ -14,7 +14,7 @@ import (
 
 func GetUser(ctx context.Context, uid int64) (*model.User, error) {
 	u := q(ctx).User
-	row, err := u.Where(u.UID.Eq(int32(uid))).First()
+	row, err := u.Where(u.UID.Eq(uid)).First()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -27,7 +27,7 @@ func InsertUser(ctx context.Context, u *model.User) error {
 
 func GetUserRes(ctx context.Context, uid int64) (*model.UserRes, error) {
 	r := q(ctx).UserRes
-	row, err := r.Where(r.UID.Eq(int32(uid))).First()
+	row, err := r.Where(r.UID.Eq(uid)).First()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -60,7 +60,7 @@ func UpdateUserResField(ctx context.Context, uid int64, resField UserResField, v
 	if !ok {
 		return errors.New("invalid user resource field")
 	}
-	_, err := r.Where(r.UID.Eq(int32(uid))).Update(column, value)
+	_, err := r.Where(r.UID.Eq(uid)).Update(column, value)
 	return err
 }
 
@@ -72,7 +72,7 @@ func IncrUserResField(ctx context.Context, uid int64, field UserResField, delta 
 
 	result := db(ctx).
 		Model(&model.UserRes{}).
-		Where("uid = ?", int32(uid)).
+		Where("uid = ?", uid).
 		Where(colName+" + ? >= 0", delta).
 		Where(colName+" + ? <= ?", delta, math.MaxInt32).
 		Update(colName, gorm.Expr(colName+" + ?", delta))
@@ -88,14 +88,14 @@ func IncrUserResField(ctx context.Context, uid int64, field UserResField, delta 
 
 func UpdateUserResDayConf(ctx context.Context, uid int64, dayConf string, dayTime int32) error {
 	r := q(ctx).UserRes
-	_, err := r.Where(r.UID.Eq(int32(uid))).
+	_, err := r.Where(r.UID.Eq(uid)).
 		UpdateSimple(r.DayConf.Value(dayConf), r.DayTime.Value(dayTime))
 	return err
 }
 
 func GetUserLoginkey(ctx context.Context, uid int64, key string) (*model.UserLoginkey, error) {
 	k := q(ctx).UserLoginkey
-	row, err := k.Where(k.UID.Eq(int32(uid)), k.Key.Eq(key)).First()
+	row, err := k.Where(k.UID.Eq(uid), k.Key.Eq(key)).First()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -108,13 +108,13 @@ func SaveUserLoginkey(ctx context.Context, k *model.UserLoginkey) error {
 
 func GetUserDatas(ctx context.Context, uid int64) ([]model.UserData, error) {
 	d := q(ctx).UserData
-	rows, err := d.Where(d.UID.Eq(int32(uid))).Find()
+	rows, err := d.Where(d.UID.Eq(uid)).Find()
 	return derefSlice(rows), err
 }
 
 func GetUserDataValue(ctx context.Context, uid int64, key string) (string, error) {
 	d := q(ctx).UserData
-	row, err := d.Where(d.UID.Eq(int32(uid)), d.Key.Eq(key)).First()
+	row, err := d.Where(d.UID.Eq(uid), d.Key.Eq(key)).First()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil
 	}
@@ -130,6 +130,6 @@ func InsertUserData(ctx context.Context, d *model.UserData) error {
 
 func GetUserItems(ctx context.Context, uid int64) ([]model.UserItem, error) {
 	i := q(ctx).UserItem
-	rows, err := i.Where(i.UID.Eq(int32(uid))).Find()
+	rows, err := i.Where(i.UID.Eq(uid)).Find()
 	return derefSlice(rows), err
 }

@@ -28,7 +28,7 @@ func newUserLoginkey(db *gorm.DB, opts ...gen.DOOption) userLoginkey {
 
 	tableName := _userLoginkey.userLoginkeyDo.TableName()
 	_userLoginkey.ALL = field.NewAsterisk(tableName)
-	_userLoginkey.UID = field.NewInt32(tableName, "uid")
+	_userLoginkey.UID = field.NewInt64(tableName, "uid")
 	_userLoginkey.Key = field.NewString(tableName, "key")
 	_userLoginkey.Ver = field.NewInt32(tableName, "ver")
 	_userLoginkey.Time = field.NewInt32(tableName, "time")
@@ -42,7 +42,7 @@ type userLoginkey struct {
 	userLoginkeyDo
 
 	ALL  field.Asterisk
-	UID  field.Int32
+	UID  field.Int64
 	Key  field.String
 	Ver  field.Int32 // 客户端版本号
 	Time field.Int32 // 登录时间
@@ -62,7 +62,7 @@ func (u userLoginkey) As(alias string) *userLoginkey {
 
 func (u *userLoginkey) updateTableName(table string) *userLoginkey {
 	u.ALL = field.NewAsterisk(table)
-	u.UID = field.NewInt32(table, "uid")
+	u.UID = field.NewInt64(table, "uid")
 	u.Key = field.NewString(table, "key")
 	u.Ver = field.NewInt32(table, "ver")
 	u.Time = field.NewInt32(table, "time")

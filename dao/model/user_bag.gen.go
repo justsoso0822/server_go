@@ -9,7 +9,7 @@ const TableNameUserBag = "user_bag"
 // UserBag 用户的包裹
 type UserBag struct {
 	ID      int64  `gorm:"column:id;type:bigint;primaryKey;autoIncrement:true" json:"id"`
-	UID     int32  `gorm:"column:uid;type:int;not null;index:uc,priority:1;index:ui,priority:1;index:ut,priority:1" json:"uid"`
+	UID     int64  `gorm:"column:uid;type:bigint;not null;index:uc,priority:1;index:ui,priority:1;index:ut,priority:1" json:"uid"`
 	Chapter int32  `gorm:"column:chapter;type:int;index:uc,priority:2;comment:副本id - 0-主格子" json:"chapter"` // 副本id - 0-主格子
 	Time    int32  `gorm:"column:time;type:int;index:t,priority:1;comment:操作更新时间" json:"time"`              // 操作更新时间
 	Itemid  int32  `gorm:"column:itemid;type:int;index:ui,priority:2;comment:物品id, 0=空" json:"itemid"`      // 物品id, 0=空

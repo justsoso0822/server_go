@@ -12,7 +12,7 @@ const TableNameSysGm = "sys_gm"
 
 // SysGm gm用户
 type SysGm struct {
-	UID  int32     `gorm:"column:uid;type:int;primaryKey" json:"uid"`
+	UID  int64     `gorm:"column:uid;type:bigint;primaryKey" json:"uid"`
 	Tips string    `gorm:"column:tips;type:varchar(64)" json:"tips"`
 	Time time.Time `gorm:"column:time;type:timestamp;default:CURRENT_TIMESTAMP" json:"time"`
 }

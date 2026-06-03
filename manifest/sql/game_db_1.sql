@@ -23,7 +23,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `log_login`;
 CREATE TABLE `log_login`  (
   `id` int NOT NULL AUTO_INCREMENT,
-  `uid` int NULL DEFAULT NULL,
+  `uid` bigint NULL DEFAULT NULL,
   `platform` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `request_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
   `time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
@@ -953,7 +953,7 @@ INSERT INTO `log_login` VALUES (910, 13081, 'web', '', '2026-05-14 19:20:48');
 DROP TABLE IF EXISTS `log_msg`;
 CREATE TABLE `log_msg`  (
   `id` int NOT NULL AUTO_INCREMENT,
-  `uid` int NULL DEFAULT NULL,
+  `uid` bigint NULL DEFAULT NULL,
   `msg` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
   `request_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
   `time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
@@ -979,7 +979,7 @@ INSERT INTO `log_msg` VALUES (6, 13081, '更新用户资源失败 diamond 100 �
 DROP TABLE IF EXISTS `log_trace`;
 CREATE TABLE `log_trace`  (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `uid` int NULL DEFAULT NULL,
+  `uid` bigint NULL DEFAULT NULL,
   `type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL,
   `num` int NULL DEFAULT NULL,
   `before` int NULL DEFAULT NULL,
@@ -11698,7 +11698,7 @@ INSERT INTO `prf_task` VALUES (80050, 41, '830', 8, 0);
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_die`;
 CREATE TABLE `sys_die`  (
-  `uid` int NOT NULL,
+  `uid` bigint NOT NULL,
   `tips` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT '' COMMENT '封掉用户登陆时候的错误提示',
   `time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`uid`) USING BTREE
@@ -11713,7 +11713,7 @@ CREATE TABLE `sys_die`  (
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_gm`;
 CREATE TABLE `sys_gm`  (
-  `uid` int NOT NULL,
+  `uid` bigint NOT NULL,
   `tips` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`uid`) USING BTREE
@@ -11729,7 +11729,7 @@ INSERT INTO `sys_gm` VALUES (13081, '高恒', '2026-01-29 17:15:09');
 -- ----------------------------
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user`  (
-  `uid` int UNSIGNED NOT NULL,
+  `uid` bigint NOT NULL,
   `platform` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `openid` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `sid` int UNSIGNED NOT NULL DEFAULT 0,
@@ -11759,7 +11759,7 @@ INSERT INTO `user` VALUES (556898, 'web', 'test_001', 0, NULL, NULL, '2026-02-03
 DROP TABLE IF EXISTS `user_bag`;
 CREATE TABLE `user_bag`  (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `uid` int NOT NULL DEFAULT 0,
+  `uid` bigint NOT NULL DEFAULT 0,
   `chapter` int NULL DEFAULT 0 COMMENT '副本id - 0-主格子',
   `time` int NULL DEFAULT 0 COMMENT '操作更新时间',
   `itemid` int NULL DEFAULT 0 COMMENT '物品id, 0=空',
@@ -11782,7 +11782,7 @@ CREATE TABLE `user_bag`  (
 DROP TABLE IF EXISTS `user_bag_tp`;
 CREATE TABLE `user_bag_tp`  (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `uid` int NOT NULL,
+  `uid` bigint NOT NULL,
   `chapter` int NULL DEFAULT 0 COMMENT '副本id - 0 主线',
   `time` int NULL DEFAULT 0 COMMENT '更新时间',
   `itemid` int NULL DEFAULT 0 COMMENT '物品id, 0=空',
@@ -11805,7 +11805,7 @@ INSERT INTO `user_bag_tp` VALUES (4, 13081, 0, 0, 103, 3);
 -- ----------------------------
 DROP TABLE IF EXISTS `user_data`;
 CREATE TABLE `user_data`  (
-  `uid` int NOT NULL,
+  `uid` bigint NOT NULL,
   `key` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `value` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
   PRIMARY KEY (`uid`, `key`) USING BTREE,
@@ -11822,7 +11822,7 @@ INSERT INTO `user_data` VALUES (13081, 'task_conf', '4,1,7,10,13,15,17,41');
 -- ----------------------------
 DROP TABLE IF EXISTS `user_item`;
 CREATE TABLE `user_item`  (
-  `uid` int NOT NULL,
+  `uid` bigint NOT NULL,
   `tid` int NOT NULL,
   `cnt` int NULL DEFAULT NULL,
   PRIMARY KEY (`uid`, `tid`) USING BTREE
@@ -11841,7 +11841,7 @@ INSERT INTO `user_item` VALUES (13081, 4, 18);
 -- ----------------------------
 DROP TABLE IF EXISTS `user_loginkey`;
 CREATE TABLE `user_loginkey`  (
-  `uid` int NOT NULL,
+  `uid` bigint NOT NULL,
   `key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `ver` int NULL DEFAULT NULL COMMENT '客户端版本号',
   `time` int NULL DEFAULT NULL COMMENT '登录时间',
@@ -11864,7 +11864,7 @@ INSERT INTO `user_loginkey` VALUES (556898, '1770114815471_197', 1001, 177011481
 -- ----------------------------
 DROP TABLE IF EXISTS `user_online`;
 CREATE TABLE `user_online`  (
-  `uid` int NOT NULL,
+  `uid` bigint NOT NULL,
   `day` datetime NOT NULL,
   `tm_online` int NULL DEFAULT NULL,
   `tm_update` datetime NULL DEFAULT NULL,
@@ -11995,7 +11995,7 @@ INSERT INTO `user_online` VALUES (556898, '2026-02-03 18:00:00', 82, '2026-02-03
 -- ----------------------------
 DROP TABLE IF EXISTS `user_res`;
 CREATE TABLE `user_res`  (
-  `uid` int NOT NULL,
+  `uid` bigint NOT NULL,
   `gold` int NULL DEFAULT NULL,
   `diamond` int NULL DEFAULT NULL,
   `star` int NULL DEFAULT NULL,
@@ -12023,7 +12023,7 @@ INSERT INTO `user_res` VALUES (556898, 200, 100, 0, 100, 0, 0, 1, NULL, 17700480
 -- ----------------------------
 DROP TABLE IF EXISTS `user_task`;
 CREATE TABLE `user_task`  (
-  `uid` int NOT NULL,
+  `uid` bigint NOT NULL,
   `taskid` int NOT NULL,
   `addtm` int NULL DEFAULT NULL COMMENT '添加时间',
   `done` tinyint NULL DEFAULT NULL COMMENT '是否完成',

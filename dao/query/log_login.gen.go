@@ -29,7 +29,7 @@ func newLogLogin(db *gorm.DB, opts ...gen.DOOption) logLogin {
 	tableName := _logLogin.logLoginDo.TableName()
 	_logLogin.ALL = field.NewAsterisk(tableName)
 	_logLogin.ID = field.NewInt32(tableName, "id")
-	_logLogin.UID = field.NewInt32(tableName, "uid")
+	_logLogin.UID = field.NewInt64(tableName, "uid")
 	_logLogin.Platform = field.NewString(tableName, "platform")
 	_logLogin.RequestID = field.NewString(tableName, "request_id")
 	_logLogin.Time = field.NewTime(tableName, "time")
@@ -44,7 +44,7 @@ type logLogin struct {
 
 	ALL       field.Asterisk
 	ID        field.Int32
-	UID       field.Int32
+	UID       field.Int64
 	Platform  field.String
 	RequestID field.String
 	Time      field.Time
@@ -65,7 +65,7 @@ func (l logLogin) As(alias string) *logLogin {
 func (l *logLogin) updateTableName(table string) *logLogin {
 	l.ALL = field.NewAsterisk(table)
 	l.ID = field.NewInt32(table, "id")
-	l.UID = field.NewInt32(table, "uid")
+	l.UID = field.NewInt64(table, "uid")
 	l.Platform = field.NewString(table, "platform")
 	l.RequestID = field.NewString(table, "request_id")
 	l.Time = field.NewTime(table, "time")

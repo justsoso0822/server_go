@@ -28,7 +28,7 @@ func newUserData(db *gorm.DB, opts ...gen.DOOption) userData {
 
 	tableName := _userData.userDataDo.TableName()
 	_userData.ALL = field.NewAsterisk(tableName)
-	_userData.UID = field.NewInt32(tableName, "uid")
+	_userData.UID = field.NewInt64(tableName, "uid")
 	_userData.Key = field.NewString(tableName, "key")
 	_userData.Value = field.NewString(tableName, "value")
 
@@ -41,7 +41,7 @@ type userData struct {
 	userDataDo
 
 	ALL   field.Asterisk
-	UID   field.Int32
+	UID   field.Int64
 	Key   field.String
 	Value field.String
 
@@ -60,7 +60,7 @@ func (u userData) As(alias string) *userData {
 
 func (u *userData) updateTableName(table string) *userData {
 	u.ALL = field.NewAsterisk(table)
-	u.UID = field.NewInt32(table, "uid")
+	u.UID = field.NewInt64(table, "uid")
 	u.Key = field.NewString(table, "key")
 	u.Value = field.NewString(table, "value")
 

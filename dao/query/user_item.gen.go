@@ -28,7 +28,7 @@ func newUserItem(db *gorm.DB, opts ...gen.DOOption) userItem {
 
 	tableName := _userItem.userItemDo.TableName()
 	_userItem.ALL = field.NewAsterisk(tableName)
-	_userItem.UID = field.NewInt32(tableName, "uid")
+	_userItem.UID = field.NewInt64(tableName, "uid")
 	_userItem.Tid = field.NewInt32(tableName, "tid")
 	_userItem.Cnt = field.NewInt32(tableName, "cnt")
 
@@ -41,7 +41,7 @@ type userItem struct {
 	userItemDo
 
 	ALL field.Asterisk
-	UID field.Int32
+	UID field.Int64
 	Tid field.Int32
 	Cnt field.Int32
 
@@ -60,7 +60,7 @@ func (u userItem) As(alias string) *userItem {
 
 func (u *userItem) updateTableName(table string) *userItem {
 	u.ALL = field.NewAsterisk(table)
-	u.UID = field.NewInt32(table, "uid")
+	u.UID = field.NewInt64(table, "uid")
 	u.Tid = field.NewInt32(table, "tid")
 	u.Cnt = field.NewInt32(table, "cnt")
 

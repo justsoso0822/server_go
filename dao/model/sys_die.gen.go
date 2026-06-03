@@ -12,7 +12,7 @@ const TableNameSysDie = "sys_die"
 
 // SysDie 被封掉的用户
 type SysDie struct {
-	UID  int32     `gorm:"column:uid;type:int;primaryKey" json:"uid"`
+	UID  int64     `gorm:"column:uid;type:bigint;primaryKey" json:"uid"`
 	Tips string    `gorm:"column:tips;type:varchar(128);comment:封掉用户登陆时候的错误提示" json:"tips"` // 封掉用户登陆时候的错误提示
 	Time time.Time `gorm:"column:time;type:datetime;default:CURRENT_TIMESTAMP" json:"time"`
 }

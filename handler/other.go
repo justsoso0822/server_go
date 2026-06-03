@@ -36,7 +36,7 @@ func TestIndex(c *gin.Context) {
 
 func TestDb(c *gin.Context) {
 	ctx := c.Request.Context()
-	uid, _ := strconv.Atoi(firstParam(c, "uid"))
+	uid, _ := strconv.ParseInt(firstParam(c, "uid"), 10, 64)
 	if uid == 0 {
 		fail(c, errParam)
 		return
