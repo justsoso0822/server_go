@@ -16,12 +16,12 @@ import (
 	"gorm.io/gorm"
 )
 
-type channelKey struct{}
+type channelContextKey struct{}
 type requestIDContextKey struct{}
 type logUIDContextKey struct{}
 type logOpenIDContextKey struct{}
 
-var ctxKey = channelKey{}
+var channelKey = channelContextKey{}
 var reqIDKey = requestIDContextKey{}
 var logUIDKey = logUIDContextKey{}
 var logOpenIDKey = logOpenIDContextKey{}
@@ -211,14 +211,14 @@ func IsConfiguredChannel(channel string) bool {
 }
 
 func WithChannel(ctx context.Context, channel string) context.Context {
-	return context.WithValue(ctx, ctxKey, strings.TrimSpace(channel))
+	return context.WithValue(ctx, channelKey, strings.TrimSpace(channel))
 }
 
 func GetChannel(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	if v := ctx.Value(ctxKey); v != nil {
+	if v := ctx.Value(channelKey); v != nil {
 		if s, ok := v.(string); ok {
 			return strings.TrimSpace(s)
 		}
