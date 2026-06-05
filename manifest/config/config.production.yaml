@@ -12,7 +12,7 @@ database:
     link: "mysql:root:change_me@tcp(192.168.0.10:3219)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
     debug: false
     cache: true
-    maxIdle: 10
+    maxIdle: 50
     maxOpen: 100
     maxLifetime: 3600
     slowThreshold: 300
