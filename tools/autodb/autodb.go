@@ -46,6 +46,8 @@ var (
 )
 
 func Init(cfg *config.Config, log *zap.Logger) error {
+	redis.SetLogger(newRedisLogger(log))
+
 	if _, ok := cfg.Database[DefaultChannelName]; !ok {
 		return fmt.Errorf("default channel (database.default + redis.default) is required")
 	}
