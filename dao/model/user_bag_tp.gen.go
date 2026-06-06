@@ -13,7 +13,7 @@ type UserBagTp struct {
 	Chapter int32 `gorm:"column:chapter;type:int;index:uc,priority:2;comment:副本id - 0 主线" json:"chapter"` // 副本id - 0 主线
 	Time    int32 `gorm:"column:time;type:int;index:t,priority:1;comment:更新时间" json:"time"`               // 更新时间
 	Itemid  int32 `gorm:"column:itemid;type:int;index:ui,priority:2;comment:物品id, 0=空" json:"itemid"`     // 物品id, 0=空
-	Count_  int32 `gorm:"column:count;type:int;default:1;comment:道具数量" json:"count"`                      // 道具数量
+	Count   int32 `gorm:"column:count;type:int;default:1;comment:道具数量" json:"count"`                      // 道具数量
 }
 
 // TableName UserBagTp's table name

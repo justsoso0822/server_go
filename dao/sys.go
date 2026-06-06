@@ -10,13 +10,14 @@ import (
 )
 
 func GetAllMemConfig(ctx context.Context) ([]model.MemConfig, error) {
-	rows, err := q(ctx).MemConfig.Find()
-	return derefSlice(rows), err
+	var rows []model.MemConfig
+	err := db(ctx).Find(&rows).Error
+	return rows, err
 }
 
 func GetMemConfigValue(ctx context.Context, id int) (string, error) {
-	c := q(ctx).MemConfig
-	row, err := c.Where(c.ID.Eq(int32(id))).First()
+	var row model.MemConfig
+	err := db(ctx).Where("id = ?", id).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil
 	}
@@ -27,7 +28,7 @@ func GetMemConfigValue(ctx context.Context, id int) (string, error) {
 }
 
 func IsGm(ctx context.Context, uid int64) (bool, error) {
-	g := q(ctx).SysGm
-	count, err := g.Where(g.UID.Eq(uid)).Count()
+	var count int64
+	err := db(ctx).Model(&model.SysGm{}).Where("uid = ?", uid).Count(&count).Error
 	return count > 0, err
 }

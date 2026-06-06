@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-const defaultOutPath = "./dao/query"
+const defaultOutPath = "./dao/model"
 
 func main() {
 	if err := run(); err != nil {
@@ -28,16 +28,12 @@ func run() error {
 	var dsn string
 	var channel string
 	var outPath string
-	var modelPkg string
 	var tables string
-	var withQuery bool
 
 	flag.StringVar(&dsn, "dsn", strings.TrimSpace(os.Getenv("GEN_DSN")), "MySQL DSN. If empty, read from config database.<channel>.link")
 	flag.StringVar(&channel, "channel", "default", "database channel name from config")
-	flag.StringVar(&outPath, "out", defaultOutPath, "generated query output path")
-	flag.StringVar(&modelPkg, "modelPkg", "model", "generated model package name under query output path")
+	flag.StringVar(&outPath, "out", defaultOutPath, "generated model output path")
 	flag.StringVar(&tables, "tables", "", "comma-separated table names. Empty means all tables")
-	flag.BoolVar(&withQuery, "query", true, "generate type-safe query code")
 	flag.Parse()
 
 	if dsn == "" {
@@ -59,16 +55,13 @@ func run() error {
 
 	g := gen.NewGenerator(gen.Config{
 		OutPath:           outPath,
-		ModelPkgPath:      modelPkg,
-		Mode:              gen.WithoutContext | gen.WithDefaultQuery | gen.WithQueryInterface,
+		Mode:              gen.WithoutContext,
 		FieldWithIndexTag: true,
 		FieldWithTypeTag:  true,
 	})
 
-	// gorm 默认 NamingStrategy 会用 inflection 把表名“单数化”再转驼峰，
-	// 导致 user_res->UserRe、user_data->UserDatum、prf_res->PrfRe 这类错误命名。
-	// 用 SingularTable:true 的策略跳过单数化，只做下划线转驼峰，
-	// 使 user_res 稳定生成为 UserRes，与现有手写 dao/service 引用保持一致。
+	// GORM's default naming strategy may singularize table names before
+	// converting to CamelCase. Keep table names stable: user_res -> UserRes.
 	modelNaming := schema.NamingStrategy{SingularTable: true}
 	g.WithModelNameStrategy(func(tableName string) string {
 		return modelNaming.SchemaName(tableName)
@@ -76,20 +69,10 @@ func run() error {
 
 	g.UseDB(db)
 
-	models, err := generateModels(g, tables)
-	if err != nil {
-		return err
-	}
-	if withQuery {
-		g.ApplyBasic(models...)
-	}
+	models := generateModels(g, tables)
 	g.Execute()
 
-	if err := writePackageDoc(outPath, "query", "Package query provides generated type-safe database query helpers."); err != nil {
-		return err
-	}
-	modelOutPath := filepath.Join(filepath.Dir(outPath), filepath.FromSlash(modelPkg))
-	if err := writePackageDoc(modelOutPath, "model", "Package model provides generated database model structs."); err != nil {
+	if err := writePackageDoc(outPath, "model", "Package model provides generated database model structs."); err != nil {
 		return err
 	}
 
@@ -97,17 +80,17 @@ func run() error {
 	return nil
 }
 
-func generateModels(g *gen.Generator, tables string) ([]any, error) {
+func generateModels(g *gen.Generator, tables string) []any {
 	items := splitCSV(tables)
 	if len(items) == 0 {
-		return g.GenerateAllTable(), nil
+		return g.GenerateAllTable()
 	}
 
 	models := make([]any, 0, len(items))
 	for _, table := range items {
 		models = append(models, g.GenerateModel(table))
 	}
-	return models, nil
+	return models
 }
 
 func splitCSV(s string) []string {

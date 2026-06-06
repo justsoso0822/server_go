@@ -8,34 +8,34 @@ import (
 
 	"server_go/dao/model"
 
-	"gorm.io/gen/field"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func GetUser(ctx context.Context, uid int64) (*model.User, error) {
-	u := q(ctx).User
-	row, err := u.Where(u.UID.Eq(uid)).First()
+	var row model.User
+	err := db(ctx).Where("uid = ?", uid).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
-	return row, err
+	return &row, err
 }
 
 func InsertUser(ctx context.Context, u *model.User) error {
-	return q(ctx).User.Create(u)
+	return db(ctx).Create(u).Error
 }
 
 func GetUserRes(ctx context.Context, uid int64) (*model.UserRes, error) {
-	r := q(ctx).UserRes
-	row, err := r.Where(r.UID.Eq(uid)).First()
+	var row model.UserRes
+	err := db(ctx).Where("uid = ?", uid).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
-	return row, err
+	return &row, err
 }
 
 func InsertUserRes(ctx context.Context, r *model.UserRes) error {
-	return q(ctx).UserRes.Create(r)
+	return db(ctx).Create(r).Error
 }
 
 type UserResField string
@@ -49,19 +49,13 @@ const (
 )
 
 func UpdateUserResField(ctx context.Context, uid int64, resField UserResField, value int64) error {
-	r := q(ctx).UserRes
-	column, ok := map[UserResField]field.Expr{
-		UserResFieldDiamond: r.Diamond,
-		UserResFieldGold:    r.Gold,
-		UserResFieldTili:    r.Tili,
-		UserResFieldExp:     r.Exp,
-		UserResFieldStar:    r.Star,
-	}[resField]
-	if !ok {
+	colName := string(resField)
+	switch resField {
+	case UserResFieldDiamond, UserResFieldGold, UserResFieldTili, UserResFieldExp, UserResFieldStar:
+	default:
 		return errors.New("invalid user resource field")
 	}
-	_, err := r.Where(r.UID.Eq(uid)).Update(column, value)
-	return err
+	return db(ctx).Model(&model.UserRes{}).Where("uid = ?", uid).Update(colName, value).Error
 }
 
 // IncrUserResField 原子地增减用户资源，delta 为正表示增加、负表示减少。
@@ -87,34 +81,36 @@ func IncrUserResField(ctx context.Context, uid int64, field UserResField, delta 
 }
 
 func UpdateUserResDayConf(ctx context.Context, uid int64, dayConf string, dayTime int32) error {
-	r := q(ctx).UserRes
-	_, err := r.Where(r.UID.Eq(uid)).
-		UpdateSimple(r.DayConf.Value(dayConf), r.DayTime.Value(dayTime))
-	return err
+	return db(ctx).Model(&model.UserRes{}).
+		Where("uid = ?", uid).
+		Updates(map[string]interface{}{
+			"day_conf": dayConf,
+			"day_time": dayTime,
+		}).Error
 }
 
 func GetUserLoginkey(ctx context.Context, uid int64, key string) (*model.UserLoginkey, error) {
-	k := q(ctx).UserLoginkey
-	row, err := k.Where(k.UID.Eq(uid), k.Key.Eq(key)).First()
+	var row model.UserLoginkey
+	err := db(ctx).Where("uid = ? AND `key` = ?", uid, key).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
-	return row, err
+	return &row, err
 }
 
 func SaveUserLoginkey(ctx context.Context, k *model.UserLoginkey) error {
-	return q(ctx).UserLoginkey.Save(k)
+	return db(ctx).Clauses(clause.OnConflict{UpdateAll: true}).Create(k).Error
 }
 
 func GetUserDatas(ctx context.Context, uid int64) ([]model.UserData, error) {
-	d := q(ctx).UserData
-	rows, err := d.Where(d.UID.Eq(uid)).Find()
-	return derefSlice(rows), err
+	var rows []model.UserData
+	err := db(ctx).Where("uid = ?", uid).Find(&rows).Error
+	return rows, err
 }
 
 func GetUserDataValue(ctx context.Context, uid int64, key string) (string, error) {
-	d := q(ctx).UserData
-	row, err := d.Where(d.UID.Eq(uid), d.Key.Eq(key)).First()
+	var row model.UserData
+	err := db(ctx).Where("uid = ? AND `key` = ?", uid, key).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", nil
 	}
@@ -125,11 +121,11 @@ func GetUserDataValue(ctx context.Context, uid int64, key string) (string, error
 }
 
 func InsertUserData(ctx context.Context, d *model.UserData) error {
-	return q(ctx).UserData.Create(d)
+	return db(ctx).Create(d).Error
 }
 
 func GetUserItems(ctx context.Context, uid int64) ([]model.UserItem, error) {
-	i := q(ctx).UserItem
-	rows, err := i.Where(i.UID.Eq(uid)).Find()
-	return derefSlice(rows), err
+	var rows []model.UserItem
+	err := db(ctx).Where("uid = ?", uid).Find(&rows).Error
+	return rows, err
 }

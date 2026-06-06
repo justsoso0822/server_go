@@ -40,12 +40,12 @@ type PrfItem struct {
 		==0 进入cd
 		>0 变成指定道具, 如果道具不存在也消失
 	*/
-	Die    int32  `gorm:"column:die;type:int;comment:特殊-掉落完后变成什么\n<0 直接消失\n==0 进入cd\n>0 变成指定道具, 如果道具不存在也消失" json:"die"`
-	Exp    int32  `gorm:"column:exp;type:int;comment:该等级道具合成下一级道具时是否会产出经验" json:"exp"`      // 该等级道具合成下一级道具时是否会产出经验
-	Gold   int32  `gorm:"column:gold;type:int;comment:副本合成掉落金币" json:"gold"`                // 副本合成掉落金币
-	Rare   int32  `gorm:"column:rare;type:int;comment:0=普通，1=稀有（出售时跳出提醒框）" json:"rare"`     // 0=普通，1=稀有（出售时跳出提醒框）
-	Tids   string `gorm:"column:tids;type:varchar(64);comment:转换器内可投入物品的id" json:"tids"`    // 转换器内可投入物品的id
-	Count_ string `gorm:"column:count;type:varchar(64);comment:转换器内对应投入物品的数量" json:"count"` // 转换器内对应投入物品的数量
+	Die   int32  `gorm:"column:die;type:int;comment:特殊-掉落完后变成什么\n<0 直接消失\n==0 进入cd\n>0 变成指定道具, 如果道具不存在也消失" json:"die"`
+	Exp   int32  `gorm:"column:exp;type:int;comment:该等级道具合成下一级道具时是否会产出经验" json:"exp"`      // 该等级道具合成下一级道具时是否会产出经验
+	Gold  int32  `gorm:"column:gold;type:int;comment:副本合成掉落金币" json:"gold"`                // 副本合成掉落金币
+	Rare  int32  `gorm:"column:rare;type:int;comment:0=普通，1=稀有（出售时跳出提醒框）" json:"rare"`     // 0=普通，1=稀有（出售时跳出提醒框）
+	Tids  string `gorm:"column:tids;type:varchar(64);comment:转换器内可投入物品的id" json:"tids"`    // 转换器内可投入物品的id
+	Count string `gorm:"column:count;type:varchar(64);comment:转换器内对应投入物品的数量" json:"count"` // 转换器内对应投入物品的数量
 }
 
 // TableName PrfItem's table name
