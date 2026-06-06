@@ -1,3 +1,4 @@
+// Package dao provides database access helpers and query wrappers.
 package dao
 
 import (
