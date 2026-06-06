@@ -79,7 +79,7 @@ func getOneTask(ctx context.Context, uid int64, ser int) (map[string]any, error)
 		return nil, nil
 	}
 
-	t, err := dao.GetPrfTaskById(ctx, taskId)
+	t, err := dao.GetPrfTaskByID(ctx, taskId)
 	if err != nil || t == nil {
 		return nil, err
 	}

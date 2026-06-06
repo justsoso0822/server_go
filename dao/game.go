@@ -22,10 +22,10 @@ func GetUserBagTp(ctx context.Context, uid int64, chapter int) ([]model.UserBagT
 	return derefSlice(rows), err
 }
 
-func GetUserTask(ctx context.Context, uid int64, minId, maxId int) (*model.UserTask, error) {
+func GetUserTask(ctx context.Context, uid int64, minID, maxID int) (*model.UserTask, error) {
 	t := q(ctx).UserTask
 	row, err := t.
-		Where(t.UID.Eq(uid), t.Taskid.Gte(int32(minId)), t.Taskid.Lte(int32(maxId))).
+		Where(t.UID.Eq(uid), t.Taskid.Gte(int32(minID)), t.Taskid.Lte(int32(maxID))).
 		Limit(1).First()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
@@ -37,10 +37,10 @@ func InsertUserTask(ctx context.Context, t *model.UserTask) error {
 	return q(ctx).UserTask.Create(t)
 }
 
-func DeleteDoneUserTasks(ctx context.Context, uid int64, minId, maxId int) error {
+func DeleteDoneUserTasks(ctx context.Context, uid int64, minID, maxID int) error {
 	t := q(ctx).UserTask
 	_, err := t.
-		Where(t.UID.Eq(uid), t.Taskid.Gte(int32(minId)), t.Taskid.Lte(int32(maxId)), t.Done.Eq(1)).
+		Where(t.UID.Eq(uid), t.Taskid.Gte(int32(minID)), t.Taskid.Lte(int32(maxID)), t.Done.Eq(1)).
 		Delete()
 	return err
 }
@@ -69,7 +69,7 @@ func IncrUserOnlineTime(ctx context.Context, uid int64, day time.Time, delta int
 	return info.RowsAffected, nil
 }
 
-func GetPrfTaskMinMax(ctx context.Context, ser int) (minId, maxId int, err error) {
+func GetPrfTaskMinMax(ctx context.Context, ser int) (minID, maxID int, err error) {
 	t := q(ctx).PrfTask
 	var res struct {
 		Min int
@@ -82,7 +82,7 @@ func GetPrfTaskMinMax(ctx context.Context, ser int) (minId, maxId int, err error
 	return res.Min, res.Max, err
 }
 
-func GetPrfTaskById(ctx context.Context, id int) (*model.PrfTask, error) {
+func GetPrfTaskByID(ctx context.Context, id int) (*model.PrfTask, error) {
 	t := q(ctx).PrfTask
 	row, err := t.Where(t.ID.Eq(int32(id))).First()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -91,10 +91,10 @@ func GetPrfTaskById(ctx context.Context, id int) (*model.PrfTask, error) {
 	return row, err
 }
 
-func GetNextPrfTask(ctx context.Context, ser, afterId int) (int, error) {
+func GetNextPrfTask(ctx context.Context, ser, afterID int) (int, error) {
 	t := q(ctx).PrfTask
 	row, err := t.Select(t.ID).
-		Where(t.Ser.Eq(int32(ser)), t.ID.Gt(int32(afterId))).
+		Where(t.Ser.Eq(int32(ser)), t.ID.Gt(int32(afterID))).
 		Order(t.ID).Limit(1).First()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return 0, nil
