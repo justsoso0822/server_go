@@ -1404,14 +1404,11 @@ func probeGatewayRoute(port string) (healthResponse, error) {
 
 // 检查指定名称的容器是否正在运行。
 func containerRunning(name string) (bool, error) {
-	output, err := getOutputWithError("docker", "inspect", "--format", "{{.State.Running}}", name)
+	output, err := getOutput("docker", "ps", "--format", "{{.Names}}")
 	if err != nil {
-		if strings.Contains(output, "No such object") {
-			return false, nil
-		}
 		return false, err
 	}
-	return output == "true", nil
+	return hasLine(output, name), nil
 }
 
 // 检查多行输出中是否包含精确匹配的行。
