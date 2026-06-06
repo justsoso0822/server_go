@@ -2,12 +2,32 @@
   "go.useLanguageServer": true,
   "go.toolsManagement.autoUpdate": true,
   "gopls": {
-    "ui.completion.usePlaceholders": true,
-    "ui.semanticTokens": true,
-    "ui.diagnostic.staticcheck": true,
-    "ui.completion.completionBudget": "100ms",
+    "ui.completion.usePlaceholders": false,
+    "ui.semanticTokens": false,
+    "ui.diagnostic.staticcheck": false,
+    "ui.completion.completionBudget": "10ms",
+    "ui.completion.matcher": "Fuzzy",
+    "ui.inlayhint.hints": {
+      "parameterNames": false,
+      "assignVariableTypes": false,
+      "compositeLiteralFields": false,
+      "compositeLiteralTypes": false,
+      "constantValues": false,
+      "functionTypeParameters": false,
+      "rangeVariableTypes": false
+    },
     "formatting.gofumpt": false
   },
+  "editor.inlayHints.enabled": "off",
+  "editor.quickSuggestions": {
+    "other": "on",
+    "comments": "off",
+    "strings": "off"
+  },
+  "editor.quickSuggestionsDelay": 0,
+  "editor.suggestOnTriggerCharacters": true,
+  "editor.acceptSuggestionOnCommitCharacter": true,
+  "editor.wordBasedSuggestions": "currentDocument",
   "[go]": {
     "editor.defaultFormatter": "golang.go",
     "editor.formatOnSave": true,

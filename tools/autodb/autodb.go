@@ -2,6 +2,7 @@ package autodb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -43,6 +44,7 @@ var (
 	channelList        []string
 	dbs                = map[string]*gorm.DB{}
 	redisClients       = map[string]*redis.Client{}
+	cacheEnabled       = map[string]bool{}
 )
 
 func Init(cfg *config.Config, log *zap.Logger) error {
@@ -70,6 +72,7 @@ func Init(cfg *config.Config, log *zap.Logger) error {
 
 	nextDBs := make(map[string]*gorm.DB, len(list))
 	nextRedisClients := make(map[string]*redis.Client, len(list))
+	nextCacheEnabled := make(map[string]bool, len(list))
 	cleanup := func() {
 		for _, db := range nextDBs {
 			if sqlDB, err := db.DB(); err == nil {
@@ -96,11 +99,13 @@ func Init(cfg *config.Config, log *zap.Logger) error {
 			return err
 		}
 		nextRedisClients[name] = rc
+		nextCacheEnabled[name] = dbCfg.Cache
 	}
 
 	mu.Lock()
 	dbs = nextDBs
 	redisClients = nextRedisClients
+	cacheEnabled = nextCacheEnabled
 	configuredChannels = set
 	channelList = list
 	mu.Unlock()
@@ -191,6 +196,7 @@ func Close() error {
 
 	dbs = map[string]*gorm.DB{}
 	redisClients = map[string]*redis.Client{}
+	cacheEnabled = map[string]bool{}
 	configuredChannels = map[string]struct{}{}
 	channelList = nil
 
@@ -330,4 +336,63 @@ func Redis(ctx context.Context) *redis.Client {
 	rc := redisClients[channel]
 	mu.RUnlock()
 	return rc
+}
+
+func CacheEnabled(ctx context.Context) bool {
+	channel := GetChannel(ctx)
+	if channel == "" {
+		channel = DefaultChannelName
+	}
+	mu.RLock()
+	enabled := cacheEnabled[channel]
+	mu.RUnlock()
+	return enabled
+}
+
+func BuildCacheKey(ctx context.Context, key string) string {
+	channel := GetChannel(ctx)
+	if channel == "" {
+		channel = DefaultChannelName
+	}
+	return "mysql_cache:" + channel + ":" + strings.TrimSpace(key)
+}
+
+func Cache(ctx context.Context, key string, ttl time.Duration, dest any, load func() error) error {
+	if strings.TrimSpace(key) == "" || !CacheEnabled(ctx) {
+		return load()
+	}
+	rc := Redis(ctx)
+	if rc == nil {
+		return load()
+	}
+	data, err := rc.Get(ctx, BuildCacheKey(ctx, key)).Bytes()
+	if err == nil && json.Unmarshal(data, dest) == nil {
+		return nil
+	}
+	if err := load(); err != nil {
+		return err
+	}
+	if data, err := json.Marshal(dest); err == nil {
+		_ = rc.Set(ctx, BuildCacheKey(ctx, key), data, ttl).Err()
+	}
+	return nil
+}
+
+func DelCache(ctx context.Context, keys ...string) {
+	if len(keys) == 0 || !CacheEnabled(ctx) {
+		return
+	}
+	rc := Redis(ctx)
+	if rc == nil {
+		return
+	}
+	cacheKeys := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if strings.TrimSpace(key) != "" {
+			cacheKeys = append(cacheKeys, BuildCacheKey(ctx, key))
+		}
+	}
+	if len(cacheKeys) > 0 {
+		_ = rc.Del(ctx, cacheKeys...).Err()
+	}
 }

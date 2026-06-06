@@ -3,9 +3,11 @@ package dao
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"server_go/dao/model"
+	"server_go/tools/autodb"
 
 	"gorm.io/gorm"
 )
@@ -75,10 +77,12 @@ func GetPrfTaskMinMax(ctx context.Context, ser int) (minID, maxID int, err error
 		Min int
 		Max int
 	}
-	err = t.
-		Select(t.ID.Min().As("min"), t.ID.Max().As("max")).
-		Where(t.Ser.Eq(int32(ser))).
-		Scan(&res)
+	err = autodb.Cache(ctx, fmt.Sprintf("prf_task_min_max:%d", ser), time.Minute, &res, func() error {
+		return t.
+			Select(t.ID.Min().As("min"), t.ID.Max().As("max")).
+			Where(t.Ser.Eq(int32(ser))).
+			Scan(&res)
+	})
 	return res.Min, res.Max, err
 }
 
