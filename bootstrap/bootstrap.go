@@ -1,3 +1,4 @@
+// Package bootstrap provides functionality to initialize and manage the application's core components, such as configuration, logging, and database connections.
 package bootstrap
 
 import (
