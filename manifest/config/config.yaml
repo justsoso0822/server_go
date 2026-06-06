@@ -22,5 +22,8 @@ redis:
 logger:
   level: "debug"
   format: "console"
-  stdout: true
+  stdout: false
   stdoutColorDisabled: false
+  clearOnStart: true
+  outputPaths:
+    - "log/app.log"
