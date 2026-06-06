@@ -313,10 +313,7 @@ func DB(ctx context.Context) *gorm.DB {
 		channel = DefaultChannelName
 	}
 	mu.RLock()
-	db, ok := dbs[channel]
-	if !ok {
-		db = dbs[DefaultChannelName]
-	}
+	db := dbs[channel]
 	mu.RUnlock()
 	if db == nil {
 		return nil
@@ -330,10 +327,7 @@ func Redis(ctx context.Context) *redis.Client {
 		channel = DefaultChannelName
 	}
 	mu.RLock()
-	rc, ok := redisClients[channel]
+	rc := redisClients[channel]
 	mu.RUnlock()
-	if !ok {
-		return redisClients[DefaultChannelName]
-	}
 	return rc
 }
