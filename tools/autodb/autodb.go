@@ -90,20 +90,11 @@ func Init(cfg *config.Config, log *zap.Logger) error {
 		}
 		nextDBs[name] = db
 
-		rCfg := cfg.Redis[name]
-		rc := redis.NewClient(&redis.Options{
-			Addr:     rCfg.Address,
-			Password: rCfg.Pass,
-			DB:       rCfg.DB,
-		})
-		pingCtx, cancel := context.WithTimeout(context.Background(), connectTimeout)
-		if err := rc.Ping(pingCtx).Err(); err != nil {
-			cancel()
+		rc, err := openRedis(name, cfg.Redis[name])
+		if err != nil {
 			cleanup()
-			_ = rc.Close()
-			return fmt.Errorf("ping redis %s: %w", name, err)
+			return err
 		}
-		cancel()
 		nextRedisClients[name] = rc
 	}
 
@@ -158,6 +149,21 @@ func openDB(name string, cfg config.DatabaseConfig, log *zap.Logger) (*gorm.DB, 
 	sqlDB.SetConnMaxLifetime(time.Duration(maxLifetime) * time.Second)
 
 	return db, nil
+}
+
+func openRedis(name string, cfg config.RedisConfig) (*redis.Client, error) {
+	rc := redis.NewClient(&redis.Options{
+		Addr:     cfg.Address,
+		Password: cfg.Pass,
+		DB:       cfg.DB,
+	})
+	pingCtx, cancel := context.WithTimeout(context.Background(), connectTimeout)
+	defer cancel()
+	if err := rc.Ping(pingCtx).Err(); err != nil {
+		_ = rc.Close()
+		return nil, fmt.Errorf("ping redis %s: %w", name, err)
+	}
+	return rc, nil
 }
 
 func Close() error {
