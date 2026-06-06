@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"strconv"
-
 	"server_go/service"
 	"server_go/tools/autodb"
 
@@ -34,9 +32,9 @@ func TestIndex(c *gin.Context) {
 	ok(c, rows)
 }
 
-func TestDb(c *gin.Context) {
+func TestDB(c *gin.Context) {
 	ctx := c.Request.Context()
-	uid, _ := strconv.ParseInt(firstParam(c, "uid"), 10, 64)
+	uid := parseUID(firstParam(c, "uid"))
 	if uid == 0 {
 		fail(c, errParam)
 		return

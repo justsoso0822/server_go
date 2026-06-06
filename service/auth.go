@@ -29,7 +29,7 @@ return -1
 `
 
 type AuthInput struct {
-	Uid      int64
+	UID      int64
 	LoginKey string
 	Platform string
 	Version  string
@@ -41,12 +41,12 @@ type AuthResult struct {
 }
 
 func VerifyLoginKey(ctx context.Context, in AuthInput) AuthResult {
-	if in.Uid == 0 || in.LoginKey == "" || in.Platform == "" || in.Version == "" {
+	if in.UID == 0 || in.LoginKey == "" || in.Platform == "" || in.Version == "" {
 		return AuthResult{Code: -1, Msg: "Verify: 参数错误"}
 	}
 
 	rc := autodb.Redis(ctx)
-	cacheKey := state.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(in.Uid, 10))
+	cacheKey := state.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(in.UID, 10))
 
 	cached, err := rc.Get(ctx, cacheKey).Result()
 	switch {
@@ -59,7 +59,7 @@ func VerifyLoginKey(ctx context.Context, in AuthInput) AuthResult {
 		return AuthResult{Code: -1, Msg: "Verify: 缓存读取失败"}
 	}
 
-	keyData, err := dao.GetUserLoginkey(ctx, in.Uid, in.LoginKey)
+	keyData, err := dao.GetUserLoginkey(ctx, in.UID, in.LoginKey)
 	if err != nil {
 		return AuthResult{Code: -1, Msg: "Verify: 查询失败"}
 	}

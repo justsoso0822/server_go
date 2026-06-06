@@ -27,7 +27,7 @@ func Verify() gin.HandlerFunc {
 		c.Request = c.Request.WithContext(ctx)
 
 		result := service.VerifyLoginKey(ctx, service.AuthInput{
-			Uid:      uid,
+			UID:      uid,
 			LoginKey: firstStr(c.Query("login_key"), c.PostForm("login_key")),
 			Platform: firstStr(c.Query("platform"), c.PostForm("platform")),
 			Version:  firstStr(c.Query("version"), c.PostForm("version")),

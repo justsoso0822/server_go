@@ -2,7 +2,7 @@ package define
 
 type ResItem struct {
 	Type int `json:"type"`
-	Id   int `json:"id"`
+	ID   int `json:"id"`
 	Cnt  int `json:"cnt"`
 }
 

@@ -19,7 +19,7 @@ func firstParam(c interface {
 	return c.PostForm(key)
 }
 
-// parseUID 将 uid 字符串转为 int64，超过 int32 上限时钳位避免后续转换溢出。
+// 将 uid 字符串转为 int64，解析失败返回 0。
 func parseUID(v string) int64 {
 	uid, err := strconv.ParseInt(v, 10, 64)
 	if err != nil {

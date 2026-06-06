@@ -53,5 +53,5 @@ func registerTest(group *gin.RouterGroup) {
 	test := group.Group("/test")
 	test.Use(middleware.TestEnvGuard(), middleware.DrainGuard())
 	Handle(test, "/", handler.TestIndex)
-	Handle(test, "/db", handler.TestDb)
+	Handle(test, "/db", handler.TestDB)
 }
