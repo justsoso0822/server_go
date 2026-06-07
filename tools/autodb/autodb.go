@@ -13,6 +13,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -45,6 +46,7 @@ var (
 	dbs                = map[string]*gorm.DB{}
 	redisClients       = map[string]*redis.Client{}
 	cacheEnabled       = map[string]bool{}
+	sf                 singleflight.Group
 )
 
 func Init(cfg *config.Config, log *zap.Logger) error {
@@ -357,7 +359,11 @@ func BuildCacheKey(ctx context.Context, key string) string {
 	return "mysql_cache:" + channel + ":" + strings.TrimSpace(key)
 }
 
-func Cache(ctx context.Context, key string, ttl time.Duration, dest any, load func() error) error {
+func Cache[T any](ctx context.Context, key string, ttl time.Duration, load func() (T, error)) (T, error) {
+	var zero T
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if strings.TrimSpace(key) == "" || !CacheEnabled(ctx) {
 		return load()
 	}
@@ -365,17 +371,44 @@ func Cache(ctx context.Context, key string, ttl time.Duration, dest any, load fu
 	if rc == nil {
 		return load()
 	}
-	data, err := rc.Get(ctx, BuildCacheKey(ctx, key)).Bytes()
-	if err == nil && json.Unmarshal(data, dest) == nil {
-		return nil
+	fullKey := BuildCacheKey(ctx, key)
+	data, err := rc.Get(ctx, fullKey).Bytes()
+	if err == nil {
+		var dest T
+		if json.Unmarshal(data, &dest) == nil {
+			return dest, nil
+		}
 	}
-	if err := load(); err != nil {
-		return err
+	result, err, _ := sf.Do(fullKey, func() (any, error) {
+		data, err := rc.Get(ctx, fullKey).Bytes()
+		if err == nil {
+			var dest T
+			if json.Unmarshal(data, &dest) == nil {
+				return dest, nil
+			}
+		}
+
+		dest, err := load()
+		if err != nil {
+			return zero, err
+		}
+		if ttl > 0 {
+			data, err := json.Marshal(dest)
+			if err != nil {
+				return dest, nil
+			}
+			_ = rc.Set(ctx, fullKey, data, ttl).Err()
+		}
+		return dest, nil
+	})
+	if err != nil {
+		return zero, err
 	}
-	if data, err := json.Marshal(dest); err == nil {
-		_ = rc.Set(ctx, BuildCacheKey(ctx, key), data, ttl).Err()
+	dest, ok := result.(T)
+	if !ok {
+		return zero, fmt.Errorf("cache result type mismatch for key %s", fullKey)
 	}
-	return nil
+	return dest, nil
 }
 
 func DelCache(ctx context.Context, keys ...string) {

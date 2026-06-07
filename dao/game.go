@@ -69,15 +69,17 @@ func IncrUserOnlineTime(ctx context.Context, uid int64, day time.Time, delta int
 }
 
 func GetPrfTaskMinMax(ctx context.Context, ser int) (minID, maxID int, err error) {
-	var res struct {
+	type prfTaskMinMax struct {
 		Min int
 		Max int
 	}
-	err = autodb.Cache(ctx, fmt.Sprintf("prf_task_min_max:%d", ser), time.Minute, &res, func() error {
-		return db(ctx).Model(&model.PrfTask{}).
-			Select("MIN(id) AS min, MAX(id) AS max").
+	res, err := autodb.Cache(ctx, fmt.Sprintf("prf_task_min_max:%d", ser), time.Minute, func() (prfTaskMinMax, error) {
+		var r prfTaskMinMax
+		err := db(ctx).Model(&model.PrfTask{}).
+			Select("COALESCE(MIN(id), 0) AS min, COALESCE(MAX(id), 0) AS max").
 			Where("ser = ?", ser).
-			Scan(&res).Error
+			Scan(&r).Error
+		return r, err
 	})
 	return res.Min, res.Max, err
 }
