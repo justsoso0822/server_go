@@ -14,7 +14,6 @@ func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := uuid.NewString()
 		c.Writer.Header().Set(requestIDHeader, requestID)
-		c.Request.Header.Set(requestIDHeader, requestID)
 		c.Request = c.Request.WithContext(autodb.WithRequestID(c.Request.Context(), requestID))
 		c.Next()
 	}
