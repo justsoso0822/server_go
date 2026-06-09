@@ -19,7 +19,7 @@ type App struct {
 func New() (*App, error) {
 	cfg, err := config.Load()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load config: %w", err)
 	}
 
 	log, err := logger.New(cfg.Logger)
