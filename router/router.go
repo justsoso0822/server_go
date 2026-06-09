@@ -34,9 +34,9 @@ func Setup(app *bootstrap.App) *gin.Engine {
 }
 
 func bindChannelRoutes(group *gin.RouterGroup, app *bootstrap.App) {
-	registerAPI(group, app)
 	registerOther(group)
 	registerTest(group)
+	registerAPI(group, app)
 }
 
 func configureGinMode() {

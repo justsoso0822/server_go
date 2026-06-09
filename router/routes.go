@@ -24,6 +24,19 @@ func registerControl(r *gin.Engine) {
 	c.POST("/resume-traffic", handler.ResumeTraffic)
 }
 
+func registerOther(group *gin.RouterGroup) {
+	other := group.Group("/other")
+	other.Use(middleware.DrainGuard())
+	Handle(other, "/res_version/:key", handler.ResVersion)
+}
+
+func registerTest(group *gin.RouterGroup) {
+	test := group.Group("/test")
+	test.Use(middleware.TestEnvGuard(), middleware.DrainGuard())
+	Handle(test, "/", handler.TestIndex)
+	Handle(test, "/db", handler.TestDB)
+}
+
 func registerAPI(group *gin.RouterGroup, app *bootstrap.App) {
 	api := group.Group("/api")
 	api.Use(
@@ -41,17 +54,4 @@ func registerAPI(group *gin.RouterGroup, app *bootstrap.App) {
 	Handle(api, "/res/add_tili", handler.AddTili)
 	Handle(api, "/res/add_gold", handler.AddGold)
 	Handle(api, "/res/add_diamond", handler.AddDiamond)
-}
-
-func registerOther(group *gin.RouterGroup) {
-	other := group.Group("/other")
-	other.Use(middleware.DrainGuard())
-	Handle(other, "/res_version/:key", handler.ResVersion)
-}
-
-func registerTest(group *gin.RouterGroup) {
-	test := group.Group("/test")
-	test.Use(middleware.TestEnvGuard(), middleware.DrainGuard())
-	Handle(test, "/", handler.TestIndex)
-	Handle(test, "/db", handler.TestDB)
 }
