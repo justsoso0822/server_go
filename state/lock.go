@@ -12,12 +12,17 @@ import (
 )
 
 const (
+	// 最多等待 1 秒拿锁，超过就让业务返回“系统繁忙”，避免请求线程长时间堆积。
 	acquireTimeoutMs = 1000
-	retryBaseMs      = 20
-	retryMaxMs       = 200
-	lockTTLMs        = 30000
+	// 重试间隔从 20ms 开始指数增长，并设置上限，兼顾快速成功和热点保护。
+	retryBaseMs = 20
+	retryMaxMs  = 200
+	// 锁租约兜底 30 秒；即使持锁进程崩溃，Redis 也会自动释放。
+	lockTTLMs = 30000
 )
 
+// 使用 Redis 做短临界区互斥，成功时返回释放锁必须携带的 token。
+// 返回空 token 且 error 为 nil 表示竞争太激烈，本次没有拿到锁。
 func Lock(ctx context.Context, key string) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("[Lock] key is required")
@@ -49,6 +54,7 @@ func Lock(ctx context.Context, key string) (string, error) {
 	return "", nil
 }
 
+// 释放锁时校验 token，确保只释放自己持有的那把锁。
 func Unlock(ctx context.Context, key, token string) error {
 	if key == "" || token == "" {
 		return nil
@@ -59,6 +65,7 @@ func Unlock(ctx context.Context, key, token string) error {
 	return rc.Eval(ctx, script, []string{redisKey}, token).Err()
 }
 
+// 拼接项目内统一的 Redis key，并自动补上渠道前缀。
 func BuildKey(ctx context.Context, parts ...string) string {
 	channel := autodb.GetChannel(ctx)
 	if channel == "" {

@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Sign 校验请求的 HMAC-SHA256 签名。
+// 校验请求的 HMAC-SHA256 签名。
 func Sign(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		params := collectRequestParams(c)

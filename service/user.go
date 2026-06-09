@@ -47,6 +47,7 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 		out["newbie"] = 1
 		nowDay := int32(startOfDay(time.Now()).Unix())
 		err = autodb.DB(ctx).Transaction(func(tx *gorm.DB) error {
+			// GORM Transaction 会在回调返回 nil 时提交，返回 error/panic 时回滚。
 			if e := tx.Create(&model.User{UID: uid, Platform: platform, Openid: openid}).Error; e != nil {
 				return e
 			}

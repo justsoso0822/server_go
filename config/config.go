@@ -1,4 +1,4 @@
-// Package config provides functionality to load and manage application configuration.
+// 读取配置文件并提供全局访问接口。
 package config
 
 import (
@@ -60,11 +60,17 @@ func Load() (*Config, error) {
 	}
 	cfgFile = strings.TrimSuffix(cfgFile, ".yaml")
 
+	// Viper 的 SetConfigName 只接收不带扩展名的名字，SetConfigType 再指定 yaml。
+	// 这样 APP_CONFIG_FILE 既可以写 config，也可以写 config.yaml。
 	v.SetConfigName(cfgFile)
 	v.SetConfigType("yaml")
+	// 查找顺序保留 manifest/config 优先，便于 docker 镜像和本地运行使用同一套默认路径；
+	// 追加 "." 是为了支持临时把配置放在工作目录进行调试。
 	v.AddConfigPath("manifest/config")
 	v.AddConfigPath(".")
 
+	// AutomaticEnv 只让 Viper 感知环境变量；它不会自动把 APP_PORT 映射到 server.address
+	// 这类嵌套字段，所以本文件下面对少量运行时变量做了显式覆盖。
 	v.AutomaticEnv()
 
 	if err := v.ReadInConfig(); err != nil {

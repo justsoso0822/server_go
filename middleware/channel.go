@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// DefaultChannel 将无渠道前缀的请求注入 default channel。
+// 将无渠道前缀的请求注入 default channel。
 func DefaultChannel() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !autodb.IsConfiguredChannel(autodb.DefaultChannelName) {
@@ -22,7 +22,7 @@ func DefaultChannel() gin.HandlerFunc {
 	}
 }
 
-// Channel 从路由参数取 channel 名并注入 context。
+// 从路由参数取 channel 名并注入 context。
 func Channel() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		channel := strings.TrimSpace(c.Param("channel"))

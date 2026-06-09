@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// AccessLog records one structured application access log per business request.
+// 记录 HTTP 请求日志，自动过滤健康检查和控制接口。
 func AccessLog(log *zap.Logger) gin.HandlerFunc {
 	if log == nil {
 		log = zap.NewNop()

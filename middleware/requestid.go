@@ -9,7 +9,6 @@ import (
 
 const requestIDHeader = "X-Request-Id"
 
-// RequestID creates a server-side request id for application logs.
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := uuid.NewString()

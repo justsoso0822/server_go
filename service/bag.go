@@ -32,7 +32,6 @@ func GameOnline(ctx context.Context, uid int64, seconds int64) error {
 	now := time.Now()
 	day := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, now.Location())
 
-	// Atomic increment: UPDATE ... SET tm_online = tm_online + ? WHERE uid = ? AND day = ?
 	affected, err := dao.IncrUserOnlineTime(ctx, uid, day, int32(seconds), now)
 	if err != nil {
 		return err
@@ -40,7 +39,6 @@ func GameOnline(ctx context.Context, uid int64, seconds int64) error {
 	if affected > 0 {
 		return nil
 	}
-	// Row doesn't exist yet, insert it.
 	return dao.InsertUserOnline(ctx, &model.UserOnline{
 		UID: uid, Day: day, TmOnline: int32(seconds),
 	})

@@ -12,12 +12,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// Recovery logs panics through zap so non-local container logs stay single-line JSON.
 func Recovery(log *zap.Logger) gin.HandlerFunc {
 	if log == nil {
 		log = zap.NewNop()
 	}
 
+	// Gin 默认 Recovery 会把 panic 写到 DefaultErrorWriter。这里把 writer 指向 io.Discard，
+	// 再手动写 zap，避免线上 JSON 日志中混入多行文本堆栈。
 	return gin.CustomRecoveryWithWriter(io.Discard, func(c *gin.Context, recovered any) {
 		ctx := c.Request.Context()
 		fields := []zap.Field{

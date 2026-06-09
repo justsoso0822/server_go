@@ -1,4 +1,4 @@
-// Package bootstrap provides functionality to initialize and manage the application's core components, such as configuration, logging, and database connections.
+// 启动包负责应用的初始化和资源管理，包括配置加载、日志初始化和数据库连接等。
 package bootstrap
 
 import (

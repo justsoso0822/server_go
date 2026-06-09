@@ -14,10 +14,8 @@ import (
 
 const replayWindow = 5 * time.Minute
 
-// ReplayGuard 校验 tick 有效期，并拒绝已使用过的签名请求。
 func ReplayGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 优先从 context 读取 Sign 中间件已解析的参数和签名，避免重复解析。
 		var params map[string]interface{}
 		var sign string
 		if v, ok := c.Get("_params"); ok {
@@ -51,12 +49,15 @@ func ReplayGuard() gin.HandlerFunc {
 		if path == "" {
 			path = c.Request.URL.Path
 		}
+		// FullPath 是 Gin 匹配后的模板路径，如 /api/bag/get_bag/:chapter。
 		key := state.BuildKey(c.Request.Context(), "replay", c.Request.Method, path, sign)
 		ttl := time.Until(ts.Add(replayWindow))
 		if ttl <= 0 {
 			c.AbortWithStatusJSON(http.StatusOK, gin.H{"code": -1, "msg": "请求已过期"})
 			return
 		}
+		// Redis SET NX EX/PX 是原子操作：只有第一次请求能写入成功，重复请求会返回 false。
+		// 扩展知识：如果要防跨区域重放，需要保证所有实例使用同一个 Redis 或同等一致性的存储。
 		ok, err := autodb.Redis(c.Request.Context()).SetNX(c.Request.Context(), key, "1", ttl).Result()
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusOK, gin.H{"code": -1, "msg": "防重放校验失败"})

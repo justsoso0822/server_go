@@ -18,7 +18,7 @@ var forwardedHeaders = [...]string{
 	"X-Real-IP",
 }
 
-// TestEnvGuard 限制 /test 组只在 local/test 环境可访问。
+// 限制 /test 组只在 local/test 环境可访问。
 func TestEnvGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
@@ -37,7 +37,7 @@ func TestEnvGuard() gin.HandlerFunc {
 	}
 }
 
-// InternalOnly 只允许容器内部直连调用，拒绝经网关转发的请求。
+// 只允许容器内部直连调用，拒绝经网关转发的请求。
 func InternalOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if hasForwardedHeader(c) || !isInternalRemoteAddr(c.Request.RemoteAddr) {

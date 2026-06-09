@@ -58,7 +58,7 @@ func UpdateUserResField(ctx context.Context, uid int64, resField UserResField, v
 	return db(ctx).Model(&model.UserRes{}).Where("uid = ?", uid).Update(colName, value).Error
 }
 
-// IncrUserResField 原子地增减用户资源，delta 为正表示增加、负表示减少。
+// 原子地增减用户资源，delta 为正表示增加、负表示减少。
 // 即使上层锁失效，数据库层面也会通过 WHERE 守卫确保余额不为负且不超 int32 上限，
 // 并发写入是安全的：MySQL UPDATE 会对匹配的行加行锁串行执行。
 func IncrUserResField(ctx context.Context, uid int64, field UserResField, delta int64) error {
@@ -69,6 +69,7 @@ func IncrUserResField(ctx context.Context, uid int64, field UserResField, delta 
 		Where("uid = ?", uid).
 		Where(colName+" + ? >= 0", delta).
 		Where(colName+" + ? <= ?", delta, math.MaxInt32).
+		// gorm.Expr 会生成 column = column + ?，避免先读后写导致的并发覆盖。
 		Update(colName, gorm.Expr(colName+" + ?", delta))
 
 	if result.Error != nil {
@@ -99,6 +100,8 @@ func GetUserLoginkey(ctx context.Context, uid int64, key string) (*model.UserLog
 }
 
 func SaveUserLoginkey(ctx context.Context, k *model.UserLoginkey) error {
+	// OnConflict{UpdateAll:true} 是 GORM 的 upsert 写法；
+	// MySQL 下会生成 ON DUPLICATE KEY UPDATE，依赖表上的唯一键/主键判断冲突。
 	return db(ctx).Clauses(clause.OnConflict{UpdateAll: true}).Create(k).Error
 }
 

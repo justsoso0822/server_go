@@ -50,6 +50,7 @@ var (
 )
 
 func Init(cfg *config.Config, log *zap.Logger) error {
+	// go-redis 内部连接池告警默认写标准库 log。接到 zap 后，线上日志能保持 JSON/字段化。
 	redis.SetLogger(newRedisLogger(log))
 
 	if _, ok := cfg.Database[DefaultChannelName]; !ok {
@@ -116,10 +117,12 @@ func Init(cfg *config.Config, log *zap.Logger) error {
 }
 
 func openDB(name string, cfg config.DatabaseConfig, log *zap.Logger) (*gorm.DB, error) {
-	// link 格式: "mysql:user:pass@tcp(host:port)/dbname?params"
 	dsn := strings.TrimPrefix(cfg.Link, "mysql:")
 
+	// gorm.Open 返回的是带连接池管理能力的 *gorm.DB。真正的池参数在下面通过 db.DB()
+	// 拿到底层 *sql.DB 后配置；GORM 本身不负责 MaxOpen/MaxIdle 这些细节。
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		// 自定义 logger 实现 GORM logger.Interface，可以把慢查询、错误 SQL 与 request_id 关联起来。
 		Logger: newGormLogger(log, name, cfg.Debug, cfg.SlowThreshold),
 	})
 	if err != nil {
@@ -151,6 +154,8 @@ func openDB(name string, cfg config.DatabaseConfig, log *zap.Logger) (*gorm.DB, 
 		maxLifetime = 3600
 	}
 
+	// MaxIdle 控制空闲连接数，MaxOpen 控制总连接上限。
+	// ConnMaxLifetime 应小于 MySQL/代理层的空闲回收时间，减少服务端主动断开造成的坏连接。
 	sqlDB.SetMaxIdleConns(maxIdle)
 	sqlDB.SetMaxOpenConns(maxOpen)
 	sqlDB.SetConnMaxLifetime(time.Duration(maxLifetime) * time.Second)
@@ -159,6 +164,7 @@ func openDB(name string, cfg config.DatabaseConfig, log *zap.Logger) (*gorm.DB, 
 }
 
 func openRedis(name string, cfg config.RedisConfig) (*redis.Client, error) {
+	// go-redis Client 内部是并发安全的连接池，一个 channel 复用一个 Client 即可。
 	rc := redis.NewClient(&redis.Options{
 		Addr:     cfg.Address,
 		Password: cfg.Pass,
@@ -326,6 +332,8 @@ func DB(ctx context.Context) *gorm.DB {
 	if db == nil {
 		return nil
 	}
+	// WithContext 不会新建连接，它只是把 context 绑定到后续 SQL：
+	// 一方面支持超时/取消，另一方面 GORM logger.Trace 能从 context 取 request_id。
 	return db.WithContext(ctx)
 }
 
@@ -372,6 +380,7 @@ func Cache[T any](ctx context.Context, key string, ttl time.Duration, load func(
 		return load()
 	}
 	fullKey := BuildCacheKey(ctx, key)
+	// 第一层直接读缓存，命中时不进入 singleflight，减少锁竞争。
 	data, err := rc.Get(ctx, fullKey).Bytes()
 	if err == nil {
 		var dest T
@@ -380,6 +389,8 @@ func Cache[T any](ctx context.Context, key string, ttl time.Duration, load func(
 		}
 	}
 	result, err, _ := sf.Do(fullKey, func() (any, error) {
+		// singleflight 只合并同进程内相同 key 的并发回源；多实例之间仍可能同时回源。
+		// 如果以后遇到跨实例缓存击穿，可以在这里再叠加 Redis 分布式锁。
 		data, err := rc.Get(ctx, fullKey).Bytes()
 		if err == nil {
 			var dest T

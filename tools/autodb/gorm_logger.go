@@ -27,6 +27,8 @@ func newGormLogger(log *zap.Logger, channel string, debug bool, slowThresholdMS 
 
 	level := gormlogger.Warn
 	if debug {
+		// Info 级别会输出所有 SQL，适合本地定位 ORM 生成的语句；线上通常只开 Warn，
+		// 只记录慢查询和错误，避免日志量暴涨。
 		level = gormlogger.Info
 	}
 	slowThreshold := defaultGormSlowThreshold
@@ -43,6 +45,7 @@ func newGormLogger(log *zap.Logger, channel string, debug bool, slowThresholdMS 
 }
 
 func (l *zapGormLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface {
+	// GORM 可能在会话级临时调整日志级别。返回副本可以避免影响共享 logger 的默认级别。
 	next := *l
 	next.level = level
 	return &next
@@ -77,18 +80,21 @@ func (l *zapGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (s
 	elapsed := time.Since(begin)
 	switch {
 	case err != nil && l.level >= gormlogger.Error && !errors.Is(err, gorm.ErrRecordNotFound):
+		// ErrRecordNotFound 在业务查询里很常见，作为错误日志会制造大量噪音。
 		sql, rows := fc()
 		l.log.Error("gorm query error", l.fields(ctx, sql, rows, elapsed, zap.Error(err))...)
 	case elapsed > l.slowThreshold && l.level >= gormlogger.Warn:
 		sql, rows := fc()
 		l.log.Warn("gorm slow query", l.fields(ctx, sql, rows, elapsed)...)
 	case l.level >= gormlogger.Info:
+		// fc 会格式化 SQL 和 rows，只有确定要写日志时才调用，减少热路径开销。
 		sql, rows := fc()
 		l.log.Info("gorm query", l.fields(ctx, sql, rows, elapsed)...)
 	}
 }
 
 func (l *zapGormLogger) fields(ctx context.Context, sql string, rows int64, elapsed time.Duration, extra ...zap.Field) []zap.Field {
+	// 这些字段来自 autodb.DB(ctx).WithContext(ctx)，能把一条 SQL 串回 HTTP 请求和用户。
 	fields := []zap.Field{
 		zap.String("request_id", GetRequestID(ctx)),
 		zap.String("db_channel", l.channel),

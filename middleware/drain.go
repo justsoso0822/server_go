@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// DrainGuard 在排水阶段拒绝新请求，并维护在途请求计数。
+// 在排水阶段拒绝新请求，并维护在途请求计数。
 func DrainGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if state.IsRejecting() {

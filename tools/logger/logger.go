@@ -15,6 +15,8 @@ import (
 
 func New(cfg config.LoggerConfig) (*zap.Logger, error) {
 	level := zapcore.InfoLevel
+	// zapcore.Level 支持 debug/info/warn/error 等文本解析；这里启动时失败比静默降级更安全，
+	// 否则线上可能以错误级别运行很久才被发现。
 	if err := level.UnmarshalText([]byte(cfg.Level)); err != nil {
 		return nil, fmt.Errorf("parse logger level %q: %w", cfg.Level, err)
 	}
@@ -22,18 +24,26 @@ func New(cfg config.LoggerConfig) (*zap.Logger, error) {
 	var zapCfg zap.Config
 	switch loggerFormat(cfg) {
 	case "json":
+		// ProductionConfig 默认使用 JSON encoder。容器/日志平台通常按行采集 JSON，
+		// 扩展知识：如果后续接 ELK/Loki/云日志，字段化日志比 fmt 字符串更容易检索和聚合。
 		zapCfg = zap.NewProductionConfig()
 	default:
+		// DevelopmentConfig 偏向本地可读性；这里把时间格式调成 Gin 风格，
+		// 方便和 Gin/HTTP 访问日志一起观察。
 		zapCfg = zap.NewDevelopmentConfig()
 		zapCfg.EncoderConfig.EncodeTime = ginStyleTimeEncoder
 		if cfg.StdoutColorDisabled {
+			// 禁用颜色时用纯文本级别，避免 Windows 控制台、文件日志或 CI 中出现 ANSI 转义字符。
 			zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 		}
 	}
 
+	// AtomicLevel 允许 zap 在运行期调整日志级别；当前项目未暴露动态接口，
+	// 但保留这个结构，后续接管理端点时无需重建 logger。
 	zapCfg.Level = zap.NewAtomicLevelAt(level)
 	zapCfg.OutputPaths = append([]string(nil), cfg.OutputPaths...)
 	if cfg.Stdout {
+		// zap 约定 "stdout"/"stderr" 是特殊 sink；普通字符串会当作文件路径打开。
 		zapCfg.OutputPaths = append(zapCfg.OutputPaths, "stdout")
 	}
 	if err := ensureLogDirs(zapCfg.OutputPaths); err != nil {
