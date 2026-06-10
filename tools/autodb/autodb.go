@@ -321,7 +321,10 @@ func GetLogOpenID(ctx context.Context) string {
 	return ""
 }
 
-func DB(ctx context.Context) *gorm.DB {
+func DB(ctx context.Context) (*gorm.DB, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	channel := GetChannel(ctx)
 	if channel == "" {
 		channel = DefaultChannelName
@@ -330,11 +333,11 @@ func DB(ctx context.Context) *gorm.DB {
 	db := dbs[channel]
 	mu.RUnlock()
 	if db == nil {
-		return nil
+		return nil, fmt.Errorf("database channel %q is not initialized", channel)
 	}
 	// WithContext 不会新建连接，它只是把 context 绑定到后续 SQL：
 	// 一方面支持超时/取消，另一方面 GORM logger.Trace 能从 context 取 request_id。
-	return db.WithContext(ctx)
+	return db.WithContext(ctx), nil
 }
 
 func Redis(ctx context.Context) *redis.Client {
