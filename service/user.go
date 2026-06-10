@@ -25,9 +25,6 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 	if err != nil {
 		return nil, err
 	}
-	if token == "" {
-		return nil, fmt.Errorf("系统繁忙，请稍后再试")
-	}
 	defer func() { _ = state.Unlock(ctx, lockKey, token) }()
 
 	out := map[string]any{"uid": uid}
