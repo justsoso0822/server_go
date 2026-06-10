@@ -36,9 +36,6 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 	if err != nil {
 		return nil, err
 	}
-	if token == "" {
-		return nil, fmt.Errorf("系统繁忙，请稍后再试")
-	}
 	defer func() { _ = state.Unlock(ctx, lockKey, token) }()
 
 	res, err := dao.GetUserRes(ctx, uid)
