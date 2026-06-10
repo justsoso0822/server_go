@@ -7,13 +7,25 @@ import (
 )
 
 func InsertLogLogin(ctx context.Context, l *model.LogLogin) error {
-	return db(ctx).Create(l).Error
+	db, err := db(ctx)
+	if err != nil {
+		return err
+	}
+	return db.Create(l).Error
 }
 
 func InsertLogTrace(ctx context.Context, l *model.LogTrace) error {
-	return db(ctx).Create(l).Error
+	db, err := db(ctx)
+	if err != nil {
+		return err
+	}
+	return db.Create(l).Error
 }
 
 func InsertLogMsg(ctx context.Context, l *model.LogMsg) error {
-	return db(ctx).Create(l).Error
+	db, err := db(ctx)
+	if err != nil {
+		return err
+	}
+	return db.Create(l).Error
 }
