@@ -9,6 +9,6 @@ import (
 	"gorm.io/gorm"
 )
 
-func db(ctx context.Context) *gorm.DB {
+func db(ctx context.Context) (*gorm.DB, error) {
 	return autodb.DB(ctx)
 }
