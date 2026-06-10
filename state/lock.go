@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -21,8 +22,10 @@ const (
 	lockTTLMs = 30000
 )
 
+var ErrLockNotAcquired = errors.New("系统繁忙，请稍后再试")
+
 // 使用 Redis 做短临界区互斥，成功时返回释放锁必须携带的 token。
-// 返回空 token 且 error 为 nil 表示竞争太激烈，本次没有拿到锁。
+// 没有拿到锁时显式返回 ErrLockNotAcquired 和空 token，避免出现 token == "" 且 err == nil 的模糊状态。
 func Lock(ctx context.Context, key string) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("[Lock] key is required")
@@ -51,7 +54,7 @@ func Lock(ctx context.Context, key string) (string, error) {
 		retryCount++
 		time.Sleep(time.Duration(sleepMs) * time.Millisecond)
 	}
-	return "", nil
+	return "", ErrLockNotAcquired
 }
 
 // 释放锁时校验 token，确保只释放自己持有的那把锁。
