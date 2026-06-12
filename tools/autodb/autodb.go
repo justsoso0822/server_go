@@ -164,11 +164,27 @@ func openDB(name string, cfg config.DatabaseConfig, log *zap.Logger) (*gorm.DB, 
 }
 
 func openRedis(name string, cfg config.RedisConfig) (*redis.Client, error) {
+	poolSize := cfg.PoolSize
+	if poolSize <= 0 {
+		poolSize = 100
+	}
+	minIdleConns := cfg.MinIdleConns
+	if minIdleConns <= 0 {
+		minIdleConns = 10
+	}
+
 	// go-redis Client 内部是并发安全的连接池，一个 channel 复用一个 Client 即可。
+	// 超时和连接池参数显式配置，避免 Redis 抖动时请求无限排队或被慢连接拖住。
 	rc := redis.NewClient(&redis.Options{
-		Addr:     cfg.Address,
-		Password: cfg.Pass,
-		DB:       cfg.DB,
+		Addr:         cfg.Address,
+		Password:     cfg.Pass,
+		DB:           cfg.DB,
+		DialTimeout:  durationFromMillis(cfg.DialTimeoutMs, 3000),
+		ReadTimeout:  durationFromMillis(cfg.ReadTimeoutMs, 500),
+		WriteTimeout: durationFromMillis(cfg.WriteTimeoutMs, 500),
+		PoolSize:     poolSize,
+		MinIdleConns: minIdleConns,
+		PoolTimeout:  durationFromMillis(cfg.PoolTimeoutMs, 1000),
 	})
 	pingCtx, cancel := context.WithTimeout(context.Background(), connectTimeout)
 	defer cancel()
@@ -177,6 +193,13 @@ func openRedis(name string, cfg config.RedisConfig) (*redis.Client, error) {
 		return nil, fmt.Errorf("ping redis %s: %w", name, err)
 	}
 	return rc, nil
+}
+
+func durationFromMillis(value, fallback int) time.Duration {
+	if value <= 0 {
+		value = fallback
+	}
+	return time.Duration(value) * time.Millisecond
 }
 
 func Close() error {

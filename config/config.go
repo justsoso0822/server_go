@@ -37,9 +37,15 @@ type DatabaseConfig struct {
 }
 
 type RedisConfig struct {
-	Address string `mapstructure:"address"`
-	Pass    string `mapstructure:"pass"`
-	DB      int    `mapstructure:"db"`
+	Address        string `mapstructure:"address"`
+	Pass           string `mapstructure:"pass"`
+	DB             int    `mapstructure:"db"`
+	DialTimeoutMs  int    `mapstructure:"dialTimeoutMs"`
+	ReadTimeoutMs  int    `mapstructure:"readTimeoutMs"`
+	WriteTimeoutMs int    `mapstructure:"writeTimeoutMs"`
+	PoolSize       int    `mapstructure:"poolSize"`
+	MinIdleConns   int    `mapstructure:"minIdleConns"`
+	PoolTimeoutMs  int    `mapstructure:"poolTimeoutMs"`
 }
 
 type LoggerConfig struct {

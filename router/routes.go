@@ -46,24 +46,36 @@ func registerTest(group *gin.RouterGroup) {
 	Handle(test, "/db", handler.TestDB)
 }
 
-// 正式业务接口统一挂在 /api 下，并按固定顺序经过中间件链。
-// Gin 会按 Use 的注册顺序执行：先处理排水，再验签，再防重放，最后校验登录态。
-// 这个顺序能尽早拒绝无效请求，减少 DB/Redis 热路径之外的业务开销。
+// 正式业务接口统一挂在 /api 下。
+// 公共链路只保留排水和验签；防重放只给登录/写接口使用，避免读接口每次请求都写 Redis。
 func registerAPI(group *gin.RouterGroup, app *bootstrap.App) {
 	api := group.Group("/api")
 	api.Use(
 		middleware.DrainGuard(),
 		middleware.Sign(app.Config),
-		middleware.ReplayGuard(),
-		middleware.Verify(),
 	)
-	Handle(api, "/user/login", handler.UserLogin)
-	Handle(api, "/game/time", handler.GameTime)
-	Handle(api, "/game/online", handler.GameOnline)
-	Handle(api, "/bag/get_bag/:chapter", handler.GetBag)
-	Handle(api, "/bag/get_bag_tp/:chapter", handler.GetBagTp)
-	Handle(api, "/grid/get/:chapter", handler.GetGrid)
-	Handle(api, "/res/add_tili", handler.AddTili)
-	Handle(api, "/res/add_gold", handler.AddGold)
-	Handle(api, "/res/add_diamond", handler.AddDiamond)
+
+	// 登录接口还没有登录态，只做签名和防重放。
+	login := api.Group("")
+	login.Use(middleware.ReplayGuard())
+	Handle(login, "/user/login", handler.UserLogin)
+
+	// 读接口只需要签名和登录态校验，不使用 ReplayGuard，减少 Redis SET NX 写压力。
+	read := api.Group("")
+	read.Use(middleware.Verify())
+	Handle(read, "/game/time", handler.GameTime)
+	Handle(read, "/game/online", handler.GameOnline)
+	Handle(read, "/bag/get_bag/:chapter", handler.GetBag)
+	Handle(read, "/bag/get_bag_tp/:chapter", handler.GetBagTp)
+	Handle(read, "/grid/get/:chapter", handler.GetGrid)
+
+	// 写接口先校验登录态，再做防重放；无效 login_key 不会消耗 replay key。
+	write := api.Group("")
+	write.Use(
+		middleware.Verify(),
+		middleware.ReplayGuard(),
+	)
+	Handle(write, "/res/add_tili", handler.AddTili)
+	Handle(write, "/res/add_gold", handler.AddGold)
+	Handle(write, "/res/add_diamond", handler.AddDiamond)
 }

@@ -21,6 +21,12 @@ redis:
     address: "172.17.25.15:6379"
     pass: "change_me"
     db: 20
+    dialTimeoutMs: 3000
+    readTimeoutMs: 500
+    writeTimeoutMs: 500
+    poolSize: 100
+    minIdleConns: 10
+    poolTimeoutMs: 1000
 
 logger:
   level: "info"

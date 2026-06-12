@@ -18,6 +18,12 @@ redis:
     address: "redis:6379"
     pass: "root"
     db: 0
+    dialTimeoutMs: 3000
+    readTimeoutMs: 500
+    writeTimeoutMs: 500
+    poolSize: 20
+    minIdleConns: 2
+    poolTimeoutMs: 1000
 
 logger:
   level: "info"
