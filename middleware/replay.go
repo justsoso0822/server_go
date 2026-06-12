@@ -49,8 +49,9 @@ func ReplayGuard() gin.HandlerFunc {
 		if path == "" {
 			path = c.Request.URL.Path
 		}
-		// FullPath 是 Gin 匹配后的模板路径，如 /api/bag/get_bag/:chapter。
-		key := state.BuildKey(c.Request.Context(), "replay", c.Request.Method, path, sign)
+		// GET/POST 只是同一业务动作的不同调用方式时，replay key 不带 method，
+		// 避免同一份签名请求分别用 GET 和 POST 各成功一次。
+		key := state.BuildKey(c.Request.Context(), "replay", path, sign)
 		ttl := time.Until(ts.Add(replayWindow))
 		if ttl <= 0 {
 			c.AbortWithStatusJSON(http.StatusOK, gin.H{"code": -1, "msg": "请求已过期"})
