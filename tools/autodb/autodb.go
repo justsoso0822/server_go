@@ -363,7 +363,10 @@ func DB(ctx context.Context) (*gorm.DB, error) {
 	return db.WithContext(ctx), nil
 }
 
-func Redis(ctx context.Context) *redis.Client {
+func Redis(ctx context.Context) (*redis.Client, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	channel := GetChannel(ctx)
 	if channel == "" {
 		channel = DefaultChannelName
@@ -371,7 +374,10 @@ func Redis(ctx context.Context) *redis.Client {
 	mu.RLock()
 	rc := redisClients[channel]
 	mu.RUnlock()
-	return rc
+	if rc == nil {
+		return nil, fmt.Errorf("redis channel %q is not initialized", channel)
+	}
+	return rc, nil
 }
 
 func CacheEnabled(ctx context.Context) bool {
@@ -401,8 +407,8 @@ func Cache[T any](ctx context.Context, key string, ttl time.Duration, load func(
 	if strings.TrimSpace(key) == "" || !CacheEnabled(ctx) {
 		return load()
 	}
-	rc := Redis(ctx)
-	if rc == nil {
+	rc, err := Redis(ctx)
+	if err != nil {
 		return load()
 	}
 	fullKey := BuildCacheKey(ctx, key)
@@ -452,8 +458,8 @@ func DelCache(ctx context.Context, keys ...string) {
 	if len(keys) == 0 || !CacheEnabled(ctx) {
 		return
 	}
-	rc := Redis(ctx)
-	if rc == nil {
+	rc, err := Redis(ctx)
+	if err != nil {
 		return
 	}
 	cacheKeys := make([]string, 0, len(keys))

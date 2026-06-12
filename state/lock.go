@@ -30,7 +30,10 @@ func Lock(ctx context.Context, key string) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("[Lock] key is required")
 	}
-	rc := autodb.Redis(ctx)
+	rc, err := autodb.Redis(ctx)
+	if err != nil {
+		return "", err
+	}
 	redisKey := BuildKey(ctx, "lock", key)
 	token := fmt.Sprintf("%d:%d:%d", os.Getpid(), time.Now().UnixNano(), rand.Int63())
 
@@ -62,7 +65,10 @@ func Unlock(ctx context.Context, key, token string) error {
 	if key == "" || token == "" {
 		return nil
 	}
-	rc := autodb.Redis(ctx)
+	rc, err := autodb.Redis(ctx)
+	if err != nil {
+		return err
+	}
 	redisKey := BuildKey(ctx, "lock", key)
 	script := `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`
 	return rc.Eval(ctx, script, []string{redisKey}, token).Err()

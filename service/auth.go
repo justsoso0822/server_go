@@ -65,7 +65,10 @@ func VerifyLoginKey(ctx context.Context, in AuthInput) AuthResult {
 		return AuthResult{Code: -1, Msg: "Verify: 参数错误"}
 	}
 
-	rc := autodb.Redis(ctx)
+	rc, err := autodb.Redis(ctx)
+	if err != nil {
+		return AuthResult{Code: -1, Msg: "Verify: 缓存连接失败"}
+	}
 	cacheKey := state.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(in.UID, 10))
 	ttlSeconds := int(loginKeyTTL.Seconds())
 	renewThresholdSeconds := int(loginKeyRenewThreshold.Seconds())

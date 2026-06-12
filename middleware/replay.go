@@ -56,9 +56,15 @@ func ReplayGuard() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusOK, gin.H{"code": -1, "msg": "请求已过期"})
 			return
 		}
+
+		rc, err := autodb.Redis(c.Request.Context())
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusOK, gin.H{"code": -1, "msg": "防重放校验失败"})
+			return
+		}
 		// Redis SET NX EX/PX 是原子操作：只有第一次请求能写入成功，重复请求会返回 false。
 		// 扩展知识：如果要防跨区域重放，需要保证所有实例使用同一个 Redis 或同等一致性的存储。
-		ok, err := autodb.Redis(c.Request.Context()).SetNX(c.Request.Context(), key, "1", ttl).Result()
+		ok, err := rc.SetNX(c.Request.Context(), key, "1", ttl).Result()
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusOK, gin.H{"code": -1, "msg": "防重放校验失败"})
 			return
