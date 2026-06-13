@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"sort"
 	"strings"
 	"sync"
@@ -200,6 +201,21 @@ func durationFromMillis(value, fallback int) time.Duration {
 		value = fallback
 	}
 	return time.Duration(value) * time.Millisecond
+}
+
+func cacheTTLWithJitter(key string, ttl time.Duration) time.Duration {
+	if ttl <= 0 {
+		return ttl
+	}
+	// 只给普通查询缓存追加 0~10% 的稳定抖动，避免同批缓存同一时刻过期造成 DB 回源尖峰。
+	// 使用 key hash 而不是纯随机，方便同一个 key 的过期时间保持稳定、问题排查更可预测。
+	jitter := ttl / 10
+	if jitter <= 0 {
+		return ttl
+	}
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(key))
+	return ttl + time.Duration(h.Sum64()%uint64(jitter))
 }
 
 func Close() error {
@@ -440,10 +456,12 @@ func Cache[T any](ctx context.Context, key string, ttl time.Duration, load func(
 			if err != nil {
 				return dest, nil
 			}
-			if err := rc.Set(ctx, fullKey, data, ttl).Err(); err != nil {
+			cacheTTL := cacheTTLWithJitter(fullKey, ttl)
+			if err := rc.Set(ctx, fullKey, data, cacheTTL).Err(); err != nil {
 				zap.L().Warn("cache set failed",
 					zap.String("cache_key", fullKey),
-					zap.Duration("ttl", ttl),
+					zap.Duration("ttl", cacheTTL),
+					zap.Duration("base_ttl", ttl),
 					zap.String("channel", GetChannel(ctx)),
 					zap.String("request_id", GetRequestID(ctx)),
 					zap.Error(err),
