@@ -440,7 +440,15 @@ func Cache[T any](ctx context.Context, key string, ttl time.Duration, load func(
 			if err != nil {
 				return dest, nil
 			}
-			_ = rc.Set(ctx, fullKey, data, ttl).Err()
+			if err := rc.Set(ctx, fullKey, data, ttl).Err(); err != nil {
+				zap.L().Warn("cache set failed",
+					zap.String("cache_key", fullKey),
+					zap.Duration("ttl", ttl),
+					zap.String("channel", GetChannel(ctx)),
+					zap.String("request_id", GetRequestID(ctx)),
+					zap.Error(err),
+				)
+			}
 		}
 		return dest, nil
 	})
