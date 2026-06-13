@@ -203,7 +203,7 @@ func durationFromMillis(value, fallback int) time.Duration {
 	return time.Duration(value) * time.Millisecond
 }
 
-func cacheTTLWithJitter(key string, ttl time.Duration) time.Duration {
+func JitterTTL(key string, ttl time.Duration) time.Duration {
 	if ttl <= 0 {
 		return ttl
 	}
@@ -456,7 +456,7 @@ func Cache[T any](ctx context.Context, key string, ttl time.Duration, load func(
 			if err != nil {
 				return dest, nil
 			}
-			cacheTTL := cacheTTLWithJitter(fullKey, ttl)
+			cacheTTL := JitterTTL(fullKey, ttl)
 			if err := rc.Set(ctx, fullKey, data, cacheTTL).Err(); err != nil {
 				zap.L().Warn("cache set failed",
 					zap.String("cache_key", fullKey),
