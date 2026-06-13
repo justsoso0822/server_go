@@ -37,7 +37,7 @@ func New(cfg config.LoggerConfig) (*zap.Logger, error) {
 	// AtomicLevel 允许 zap 在运行期调整日志级别；当前项目未暴露动态接口，
 	// 但保留这个结构，后续接管理端点时无需重建 logger。
 	zapCfg.Level = zap.NewAtomicLevelAt(level)
-	zapCfg.OutputPaths = append([]string(nil), cfg.OutputPaths...)
+	zapCfg.OutputPaths = append([]string{}, cfg.OutputPaths...)
 	if cfg.Stdout {
 		// zap 约定 "stdout"/"stderr" 是特殊 sink；普通字符串会当作文件路径打开。
 		zapCfg.OutputPaths = append(zapCfg.OutputPaths, "stdout")
