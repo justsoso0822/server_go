@@ -49,12 +49,11 @@ type RedisConfig struct {
 }
 
 type LoggerConfig struct {
-	Level               string   `mapstructure:"level"`
-	Format              string   `mapstructure:"format"`
-	Stdout              bool     `mapstructure:"stdout"`
-	StdoutColorDisabled bool     `mapstructure:"stdoutColorDisabled"`
-	OutputPaths         []string `mapstructure:"outputPaths"`
-	ClearOnStart        bool     `mapstructure:"clearOnStart"`
+	Level        string   `mapstructure:"level"`
+	Format       string   `mapstructure:"format"`
+	Stdout       bool     `mapstructure:"stdout"`
+	OutputPaths  []string `mapstructure:"outputPaths"`
+	ClearOnStart bool     `mapstructure:"clearOnStart"`
 }
 
 func Load() (*Config, error) {

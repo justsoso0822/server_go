@@ -32,10 +32,6 @@ func New(cfg config.LoggerConfig) (*zap.Logger, error) {
 		// 方便和 Gin/HTTP 访问日志一起观察。
 		zapCfg = zap.NewDevelopmentConfig()
 		zapCfg.EncoderConfig.EncodeTime = ginStyleTimeEncoder
-		if cfg.StdoutColorDisabled {
-			// 禁用颜色时用纯文本级别，避免 Windows 控制台、文件日志或 CI 中出现 ANSI 转义字符。
-			zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
-		}
 	}
 
 	// AtomicLevel 允许 zap 在运行期调整日志级别；当前项目未暴露动态接口，
@@ -64,13 +60,12 @@ func New(cfg config.LoggerConfig) (*zap.Logger, error) {
 
 func loggerFormat(cfg config.LoggerConfig) string {
 	format := strings.ToLower(strings.TrimSpace(cfg.Format))
-	if format != "" {
+	switch format {
+	case "json", "console":
 		return format
+	default:
+		return "console"
 	}
-	if cfg.StdoutColorDisabled {
-		return "json"
-	}
-	return "console"
 }
 
 func ginStyleTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
