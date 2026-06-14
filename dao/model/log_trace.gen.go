@@ -15,9 +15,9 @@ type LogTrace struct {
 	ID        int64     `gorm:"column:id;type:bigint;primaryKey;autoIncrement:true" json:"id"`
 	UID       int64     `gorm:"column:uid;type:bigint;index:uid,priority:1" json:"uid"`
 	Type      string    `gorm:"column:type;type:varchar(32);index:ty,priority:1" json:"type"`
-	Num       int32     `gorm:"column:num;type:int" json:"num"`
-	Before    int32     `gorm:"column:before;type:int" json:"before"`
-	After     int32     `gorm:"column:after;type:int" json:"after"`
+	Num       int64     `gorm:"column:num;type:bigint" json:"num"`
+	Before    int64     `gorm:"column:before;type:bigint" json:"before"`
+	After     int64     `gorm:"column:after;type:bigint" json:"after"`
 	Reason    string    `gorm:"column:reason;type:varchar(128)" json:"reason"`
 	RequestID string    `gorm:"column:request_id;type:varchar(64);not null;index:rid,priority:1" json:"request_id"`
 	Time      time.Time `gorm:"column:time;type:datetime;index:tm,priority:1;default:CURRENT_TIMESTAMP" json:"time"`

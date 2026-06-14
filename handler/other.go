@@ -24,8 +24,13 @@ func ResVersion(c *gin.Context) {
 
 func TestIndex(c *gin.Context) {
 	ctx := c.Request.Context()
-	var rows []map[string]interface{}
-	autodb.DB(ctx).Raw(`SELECT u.uid, u.openid, log.time FROM user u
+	db, err := autodb.DB(ctx)
+	if err != nil {
+		fail(c, err.Error())
+		return
+	}
+	var rows []map[string]any
+	db.Raw(`SELECT u.uid, u.openid, log.time FROM user u
 		LEFT JOIN log_login log ON u.uid = log.uid
 		WHERE u.uid = ?
 		ORDER BY log.time DESC`, 13081).Scan(&rows)
@@ -39,7 +44,12 @@ func TestDB(c *gin.Context) {
 		fail(c, errParam)
 		return
 	}
-	var row map[string]interface{}
-	autodb.DB(ctx).Raw("SELECT * FROM user WHERE uid = ?", uid).Scan(&row)
+	db, err := autodb.DB(ctx)
+	if err != nil {
+		fail(c, err.Error())
+		return
+	}
+	var row map[string]any
+	db.Raw("SELECT * FROM user WHERE uid = ?", uid).Scan(&row)
 	ok(c, row)
 }

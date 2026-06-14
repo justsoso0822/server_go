@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"math"
 
 	"server_go/dao"
 	"server_go/dao/model"
@@ -49,15 +48,15 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 	var oldCnt int64
 	switch field {
 	case dao.UserResFieldDiamond:
-		oldCnt = int64(res.Diamond)
+		oldCnt = res.Diamond
 	case dao.UserResFieldGold:
-		oldCnt = int64(res.Gold)
+		oldCnt = res.Gold
 	case dao.UserResFieldTili:
-		oldCnt = int64(res.Tili)
+		oldCnt = res.Tili
 	case dao.UserResFieldExp:
-		oldCnt = int64(res.Exp)
+		oldCnt = res.Exp
 	case dao.UserResFieldStar:
-		oldCnt = int64(res.Star)
+		oldCnt = res.Star
 	}
 
 	newCnt := oldCnt + cnt
@@ -66,9 +65,6 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 	}
 	if newCnt < 0 {
 		newCnt = 0
-	}
-	if newCnt > math.MaxInt32 {
-		return nil, fmt.Errorf("%s数量超出上限", resName)
 	}
 	if newCnt == oldCnt {
 		return map[string]any{"res": res, "add_value": int64(0)}, nil
@@ -79,13 +75,13 @@ func updateResField(ctx context.Context, uid int64, cnt int64, reason string, fi
 		return nil, err
 	}
 
-	updateResStruct(res, field, int32(newCnt))
+	updateResStruct(res, field, newCnt)
 	TraceRes(ctx, uid, oldCnt, newCnt, resName, reason)
 
 	return map[string]any{"res": res, "add_value": newCnt - oldCnt}, nil
 }
 
-func updateResStruct(res *model.UserRes, field dao.UserResField, v int32) {
+func updateResStruct(res *model.UserRes, field dao.UserResField, v int64) {
 	switch field {
 	case dao.UserResFieldDiamond:
 		res.Diamond = v

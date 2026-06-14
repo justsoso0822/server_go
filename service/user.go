@@ -98,7 +98,10 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 		return nil, err
 	}
 
-	rc := autodb.Redis(ctx)
+	rc, err := autodb.Redis(ctx)
+	if err != nil {
+		return nil, err
+	}
 	cacheKey := state.BuildKey(ctx, "login_key", "uid", strconv.FormatInt(uid, 10))
 	if err = rc.SetEx(ctx, cacheKey, loginKey, 7200*time.Second).Err(); err != nil {
 		return nil, fmt.Errorf("cache login_key: %w", err)

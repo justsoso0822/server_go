@@ -58,9 +58,9 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 		if err := dao.InsertLogTrace(tCtx, &model.LogTrace{
 			UID:       uid,
 			Type:      label,
-			Num:       int32(absNum),
-			Before:    int32(old),
-			After:     int32(now),
+			Num:       absNum,
+			Before:    old,
+			After:     now,
 			Reason:    reason,
 			RequestID: autodb.GetRequestID(bgCtx),
 		}); err != nil {

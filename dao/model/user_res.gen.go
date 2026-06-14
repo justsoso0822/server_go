@@ -9,12 +9,12 @@ const TableNameUserRes = "user_res"
 // UserRes mapped from table <user_res>
 type UserRes struct {
 	UID      int64  `gorm:"column:uid;type:bigint;primaryKey" json:"uid"`
-	Gold     int32  `gorm:"column:gold;type:int" json:"gold"`
-	Diamond  int32  `gorm:"column:diamond;type:int" json:"diamond"`
-	Star     int32  `gorm:"column:star;type:int" json:"star"`
-	Tili     int32  `gorm:"column:tili;type:int" json:"tili"`
+	Gold     int64  `gorm:"column:gold;type:bigint" json:"gold"`
+	Diamond  int64  `gorm:"column:diamond;type:bigint" json:"diamond"`
+	Star     int64  `gorm:"column:star;type:bigint" json:"star"`
+	Tili     int64  `gorm:"column:tili;type:bigint" json:"tili"`
 	TiliTime int32  `gorm:"column:tili_time;type:int" json:"tili_time"`
-	Exp      int32  `gorm:"column:exp;type:int" json:"exp"`
+	Exp      int64  `gorm:"column:exp;type:bigint" json:"exp"`
 	Level    int32  `gorm:"column:level;type:int" json:"level"`
 	DayConf  string `gorm:"column:day_conf;type:text;comment:每日重置的数据" json:"day_conf"` // 每日重置的数据
 	DayTime  int32  `gorm:"column:day_time;type:int;comment:上次重置时间" json:"day_time"`   // 上次重置时间

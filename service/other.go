@@ -15,7 +15,10 @@ func GetResVersion(ctx context.Context, key string) (map[string]any, error) {
 		return map[string]any{"code": -1, "msg": "参数错误"}, nil
 	}
 
-	rc := autodb.Redis(ctx)
+	rc, err := autodb.Redis(ctx)
+	if err != nil {
+		return nil, err
+	}
 	rkey := state.BuildKey(ctx, "res_version", key)
 
 	ok, err := rc.SetNX(ctx, rkey, "1", time.Hour).Result()
