@@ -29,4 +29,3 @@ logger:
   level: "info"
   format: "console"
   stdout: true
-  stdoutColorDisabled: false
