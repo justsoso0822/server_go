@@ -74,10 +74,6 @@ func Load() (*Config, error) {
 	v.AddConfigPath("manifest/config")
 	v.AddConfigPath(".")
 
-	// AutomaticEnv 只让 Viper 感知环境变量；它不会自动把 APP_PORT 映射到 server.address
-	// 这类嵌套字段，所以本文件下面对少量运行时变量做了显式覆盖。
-	v.AutomaticEnv()
-
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
