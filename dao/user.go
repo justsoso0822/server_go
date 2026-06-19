@@ -112,7 +112,7 @@ func UpdateUserResDayConf(ctx context.Context, uid int64, dayConf string, dayTim
 	}
 	return db.Model(&model.UserRes{}).
 		Where("uid = ?", uid).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"day_conf": dayConf,
 			"day_time": dayTime,
 		}).Error

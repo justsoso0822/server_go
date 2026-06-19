@@ -16,10 +16,10 @@ const replayWindow = 5 * time.Minute
 
 func ReplayGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var params map[string]interface{}
+		var params map[string]any
 		var sign string
 		if v, ok := c.Get("_params"); ok {
-			params = v.(map[string]interface{})
+			params = v.(map[string]any)
 		} else {
 			params = collectRequestParams(c)
 		}
@@ -91,7 +91,7 @@ func parseTick(tick string) (time.Time, error) {
 	return time.Unix(n, 0), nil
 }
 
-func paramString(params map[string]interface{}, key string) string {
+func paramString(params map[string]any, key string) string {
 	if v, ok := params[key].(string); ok {
 		return v
 	}
