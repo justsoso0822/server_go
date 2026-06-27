@@ -65,12 +65,8 @@ func Load() (*Config, error) {
 	}
 	cfgFile = strings.TrimSuffix(cfgFile, ".yaml")
 
-	// Viper 的 SetConfigName 只接收不带扩展名的名字，SetConfigType 再指定 yaml。
-	// 这样 APP_CONFIG_FILE 既可以写 config，也可以写 config.yaml。
 	v.SetConfigName(cfgFile)
 	v.SetConfigType("yaml")
-	// 查找顺序保留 manifest/config 优先，便于 docker 镜像和本地运行使用同一套默认路径；
-	// 追加 "." 是为了支持临时把配置放在工作目录进行调试。
 	v.AddConfigPath("manifest/config")
 	v.AddConfigPath(".")
 
