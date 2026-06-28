@@ -1,3 +1,4 @@
+// 提供基于项目配置创建日志记录器的辅助方法。
 package logger
 
 import (
