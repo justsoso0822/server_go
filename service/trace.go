@@ -119,17 +119,29 @@ func logAsyncPanic(ctx context.Context, msg string, recovered any, fields ...zap
 }
 
 // 把请求链路字段补到异步日志里，让 zap 日志、GORM SQL 日志和业务表日志能互相关联。
+//
+// 调用方已经显式传入同名字段时不再追加：显式值优先于 ctx 里的隐式值。
+// zap 不会对重复 key 去重，同一字段传两次会在 JSON 里出现两个 "uid"，
+// Elasticsearch/Loki 这类后端解析同名 key 时行为也不一致，所以这里自己挡掉。
 func appendLogContextFields(ctx context.Context, fields ...zap.Field) []zap.Field {
-	if requestID := autodb.GetRequestID(ctx); requestID != "" {
+	has := func(key string) bool {
+		for _, f := range fields {
+			if f.Key == key {
+				return true
+			}
+		}
+		return false
+	}
+	if requestID := autodb.GetRequestID(ctx); requestID != "" && !has("request_id") {
 		fields = append(fields, zap.String("request_id", requestID))
 	}
-	if channel := autodb.GetChannel(ctx); channel != "" {
+	if channel := autodb.GetChannel(ctx); channel != "" && !has("channel") {
 		fields = append(fields, zap.String("channel", channel))
 	}
-	if uid := autodb.GetLogUID(ctx); uid != 0 {
+	if uid := autodb.GetLogUID(ctx); uid != 0 && !has("uid") {
 		fields = append(fields, zap.Int64("uid", uid))
 	}
-	if openid := autodb.GetLogOpenID(ctx); openid != "" {
+	if openid := autodb.GetLogOpenID(ctx); openid != "" && !has("openid") {
 		fields = append(fields, zap.String("openid", openid))
 	}
 	return fields
