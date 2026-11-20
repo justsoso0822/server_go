@@ -124,7 +124,7 @@ type cleanupImageLine struct {
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			if ue, ok := r.(usageError); ok {
+			if ue, ok := r.(*usageError); ok {
 				fmt.Println(ue.message)
 				printUsage()
 			} else {
@@ -144,7 +144,7 @@ func run() {
 	os.Setenv("COMPOSE_IGNORE_ORPHANS", "true")
 
 	if len(os.Args) < 2 {
-		panic(usageError{message: "Error: command required"})
+		panic(&usageError{message: "Error: command required"})
 	}
 
 	initProjectRoot()
@@ -166,7 +166,7 @@ func run() {
 		ensureNoExtraArgs(cmd)
 		stopLocalDB()
 	default:
-		panic(usageError{message: fmt.Sprintf("Unknown command: %s", cmd)})
+		panic(&usageError{message: fmt.Sprintf("Unknown command: %s", cmd)})
 	}
 }
 
@@ -245,7 +245,7 @@ func parseArgs() (string, map[string]string) {
 // 避免用户错误输入被静默忽略导致误操作。
 func ensureNoExtraArgs(cmd string) {
 	if len(os.Args) > 2 {
-		panic(usageError{message: fmt.Sprintf("'%s' does not accept any arguments, got: %s", cmd, strings.Join(os.Args[2:], " "))})
+		panic(&usageError{message: fmt.Sprintf("'%s' does not accept any arguments, got: %s", cmd, strings.Join(os.Args[2:], " "))})
 	}
 }
 
@@ -347,7 +347,7 @@ func deploy() {
 func status() {
 	env, _ := parseArgs()
 	if len(os.Args) > 3 {
-		panic(usageError{message: fmt.Sprintf("'status' accepts at most one environment argument, got: %s", strings.Join(os.Args[2:], " "))})
+		panic(&usageError{message: fmt.Sprintf("'status' accepts at most one environment argument, got: %s", strings.Join(os.Args[2:], " "))})
 	}
 	envFile := ""
 	if env != "" {
@@ -1008,7 +1008,7 @@ func isProcessAlive(pidStr string) bool {
 // 非 local 环境必须显式指定 version。
 func loadDeployConfig(env string, options map[string]string) deployConfig {
 	if env == "" {
-		panic(usageError{message: "Error: environment required"})
+		panic(&usageError{message: "Error: environment required"})
 	}
 
 	envFile := projectPath(fmt.Sprintf(".env.%s", env))
@@ -1490,6 +1490,6 @@ type usageError struct {
 	message string
 }
 
-func (e usageError) Error() string {
+func (e *usageError) Error() string {
 	return e.message
 }
