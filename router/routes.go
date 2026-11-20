@@ -12,7 +12,7 @@ import (
 // 这些接口通常给容器 healthcheck、Traefik 负载均衡和人工排查使用。
 func registerHealth(r *gin.Engine) {
 	h := r.Group("/health")
-	Handle(h, "/", handler.Health)
+	Handle(h, "", handler.Health)
 	Handle(h, "/ready", handler.HealthReady)
 	Handle(h, "/detail", handler.HealthDetail)
 	Handle(h, "/lb", handler.HealthLb)
