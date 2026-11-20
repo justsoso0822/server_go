@@ -54,6 +54,21 @@ func InsertUserRes(ctx context.Context, r *model.UserRes) error {
 	return db.Create(r).Error
 }
 
+// CreateUserWithRes 在一个事务里创建账号与初始资源。
+// 事务边界留在 DAO：service 只表达「新号要建哪两行」，不接触 gorm 的 Transaction API。
+func CreateUserWithRes(ctx context.Context, u *model.User, r *model.UserRes) error {
+	db, err := db(ctx)
+	if err != nil {
+		return err
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(u).Error; err != nil {
+			return err
+		}
+		return tx.Create(r).Error
+	})
+}
+
 type UserResField string
 
 const (

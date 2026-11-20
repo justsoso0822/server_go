@@ -12,7 +12,6 @@ import (
 	"app/tools/autodb"
 
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, version string) (map[string]any, error) {
@@ -43,21 +42,15 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 	} else {
 		out["newbie"] = 1
 		nowDay := int32(startOfDay(time.Now()).Unix())
-		appDB, err := autodb.DB(ctx)
-		if err != nil {
-			return nil, err
-		}
-		err = appDB.Transaction(func(tx *gorm.DB) error {
-			// GORM Transaction 会在回调返回 nil 时提交，返回 error/panic 时回滚。
-			if e := tx.Create(&model.User{UID: uid, Platform: platform, Openid: openid}).Error; e != nil {
-				return e
-			}
-			return tx.Create(&model.UserRes{
+		// 事务边界在 dao.CreateUserWithRes 内部：
+		// 这里只声明「新号要建哪两行」，不出现 gorm.DB。
+		if err = dao.CreateUserWithRes(ctx,
+			&model.User{UID: uid, Platform: platform, Openid: openid},
+			&model.UserRes{
 				UID: uid, Gold: 200, Diamond: 100, Star: 0,
 				Tili: 100, TiliTime: 0, Exp: 0, Level: 1, DayTime: nowDay,
-			}).Error
-		})
-		if err != nil {
+			},
+		); err != nil {
 			return nil, err
 		}
 		created, err := dao.GetUser(ctx, uid)
