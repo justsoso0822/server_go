@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"server_go/state"
+	"app/state"
 
 	"github.com/gin-gonic/gin"
 )

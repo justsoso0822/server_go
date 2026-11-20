@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"server_go/config"
+	"app/config"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"server_go/dao"
-	"server_go/dao/model"
-	"server_go/tools/autodb"
+	"app/dao"
+	"app/dao/model"
+	"app/tools/autodb"
 
 	"go.uber.org/zap"
 )

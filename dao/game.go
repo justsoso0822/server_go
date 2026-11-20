@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"server_go/dao/model"
-	"server_go/tools/autodb"
+	"app/dao/model"
+	"app/tools/autodb"
 
 	"gorm.io/gorm"
 )

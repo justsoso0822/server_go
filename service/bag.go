@@ -5,8 +5,8 @@ import (
 	"math"
 	"time"
 
-	"server_go/dao"
-	"server_go/dao/model"
+	"app/dao"
+	"app/dao/model"
 )
 
 func GetUserBag(ctx context.Context, uid int64, chapter int) (map[string]any, error) {

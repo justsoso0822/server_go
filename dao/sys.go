@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"server_go/dao/model"
+	"app/dao/model"
 
 	"gorm.io/gorm"
 )

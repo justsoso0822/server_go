@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"server_go/dao"
-	"server_go/state"
-	"server_go/tools/autodb"
-	secretutil "server_go/tools/secret"
+	"app/dao"
+	"app/state"
+	"app/tools/autodb"
+	secretutil "app/tools/secret"
 )
 
 func GetResVersion(ctx context.Context, key string) (map[string]any, error) {

@@ -1,9 +1,9 @@
 package router
 
 import (
-	"server_go/bootstrap"
-	"server_go/handler"
-	"server_go/middleware"
+	"app/bootstrap"
+	"app/handler"
+	"app/middleware"
 
 	"github.com/gin-gonic/gin"
 )

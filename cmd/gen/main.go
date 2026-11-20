@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"server_go/config"
+	"app/config"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gen"

@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"server_go/tools/autodb"
+	"app/tools/autodb"
 )
 
 const (

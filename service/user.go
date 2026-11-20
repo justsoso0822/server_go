@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"server_go/dao"
-	"server_go/dao/model"
-	"server_go/state"
-	"server_go/tools/autodb"
+	"app/dao"
+	"app/dao/model"
+	"app/state"
+	"app/tools/autodb"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"

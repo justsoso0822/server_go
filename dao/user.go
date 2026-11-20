@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	"server_go/dao/model"
+	"app/dao/model"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

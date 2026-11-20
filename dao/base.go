@@ -4,7 +4,7 @@ package dao
 import (
 	"context"
 
-	"server_go/tools/autodb"
+	"app/tools/autodb"
 
 	"gorm.io/gorm"
 )

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"server_go/tools/autodb"
+	"app/tools/autodb"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

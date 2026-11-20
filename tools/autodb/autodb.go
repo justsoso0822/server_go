@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"server_go/config"
+	"app/config"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"

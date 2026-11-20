@@ -4,9 +4,9 @@ package bootstrap
 import (
 	"fmt"
 
-	"server_go/config"
-	"server_go/tools/autodb"
-	"server_go/tools/logger"
+	"app/config"
+	"app/tools/autodb"
+	"app/tools/logger"
 
 	"go.uber.org/zap"
 )

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"server_go/dao"
-	"server_go/dao/model"
-	"server_go/state"
+	"app/dao"
+	"app/dao/model"
+	"app/state"
 )
 
 func UpdateDiamond(ctx context.Context, uid int64, cnt int64, reason string) (map[string]any, error) {

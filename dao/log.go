@@ -3,7 +3,7 @@ package dao
 import (
 	"context"
 
-	"server_go/dao/model"
+	"app/dao/model"
 )
 
 func InsertLogLogin(ctx context.Context, l *model.LogLogin) error {

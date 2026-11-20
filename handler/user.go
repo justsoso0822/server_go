@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"server_go/service"
-	"server_go/tools/autodb"
+	"app/service"
+	"app/tools/autodb"
 
 	"github.com/gin-gonic/gin"
 )

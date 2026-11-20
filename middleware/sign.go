@@ -3,8 +3,8 @@ package middleware
 import (
 	"net/http"
 
-	"server_go/config"
-	signutil "server_go/tools/sign"
+	"app/config"
+	signutil "app/tools/sign"
 
 	"github.com/gin-gonic/gin"
 )
