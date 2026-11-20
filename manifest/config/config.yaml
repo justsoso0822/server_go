@@ -6,6 +6,8 @@ server:
 app:
   keys:
     - "SzNg8LgHjEUgTAc4"
+  # 跨域白名单。留空时本地运行（APP_ENV 未设置或为 local）回显任意 Origin。
+  allowedOrigins: []
 
 database:
   default:

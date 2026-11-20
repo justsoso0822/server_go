@@ -6,6 +6,11 @@ server:
 app:
   keys:
     - "SzNg8LgHjEUgTAc4"
+  # 跨域白名单。生产环境留空即不允许浏览器跨域调用，H5 与 API 需要同域（同一域名下的静态目录/反代）。
+  # 若必须跨域，按下面格式填写页面所在域名（不带结尾斜杠），也可用环境变量 APP_CORS_ORIGINS 覆盖。
+  # allowedOrigins:
+  #   - "https://h5.example.com"
+  allowedOrigins: []
 
 database:
   default:

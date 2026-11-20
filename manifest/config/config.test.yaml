@@ -6,6 +6,10 @@ server:
 app:
   keys:
     - "SzNg8LgHjEUgTAc4"
+  # 跨域白名单。留空时测试环境回显任意 Origin，便于内网联调；如需收紧按下面格式填写。
+  # allowedOrigins:
+  #   - "http://192.168.0.10:18090"
+  allowedOrigins: []
 
 database:
   default:

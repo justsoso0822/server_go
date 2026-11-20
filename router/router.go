@@ -18,6 +18,9 @@ func Setup(app *bootstrap.App) *gin.Engine {
 	// 本项目自行接入 zap：日志格式统一，panic 栈也能带 request_id/channel 等字段。
 	r := gin.New()
 	r.Use(middleware.RequestID())
+	// CORS 必须排在验签、渠道等业务中间件之前：
+	// 浏览器预检 OPTIONS 不带 sign/channel 参数，先进入业务链会被误判为非法调用。
+	r.Use(middleware.CORS(app.Config.App.AllowedOrigins))
 	r.Use(middleware.AccessLog(app.Logger))
 	r.Use(middleware.Recovery(app.Logger))
 

@@ -24,6 +24,9 @@ type ServerConfig struct {
 
 type AppConfig struct {
 	Keys []string `mapstructure:"keys"`
+	// AllowedOrigins 是浏览器跨域白名单，例如 "http://localhost:18090"。
+	// 含 "*" 表示回显任意 Origin；留空时 local/test 环境回显任意 Origin，生产环境不放行跨域。
+	AllowedOrigins []string `mapstructure:"allowedOrigins"`
 }
 
 type DatabaseConfig struct {
@@ -87,6 +90,11 @@ func Load() (*Config, error) {
 		cfg.Server.Address = ":" + strings.TrimPrefix(port, ":")
 	}
 
+	// 跨域白名单支持用环境变量覆盖，便于同一镜像在不同机器/域名下部署时调整，无需改配置文件。
+	if origins := strings.TrimSpace(os.Getenv("APP_CORS_ORIGINS")); origins != "" {
+		cfg.App.AllowedOrigins = splitOrigins(origins)
+	}
+
 	if cfg.Server.Address == "" {
 		cfg.Server.Address = ":7001"
 	}
@@ -95,4 +103,16 @@ func Load() (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// splitOrigins 把逗号分隔的来源列表拆成切片，忽略空项，便于写进 docker compose 环境变量。
+func splitOrigins(raw string) []string {
+	parts := strings.Split(raw, ",")
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			origins = append(origins, part)
+		}
+	}
+	return origins
 }

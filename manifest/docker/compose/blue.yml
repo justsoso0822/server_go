@@ -25,6 +25,8 @@ services:
             APP_PORT: ${APP_PORT:-7001}
             # 应用配置文件
             APP_CONFIG_FILE: ${APP_CONFIG_FILE:-config.local.yaml}
+            # 跨域白名单（逗号分隔），留空则按环境默认：local/test 回显任意 Origin，生产不放行
+            APP_CORS_ORIGINS: ${APP_CORS_ORIGINS:-}
         logging:
             driver: json-file
             options:
