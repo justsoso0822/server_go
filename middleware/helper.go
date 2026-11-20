@@ -15,8 +15,8 @@ func firstStr(vals ...string) string {
 	return ""
 }
 
-func collectRequestParams(c *gin.Context) map[string]interface{} {
-	params := map[string]interface{}{}
+func collectRequestParams(c *gin.Context) map[string]any {
+	params := map[string]any{}
 	for k, v := range c.Request.URL.Query() {
 		params[k] = strings.Join(v, ",")
 	}
@@ -29,7 +29,7 @@ func collectRequestParams(c *gin.Context) map[string]interface{} {
 	return params
 }
 
-func requestSign(c *gin.Context, params map[string]interface{}) string {
+func requestSign(c *gin.Context, params map[string]any) string {
 	if s, ok := params["sign"].(string); ok {
 		return s
 	}

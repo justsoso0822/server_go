@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func BuildParams(params map[string]interface{}) string {
+func BuildParams(params map[string]any) string {
 	keys := make([]string, 0, len(params))
 	for k := range params {
 		if k == "" || k == "sign" {
@@ -36,7 +36,7 @@ func SHA256Hex(payload, secret string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-func formatValue(v interface{}) string {
+func formatValue(v any) string {
 	if v == nil {
 		return ""
 	}

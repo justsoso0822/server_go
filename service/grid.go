@@ -12,7 +12,7 @@ func GetGrid(ctx context.Context, uid int64, chapter int) (map[string]any, error
 	var wg sync.WaitGroup
 	var firstErr error
 
-	collect := func(key string, fn func() (interface{}, error)) {
+	collect := func(key string, fn func() (any, error)) {
 		wg.Add(1)
 		go func() {
 			defer func() {
@@ -38,9 +38,9 @@ func GetGrid(ctx context.Context, uid int64, chapter int) (map[string]any, error
 		}()
 	}
 
-	collect("bag", func() (interface{}, error) { return GetUserBag(ctx, uid, chapter) })
-	collect("bag_tp", func() (interface{}, error) { return GetUserBagTp(ctx, uid, chapter) })
-	collect("tasks", func() (interface{}, error) { return InitTasks(ctx, uid) })
+	collect("bag", func() (any, error) { return GetUserBag(ctx, uid, chapter) })
+	collect("bag_tp", func() (any, error) { return GetUserBagTp(ctx, uid, chapter) })
+	collect("tasks", func() (any, error) { return InitTasks(ctx, uid) })
 
 	wg.Wait()
 	return out, firstErr

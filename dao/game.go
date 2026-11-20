@@ -86,7 +86,7 @@ func IncrUserOnlineTime(ctx context.Context, uid int64, day time.Time, delta int
 	}
 	result := db.Model(&model.UserOnline{}).
 		Where("uid = ? AND day = ?", uid, day).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"tm_online": gorm.Expr("tm_online + ?", delta),
 			"tm_update": tmUpdate,
 		})

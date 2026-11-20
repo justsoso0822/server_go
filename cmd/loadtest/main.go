@@ -116,7 +116,7 @@ func main() {
 	fmt.Printf("QPS: %.2f\n\n", float64(stats.total.Load())/elapsed.Seconds())
 
 	fmt.Println("=== 实例分布 ===")
-	stats.instances.Range(func(key, value interface{}) bool {
+	stats.instances.Range(func(key, value any) bool {
 		count := value.(*atomic.Int64).Load()
 		fmt.Printf("实例 [%s]: %d 次 (%.2f%%)\n",
 			key.(string),
@@ -127,7 +127,7 @@ func main() {
 
 	if stats.failed.Load() > 0 {
 		fmt.Println("\n=== 失败原因统计 ===")
-		stats.errorTypes.Range(func(key, value interface{}) bool {
+		stats.errorTypes.Range(func(key, value any) bool {
 			count := value.(*atomic.Int64).Load()
 			fmt.Printf("%s: %d 次\n", key.(string), count)
 			return true
