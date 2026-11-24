@@ -4,7 +4,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -19,12 +18,12 @@ var forwardedHeaders = [...]string{
 }
 
 // 限制 /test 组只在 local/test 环境可访问。
-func TestEnvGuard() gin.HandlerFunc {
+// env 由 config.Load 从 APP_ENV 读出后注入，中间件本身不再读环境变量。
+func TestEnvGuard(env string) gin.HandlerFunc {
+	if env == "" {
+		env = "local"
+	}
 	return func(c *gin.Context) {
-		env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
-		if env == "" {
-			env = "local"
-		}
 		if env != "local" && env != "test" {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"code": -1,

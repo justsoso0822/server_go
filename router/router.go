@@ -3,7 +3,6 @@ package router
 import (
 	"io"
 	"os"
-	"strings"
 
 	"app/bootstrap"
 	"app/middleware"
@@ -12,7 +11,7 @@ import (
 )
 
 func Setup(app *bootstrap.App) *gin.Engine {
-	configureGinMode()
+	configureGinMode(app.Config.App.Env)
 
 	// 使用 gin.New 而不是 gin.Default，是为了不启用 Gin 自带 Logger/Recovery。
 	// 本项目自行接入 zap：日志格式统一，panic 栈也能带 request_id/channel 等字段。
@@ -20,7 +19,7 @@ func Setup(app *bootstrap.App) *gin.Engine {
 	r.Use(middleware.RequestID())
 	// CORS 必须排在验签、渠道等业务中间件之前：
 	// 浏览器预检 OPTIONS 不带 sign/channel 参数，先进入业务链会被误判为非法调用。
-	r.Use(middleware.CORS(app.Config.App.AllowedOrigins))
+	r.Use(middleware.CORS(app.Config.App.AllowedOrigins, app.Config.App.Env))
 	// 请求级超时：给下游 Redis / MySQL 一个统一的截止时间。
 	// 正常请求远低于 2 秒，故障时也能在「HTTP 层自己超时」之前快速失败。
 	r.Use(middleware.RequestTimeout(middleware.DefaultRequestTimeout))
@@ -45,12 +44,11 @@ func Setup(app *bootstrap.App) *gin.Engine {
 
 func bindChannelRoutes(group *gin.RouterGroup, app *bootstrap.App) {
 	registerOther(group)
-	registerTest(group)
+	registerTest(group, app.Config.App.Env)
 	registerAPI(group, app)
 }
 
-func configureGinMode() {
-	env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+func configureGinMode(env string) {
 	if env == "" || env == "local" {
 		gin.SetMode(gin.DebugMode)
 		gin.DefaultWriter = os.Stdout

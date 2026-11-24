@@ -39,9 +39,9 @@ func registerOther(group *gin.RouterGroup) {
 
 // 测试接口只在 local/test 环境开放，并且同样受排水状态控制。
 // TestEnvGuard 放在前面可以先挡住生产访问，再进入业务处理。
-func registerTest(group *gin.RouterGroup) {
+func registerTest(group *gin.RouterGroup, env string) {
 	test := group.Group("/test")
-	test.Use(middleware.TestEnvGuard(), middleware.DrainGuard())
+	test.Use(middleware.TestEnvGuard(env), middleware.DrainGuard())
 	Handle(test, "/", handler.TestIndex)
 	Handle(test, "/db", handler.TestDB)
 }

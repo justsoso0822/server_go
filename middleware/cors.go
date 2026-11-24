@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -30,7 +29,7 @@ const (
 //
 // 必须挂在验签中间件（middleware.Sign）之前注册：预检 OPTIONS 不带 sign 参数，
 // 若先进入验签会被判定为“非法调用”并返回 200，浏览器侧依旧认为是 CORS 失败。
-func CORS(allowedOrigins []string) gin.HandlerFunc {
+func CORS(allowedOrigins []string, env string) gin.HandlerFunc {
 	allowAll := false
 	whitelist := make(map[string]struct{}, len(allowedOrigins))
 	for _, origin := range allowedOrigins {
@@ -45,7 +44,7 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 		}
 	}
 	// 白名单为空时按环境兜底：本地和测试环境宽松放行，生产环境必须显式配置。
-	if !allowAll && len(whitelist) == 0 && isLocalLikeEnv() {
+	if !allowAll && len(whitelist) == 0 && isLocalLikeEnv(env) {
 		allowAll = true
 	}
 
@@ -93,9 +92,9 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 	}
 }
 
-// isLocalLikeEnv 判断当前是否本地/测试环境；未设置 APP_ENV 时按本地处理，与 configureGinMode 保持一致。
-func isLocalLikeEnv() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) {
+// isLocalLikeEnv 判断是否本地/测试环境；env 为空按本地处理，与 configureGinMode 保持一致。
+func isLocalLikeEnv(env string) bool {
+	switch env {
 	case "", "local", "test":
 		return true
 	default:

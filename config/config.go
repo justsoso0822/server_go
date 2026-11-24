@@ -27,6 +27,9 @@ type AppConfig struct {
 	// AllowedOrigins 是浏览器跨域白名单，例如 "http://localhost:18090"。
 	// 含 "*" 表示回显任意 Origin；留空时 local/test 环境回显任意 Origin，生产环境不放行跨域。
 	AllowedOrigins []string `mapstructure:"allowedOrigins"`
+	// Env 是当前运行环境（local/test/production），由 Load 从 APP_ENV 读取后填充。
+	// 不写进 yaml：环境由部署方式决定，写进文件会与文件名重复。
+	Env string `mapstructure:"env"`
 }
 
 type DatabaseConfig struct {
@@ -98,7 +101,20 @@ func Load() (*Config, error) {
 		cfg.Server.GracefulTimeout = 15
 	}
 
+	// 环境名只在这里读一次：后续中间件、Gin 模式都用 cfg.App.Env，
+	// 避免每个请求路径各自 os.Getenv + ToLower。
+	cfg.App.Env = normalizeEnv(os.Getenv("APP_ENV"))
+
 	return &cfg, nil
+}
+
+// normalizeEnv 把 APP_ENV 规范成小写；未设置时按 local 处理，与 configureGinMode 的旧行为一致。
+func normalizeEnv(raw string) string {
+	env := strings.ToLower(strings.TrimSpace(raw))
+	if env == "" {
+		return "local"
+	}
+	return env
 }
 
 // splitOrigins 把逗号分隔的来源列表拆成切片，忽略空项，便于写进 docker compose 环境变量。

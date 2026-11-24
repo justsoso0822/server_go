@@ -11,11 +11,10 @@ import (
 // 临时验证：预检请求应在 CORS 中间件内直接响应，普通请求应带 Access-Control-Allow-Origin。
 func TestCORSVerify(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	t.Setenv("APP_ENV", "local")
 
-	newEngine := func(origins []string) *gin.Engine {
+	newEngine := func(origins []string, env string) *gin.Engine {
 		r := gin.New()
-		r.Use(CORS(origins))
+		r.Use(CORS(origins, env))
 		r.GET("/api/user/login", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"code": 0})
 		})
@@ -26,7 +25,7 @@ func TestCORSVerify(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/user/login?sign=1", nil)
 	req.Header.Set("Origin", "http://localhost:18090")
-	newEngine(nil).ServeHTTP(rec, req)
+	newEngine(nil, "local").ServeHTTP(rec, req)
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:18090" {
 		t.Fatalf("简单请求 Allow-Origin = %q", got)
 	}
@@ -40,7 +39,7 @@ func TestCORSVerify(t *testing.T) {
 	req.Header.Set("Origin", "http://localhost:18090")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	req.Header.Set("Access-Control-Request-Headers", "content-type,x-custom")
-	newEngine(nil).ServeHTTP(rec, req)
+	newEngine(nil, "local").ServeHTTP(rec, req)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("预检状态码 = %d", rec.Code)
 	}
@@ -52,8 +51,7 @@ func TestCORSVerify(t *testing.T) {
 	}
 
 	// 3. 生产白名单：名单内的源放行，名单外的源不返回 CORS 头
-	t.Setenv("APP_ENV", "production")
-	engine := newEngine([]string{"https://h5.example.com"})
+	engine := newEngine([]string{"https://h5.example.com"}, "production")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/user/login", nil)
