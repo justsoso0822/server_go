@@ -44,10 +44,10 @@ const (
 	defaultDrainTimeoutSeconds   = 15
 	defaultKeepImages            = 10
 	defaultImageSource           = "remote"
-	defaultTraefikComposeFile    = "manifest/docker/compose/traefik.yml"
-	defaultTraefikDashboardFile  = "manifest/docker/compose/traefik.dashboard.yml"
+	defaultTraefikComposeFile    = "manifest/docker/compose/traefik.yaml"
+	defaultTraefikDashboardFile  = "manifest/docker/compose/traefik.dashboard.yaml"
 	defaultDockerfile            = "manifest/docker/Dockerfile"
-	defaultLocalDBComposeFile    = "manifest/docker/compose/local.yml"
+	defaultLocalDBComposeFile    = "manifest/docker/compose/local.yaml"
 	defaultComposeDir            = "manifest/docker/compose"
 	defaultLockTimeoutMinutes    = 30
 	defaultGoProxy               = "https://proxy.golang.org,direct"
@@ -1282,9 +1282,9 @@ func formatImageName(appName, registry, tag string) string {
 	return fmt.Sprintf("%s/%s:%s", registry, appName, tag)
 }
 
-// 返回指定颜色的 compose 文件路径（如 manifest/docker/compose/blue.yml）。
+// 返回指定颜色的 compose 文件路径（如 manifest/docker/compose/blue.yaml）。
 func composeFile(cfg deployConfig, color string) string {
-	return fmt.Sprintf("%s/%s.yml", strings.TrimRight(cfg.ComposeDir, "/\\"), color)
+	return fmt.Sprintf("%s/%s.yaml", strings.TrimRight(cfg.ComposeDir, "/\\"), color)
 }
 
 // 返回 Traefik compose 基础参数；Dashboard 仅在显式开启时挂载端口和路由。

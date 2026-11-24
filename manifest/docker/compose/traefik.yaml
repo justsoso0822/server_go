@@ -1,7 +1,7 @@
 # Traefik 反向代理网关。
 # 职责：接收外部流量，根据 Docker label 自动发现后端服务并路由。
 # 蓝绿部署中通过 Traefik 的健康检查（/health/lb）自动摘除不健康的后端。
-# Dashboard 端口和 api@internal 路由在 traefik.dashboard.yml 中按需开启。
+# Dashboard 端口和 api@internal 路由在 traefik.dashboard.yaml 中按需开启。
 # 网络：创建 app-network，blue/green 容器以 external 方式加入。
 name: ${APP_NAME:-server-go}
 
