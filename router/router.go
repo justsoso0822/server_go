@@ -21,6 +21,9 @@ func Setup(app *bootstrap.App) *gin.Engine {
 	// CORS 必须排在验签、渠道等业务中间件之前：
 	// 浏览器预检 OPTIONS 不带 sign/channel 参数，先进入业务链会被误判为非法调用。
 	r.Use(middleware.CORS(app.Config.App.AllowedOrigins))
+	// 请求级超时：给下游 Redis / MySQL 一个统一的截止时间。
+	// 正常请求远低于 2 秒，故障时也能在「HTTP 层自己超时」之前快速失败。
+	r.Use(middleware.RequestTimeout(middleware.DefaultRequestTimeout))
 	r.Use(middleware.AccessLog(app.Logger))
 	r.Use(middleware.Recovery(app.Logger))
 

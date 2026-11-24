@@ -32,6 +32,10 @@ var logOpenIDKey = logOpenIDContextKey{}
 const DefaultChannelName = "default"
 const connectTimeout = 5 * time.Second
 
+// go-redis 默认重试 3 次，每次失败都可能等满 ReadTimeout，最坏会把一次
+// 慢请求放大成 1.5 秒以上。2 次足够覆盖瞬时抖动，又不会在故障时拖太久。
+const redisMaxRetries = 2
+
 var reservedChannelNames = map[string]struct{}{
 	"health":   {},
 	"internal": {},
@@ -183,6 +187,7 @@ func openRedis(name string, cfg config.RedisConfig) (*redis.Client, error) {
 		DialTimeout:  durationFromMillis(cfg.DialTimeoutMs, 3000),
 		ReadTimeout:  durationFromMillis(cfg.ReadTimeoutMs, 500),
 		WriteTimeout: durationFromMillis(cfg.WriteTimeoutMs, 500),
+		MaxRetries:   redisMaxRetries,
 		PoolSize:     poolSize,
 		MinIdleConns: minIdleConns,
 		PoolTimeout:  durationFromMillis(cfg.PoolTimeoutMs, 1000),
