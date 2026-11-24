@@ -38,6 +38,69 @@
       "env": {
         "GO111MODULE": "on"
       }
+    },
+    {
+      "name": "Debug practice test",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${workspaceFolder}/practice/${input:practiceChapter}",
+      "cwd": "${workspaceFolder}/practice",
+      "args": [
+        "-test.run",
+        "${input:practiceTest}",
+        "-test.v"
+      ],
+      "env": {
+        "GO111MODULE": "on"
+      }
+    },
+    {
+      "name": "Debug practice 当前文件",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}",
+      "cwd": "${workspaceFolder}/practice",
+      "args": [
+        "-test.v"
+      ],
+      "env": {
+        "GO111MODULE": "on"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "practiceChapter",
+      "type": "pickString",
+      "description": "练习章节（practice/chXX）",
+      "options": [
+        "ch00",
+        "ch01",
+        "ch02",
+        "ch03",
+        "ch04",
+        "ch05",
+        "ch06",
+        "ch07",
+        "ch08",
+        "ch09",
+        "ch10",
+        "ch11",
+        "ch12",
+        "ch13",
+        "ch14",
+        "ch15",
+        "ch16"
+      ],
+      "default": "ch07"
+    },
+    {
+      "id": "practiceTest",
+      "type": "promptString",
+      "description": "测试函数名；清空则跑整章",
+      "default": "TestEx01"
     }
   ]
 }
