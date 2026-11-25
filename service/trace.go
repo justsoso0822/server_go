@@ -105,16 +105,16 @@ func LogMsg(ctx context.Context, uid int64, msg string) {
 func logAsyncError(ctx context.Context, msg string, err error, fields ...slog.Attr) {
 	fields = appendLogContextFields(ctx, fields...)
 	fields = append(fields, slog.Any("error", err))
-	// slog.Default() 使用 bootstrap 阶段 slog.SetDefault 设置的全局 logger；
+	// slog.LogAttrs 是包级函数，内部使用 bootstrap 阶段 slog.SetDefault 设置的全局 logger；
 	// 这样不从参数层层传 logger，异步工具函数也能保持统一日志出口。
-	slog.Default().LogAttrs(ctx, slog.LevelError, msg, fields...)
+	slog.LogAttrs(ctx, slog.LevelError, msg, fields...)
 }
 
 // 后台 goroutine panic 时统一收敛到日志，避免进程因为辅助日志任务崩溃。
 func logAsyncPanic(ctx context.Context, msg string, recovered any, fields ...slog.Attr) {
 	fields = appendLogContextFields(ctx, fields...)
 	fields = append(fields, slog.Any("panic", recovered))
-	slog.Default().LogAttrs(ctx, slog.LevelError, msg, fields...)
+	slog.LogAttrs(ctx, slog.LevelError, msg, fields...)
 }
 
 // 把请求链路字段补到异步日志里，让应用日志、GORM SQL 日志和业务表日志能互相关联。

@@ -463,7 +463,7 @@ func Cache[T any](ctx context.Context, key string, ttl time.Duration, load func(
 			}
 			cacheTTL := JitterTTL(fullKey, ttl)
 			if err := rc.Set(ctx, fullKey, data, cacheTTL).Err(); err != nil {
-				slog.Default().Warn("cache set failed",
+				slog.Warn("cache set failed",
 					slog.String("cache_key", fullKey),
 					slog.Duration("ttl", cacheTTL),
 					slog.Duration("base_ttl", ttl),

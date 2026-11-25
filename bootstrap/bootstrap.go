@@ -27,7 +27,7 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init logger: %w", err)
 	}
-	// 设为全局 logger：service/middleware 里 slog.Default() 拿到的就是它。
+	// 设为全局 logger：service/middleware 里 slog.LogAttrs / slog.Warn 等包级函数用的就是它。
 	slog.SetDefault(log)
 
 	if err := autodb.Init(cfg, log); err != nil {

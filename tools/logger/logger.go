@@ -16,7 +16,7 @@ import (
 // New 按配置构造 *slog.Logger，并返回关闭函数（关闭日志文件）。
 //
 // 输出由 slog 的 JSON/Text Handler 负责；时间、级别、caller 通过 ReplaceAttr
-// 保持与旧 zap 日志一致的字段名（ts / level / caller）。
+// 只把时间换成 time.DateTime 格式（字段名仍是 time）；level 和 source 都用 slog 默认。
 func New(cfg config.LoggerConfig) (*slog.Logger, func() error, error) {
 	var level slog.Level
 	if strings.TrimSpace(cfg.Level) != "" {
@@ -72,41 +72,15 @@ func loggerFormat(cfg config.LoggerConfig) string {
 }
 
 // replaceAttr 把 slog 的默认字段改成项目沿用的名字与格式：
-//   - time   → ts（time.DateTime 格式）
-//   - level  → 小写（error/warn/info/debug）
-//   - source → caller（目录/文件:行号）
+//   - time   → time.DateTime 格式（字段名不变）
 func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	if len(groups) > 0 {
 		return a
 	}
-	switch a.Key {
-	case slog.TimeKey:
-		return slog.String("ts", a.Value.Time().Format(time.DateTime))
-	case slog.LevelKey:
-		if lv, ok := a.Value.Any().(slog.Level); ok {
-			return slog.String("level", strings.ToLower(lv.String()))
-		}
-		return a
-	case slog.SourceKey:
-		if src, ok := a.Value.Any().(*slog.Source); ok {
-			return slog.String("caller", shortSource(src))
-		}
-		return a
-	default:
-		return a
+	if a.Key == slog.TimeKey {
+		return slog.String(slog.TimeKey, a.Value.Time().Format(time.DateTime))
 	}
-}
-
-// shortSource 把绝对路径裁成「最后两级 + 行号」，例如 middleware/access_log.go:42。
-func shortSource(src *slog.Source) string {
-	if src == nil {
-		return ""
-	}
-	file := filepath.ToSlash(src.File)
-	if parts := strings.Split(file, "/"); len(parts) >= 2 {
-		file = strings.Join(parts[len(parts)-2:], "/")
-	}
-	return fmt.Sprintf("%s:%d", file, src.Line)
+	return a
 }
 
 func openWriters(cfg config.LoggerConfig) ([]io.Writer, []*os.File, error) {
