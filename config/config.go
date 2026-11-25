@@ -54,10 +54,12 @@ type RedisConfig struct {
 	PoolTimeoutMs  int    `mapstructure:"poolTimeoutMs"`
 }
 
+// LoggerConfig 控制日志输出。
+// OutputPaths 里可以写文件路径，也可以写特殊值 "stdout" / "stderr"；
+// 一项都不配时默认写 stdout。
 type LoggerConfig struct {
 	Level        string   `mapstructure:"level"`
 	Format       string   `mapstructure:"format"`
-	Stdout       bool     `mapstructure:"stdout"`
 	OutputPaths  []string `mapstructure:"outputPaths"`
 	ClearOnStart bool     `mapstructure:"clearOnStart"`
 }

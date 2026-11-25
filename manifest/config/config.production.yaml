@@ -37,4 +37,5 @@ redis:
 logger:
   level: "info"
   format: "json"
-  stdout: true
+  outputPaths:
+    - "stdout"

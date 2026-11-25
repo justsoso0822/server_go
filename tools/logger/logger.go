@@ -101,27 +101,36 @@ func openWriters(cfg config.LoggerConfig) ([]io.Writer, []*os.File, error) {
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			closeFiles(closers)
 			return nil, nil, fmt.Errorf("create log dir for %s: %w", path, err)
 		}
+		// O_TRUNC 是按文件生效的：每个路径各自截断，不存在"清多次"的问题，
+		// 所以这里只在打开时判断，绝不能把 ClearOnStart 改成 false。
 		flags := os.O_CREATE | os.O_WRONLY | os.O_APPEND
 		if cfg.ClearOnStart {
 			flags |= os.O_TRUNC
-			cfg.ClearOnStart = false // 只清一次
 		}
 		file, err := os.OpenFile(path, flags, 0o644)
 		if err != nil {
+			// 已经打开的 N-1 个文件要关掉，否则构造失败会泄漏 fd。
+			closeFiles(closers)
 			return nil, nil, fmt.Errorf("open log file %s: %w", path, err)
 		}
 		writers = append(writers, file)
 		closers = append(closers, file)
 	}
 
-	if cfg.Stdout {
-		writers = append(writers, os.Stdout)
-	}
 	if len(writers) == 0 {
 		// 什么都没配时至少保证有输出，避免日志静默丢失。
 		writers = append(writers, os.Stdout)
 	}
 	return writers, closers, nil
+}
+
+// closeFiles 关闭构造日志过程中已打开的文件。
+// 只用于失败回滚：成功时这些句柄由 New 返回的关闭函数统一关。
+func closeFiles(files []*os.File) {
+	for _, f := range files {
+		_ = f.Close()
+	}
 }

@@ -34,4 +34,5 @@ redis:
 logger:
   level: "info"
   format: "console"
-  stdout: true
+  outputPaths:
+    - "stdout"
