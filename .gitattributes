@@ -2,3 +2,4 @@
 # 而 go 命令（go mod tidy -diff）按字节比较，会把整个文件误报成「全部修改」。
 go.mod text eol=lf
 go.sum text eol=lf
+*.go text eol=lf

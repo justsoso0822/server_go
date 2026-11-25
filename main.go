@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,8 +15,6 @@ import (
 
 	"app/bootstrap"
 	"app/router"
-
-	"go.uber.org/zap"
 )
 
 func main() {
@@ -57,7 +56,7 @@ func run() error {
 
 	serverErr := make(chan error, 1)
 	go func() {
-		app.Logger.Info("http server started", zap.String("address", srv.Addr))
+		app.Logger.Info("http server started", slog.String("address", srv.Addr))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
 			return
@@ -73,7 +72,7 @@ func run() error {
 	case err := <-serverErr:
 		return err
 	case sig := <-stop:
-		app.Logger.Info("shutdown signal received", zap.String("signal", sig.String()))
+		app.Logger.Info("shutdown signal received", slog.String("signal", sig.String()))
 	}
 
 	timeout := time.Duration(app.Config.Server.GracefulTimeout) * time.Second

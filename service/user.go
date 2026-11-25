@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -10,8 +11,6 @@ import (
 	"app/dao/model"
 	"app/state"
 	"app/tools/autodb"
-
-	"go.uber.org/zap"
 )
 
 func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, version string) (map[string]any, error) {
@@ -65,8 +64,8 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 		defer func() {
 			if r := recover(); r != nil {
 				logAsyncPanic(bgCtx, "async login log panic", r,
-					zap.Int64("uid", uid),
-					zap.String("platform", platform),
+					slog.Int64("uid", uid),
+					slog.String("platform", platform),
 				)
 			}
 		}()
@@ -78,8 +77,8 @@ func UserLogin(ctx context.Context, uid int64, loginKey, openid, platform, versi
 			RequestID: autodb.GetRequestID(bgCtx),
 		}); err != nil {
 			logAsyncError(bgCtx, "async login log failed", err,
-				zap.Int64("uid", uid),
-				zap.String("platform", platform),
+				slog.Int64("uid", uid),
+				slog.String("platform", platform),
 			)
 		}
 	}()

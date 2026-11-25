@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/url"
 	"sort"
 	"strconv"
@@ -10,13 +11,12 @@ import (
 	"app/tools/autodb"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // 记录 HTTP 请求日志，自动过滤健康检查和控制接口。
-func AccessLog(log *zap.Logger) gin.HandlerFunc {
+func AccessLog(log *slog.Logger) gin.HandlerFunc {
 	if log == nil {
-		log = zap.NewNop()
+		log = slog.New(slog.DiscardHandler)
 	}
 
 	return func(c *gin.Context) {
@@ -30,47 +30,47 @@ func AccessLog(log *zap.Logger) gin.HandlerFunc {
 
 		ctx := c.Request.Context()
 		status := c.Writer.Status()
-		fields := []zap.Field{
-			zap.String("request_id", autodb.GetRequestID(ctx)),
-			zap.String("method", c.Request.Method),
-			zap.String("path", path),
-			zap.String("route", c.FullPath()),
-			zap.Strings("query_keys", queryKeys(c.Request.URL.Query())),
-			zap.Int("status", status),
-			zap.Int("body_size", c.Writer.Size()),
-			zap.Float64("latency_ms", float64(time.Since(start).Microseconds())/1000),
-			zap.String("client_ip", c.ClientIP()),
-			zap.String("user_agent", c.Request.UserAgent()),
-			zap.String("channel", autodb.GetChannel(ctx)),
+		attrs := []slog.Attr{
+			slog.String("request_id", autodb.GetRequestID(ctx)),
+			slog.String("method", c.Request.Method),
+			slog.String("path", path),
+			slog.String("route", c.FullPath()),
+			slog.Any("query_keys", queryKeys(c.Request.URL.Query())),
+			slog.Int("status", status),
+			slog.Int("body_size", c.Writer.Size()),
+			slog.Float64("latency_ms", float64(time.Since(start).Microseconds())/1000),
+			slog.String("client_ip", c.ClientIP()),
+			slog.String("user_agent", c.Request.UserAgent()),
+			slog.String("channel", autodb.GetChannel(ctx)),
 		}
 		if uid := autodb.GetLogUID(ctx); uid != 0 {
-			fields = append(fields, zap.Int64("uid", uid))
+			attrs = append(attrs, slog.Int64("uid", uid))
 		} else if uid := requestParam(c, "uid"); uid != "" {
-			fields = appendUIDField(fields, uid)
+			attrs = appendUIDAttr(attrs, uid)
 		}
 		if openid := autodb.GetLogOpenID(ctx); openid != "" {
-			fields = append(fields, zap.String("openid", openid))
+			attrs = append(attrs, slog.String("openid", openid))
 		}
 		if len(c.Errors) > 0 {
-			fields = append(fields, zap.String("errors", c.Errors.String()))
+			attrs = append(attrs, slog.String("errors", c.Errors.String()))
 		}
 
 		switch {
 		case status >= 500:
-			log.Error("http access", fields...)
+			log.LogAttrs(ctx, slog.LevelError, "http access", attrs...)
 		case status >= 400:
-			log.Warn("http access", fields...)
+			log.LogAttrs(ctx, slog.LevelWarn, "http access", attrs...)
 		default:
-			log.Info("http access", fields...)
+			log.LogAttrs(ctx, slog.LevelInfo, "http access", attrs...)
 		}
 	}
 }
 
-func appendUIDField(fields []zap.Field, uid string) []zap.Field {
+func appendUIDAttr(attrs []slog.Attr, uid string) []slog.Attr {
 	if n, err := strconv.ParseInt(uid, 10, 64); err == nil {
-		return append(fields, zap.Int64("uid", n))
+		return append(attrs, slog.Int64("uid", n))
 	}
-	return append(fields, zap.String("uid", uid))
+	return append(attrs, slog.String("uid", uid))
 }
 
 func shouldSkipAccessLog(path string) bool {

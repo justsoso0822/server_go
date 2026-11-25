@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -13,7 +14,6 @@ import (
 	"app/config"
 
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -54,8 +54,8 @@ var (
 	sf                 singleflight.Group
 )
 
-func Init(cfg *config.Config, log *zap.Logger) error {
-	// go-redis 内部连接池告警默认写标准库 log。接到 zap 后，线上日志能保持 JSON/字段化。
+func Init(cfg *config.Config, log *slog.Logger) error {
+	// go-redis 内部连接池告警默认写标准库 log。接到 slog 后，线上日志能保持 JSON/字段化。
 	redis.SetLogger(newRedisLogger(log))
 
 	if _, ok := cfg.Database[DefaultChannelName]; !ok {
@@ -121,7 +121,7 @@ func Init(cfg *config.Config, log *zap.Logger) error {
 	return nil
 }
 
-func openDB(name string, cfg config.DatabaseConfig, log *zap.Logger) (*gorm.DB, error) {
+func openDB(name string, cfg config.DatabaseConfig, log *slog.Logger) (*gorm.DB, error) {
 	dsn := strings.TrimPrefix(cfg.Link, "mysql:")
 
 	// gorm.Open 返回的是带连接池管理能力的 *gorm.DB。真正的池参数在下面通过 db.DB()
@@ -463,13 +463,13 @@ func Cache[T any](ctx context.Context, key string, ttl time.Duration, load func(
 			}
 			cacheTTL := JitterTTL(fullKey, ttl)
 			if err := rc.Set(ctx, fullKey, data, cacheTTL).Err(); err != nil {
-				zap.L().Warn("cache set failed",
-					zap.String("cache_key", fullKey),
-					zap.Duration("ttl", cacheTTL),
-					zap.Duration("base_ttl", ttl),
-					zap.String("channel", GetChannel(ctx)),
-					zap.String("request_id", GetRequestID(ctx)),
-					zap.Error(err),
+				slog.Default().Warn("cache set failed",
+					slog.String("cache_key", fullKey),
+					slog.Duration("ttl", cacheTTL),
+					slog.Duration("base_ttl", ttl),
+					slog.String("channel", GetChannel(ctx)),
+					slog.String("request_id", GetRequestID(ctx)),
+					slog.Any("error", err),
 				)
 			}
 		}

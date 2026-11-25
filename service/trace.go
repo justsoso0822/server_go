@@ -2,13 +2,12 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"app/dao"
 	"app/dao/model"
 	"app/tools/autodb"
-
-	"go.uber.org/zap"
 )
 
 const asyncLogTimeout = 10 * time.Second
@@ -44,10 +43,10 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 		defer func() {
 			if r := recover(); r != nil {
 				logAsyncPanic(bgCtx, "async trace resource panic", r,
-					zap.Int64("uid", uid),
-					zap.String("res_name", resName),
-					zap.String("reason", reason),
-					zap.Int64("delta", num),
+					slog.Int64("uid", uid),
+					slog.String("res_name", resName),
+					slog.String("reason", reason),
+					slog.Int64("delta", num),
 				)
 			}
 		}()
@@ -65,10 +64,10 @@ func TraceRes(ctx context.Context, uid int64, old, now int64, resName, reason st
 			RequestID: autodb.GetRequestID(bgCtx),
 		}); err != nil {
 			logAsyncError(bgCtx, "async trace resource failed", err,
-				zap.Int64("uid", uid),
-				zap.String("res_name", resName),
-				zap.String("reason", reason),
-				zap.Int64("delta", num),
+				slog.Int64("uid", uid),
+				slog.String("res_name", resName),
+				slog.String("reason", reason),
+				slog.Int64("delta", num),
 			)
 		}
 	}()
@@ -82,8 +81,8 @@ func LogMsg(ctx context.Context, uid int64, msg string) {
 		defer func() {
 			if r := recover(); r != nil {
 				logAsyncPanic(bgCtx, "async message log panic", r,
-					zap.Int64("uid", uid),
-					zap.String("log_msg", msg),
+					slog.Int64("uid", uid),
+					slog.String("log_msg", msg),
 				)
 			}
 		}()
@@ -95,35 +94,35 @@ func LogMsg(ctx context.Context, uid int64, msg string) {
 			RequestID: autodb.GetRequestID(bgCtx),
 		}); err != nil {
 			logAsyncError(bgCtx, "async message log failed", err,
-				zap.Int64("uid", uid),
-				zap.String("log_msg", msg),
+				slog.Int64("uid", uid),
+				slog.String("log_msg", msg),
 			)
 		}
 	}()
 }
 
-// 异步写库失败时转写 zap 错误日志，避免错误静默丢失。
-func logAsyncError(ctx context.Context, msg string, err error, fields ...zap.Field) {
+// 异步写库失败时转写结构化错误日志，避免错误静默丢失。
+func logAsyncError(ctx context.Context, msg string, err error, fields ...slog.Attr) {
 	fields = appendLogContextFields(ctx, fields...)
-	fields = append(fields, zap.Error(err))
-	// zap.L() 使用 bootstrap 阶段 ReplaceGlobals 设置的全局 logger；
+	fields = append(fields, slog.Any("error", err))
+	// slog.Default() 使用 bootstrap 阶段 slog.SetDefault 设置的全局 logger；
 	// 这样不从参数层层传 logger，异步工具函数也能保持统一日志出口。
-	zap.L().Error(msg, fields...)
+	slog.Default().LogAttrs(ctx, slog.LevelError, msg, fields...)
 }
 
-// 后台 goroutine panic 时统一收敛到 zap，避免进程因为辅助日志任务崩溃。
-func logAsyncPanic(ctx context.Context, msg string, recovered any, fields ...zap.Field) {
+// 后台 goroutine panic 时统一收敛到日志，避免进程因为辅助日志任务崩溃。
+func logAsyncPanic(ctx context.Context, msg string, recovered any, fields ...slog.Attr) {
 	fields = appendLogContextFields(ctx, fields...)
-	fields = append(fields, zap.Any("panic", recovered))
-	zap.L().Error(msg, fields...)
+	fields = append(fields, slog.Any("panic", recovered))
+	slog.Default().LogAttrs(ctx, slog.LevelError, msg, fields...)
 }
 
-// 把请求链路字段补到异步日志里，让 zap 日志、GORM SQL 日志和业务表日志能互相关联。
+// 把请求链路字段补到异步日志里，让应用日志、GORM SQL 日志和业务表日志能互相关联。
 //
 // 调用方已经显式传入同名字段时不再追加：显式值优先于 ctx 里的隐式值。
-// zap 不会对重复 key 去重，同一字段传两次会在 JSON 里出现两个 "uid"，
+// slog 不会对重复 key 去重，同一字段传两次会在 JSON 里出现两个 "uid"，
 // Elasticsearch/Loki 这类后端解析同名 key 时行为也不一致，所以这里自己挡掉。
-func appendLogContextFields(ctx context.Context, fields ...zap.Field) []zap.Field {
+func appendLogContextFields(ctx context.Context, fields ...slog.Attr) []slog.Attr {
 	has := func(key string) bool {
 		for _, f := range fields {
 			if f.Key == key {
@@ -133,16 +132,16 @@ func appendLogContextFields(ctx context.Context, fields ...zap.Field) []zap.Fiel
 		return false
 	}
 	if requestID := autodb.GetRequestID(ctx); requestID != "" && !has("request_id") {
-		fields = append(fields, zap.String("request_id", requestID))
+		fields = append(fields, slog.String("request_id", requestID))
 	}
 	if channel := autodb.GetChannel(ctx); channel != "" && !has("channel") {
-		fields = append(fields, zap.String("channel", channel))
+		fields = append(fields, slog.String("channel", channel))
 	}
 	if uid := autodb.GetLogUID(ctx); uid != 0 && !has("uid") {
-		fields = append(fields, zap.Int64("uid", uid))
+		fields = append(fields, slog.Int64("uid", uid))
 	}
 	if openid := autodb.GetLogOpenID(ctx); openid != "" && !has("openid") {
-		fields = append(fields, zap.String("openid", openid))
+		fields = append(fields, slog.String("openid", openid))
 	}
 	return fields
 }

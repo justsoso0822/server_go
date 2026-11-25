@@ -3,17 +3,18 @@ package bootstrap
 
 import (
 	"fmt"
+	"log/slog"
 
 	"app/config"
 	"app/tools/autodb"
 	"app/tools/logger"
-
-	"go.uber.org/zap"
 )
 
 type App struct {
 	Config *config.Config
-	Logger *zap.Logger
+	Logger *slog.Logger
+
+	closeLogger func() error
 }
 
 func New() (*App, error) {
@@ -22,20 +23,22 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
 
-	log, err := logger.New(cfg.Logger)
+	log, closeLog, err := logger.New(cfg.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("init logger: %w", err)
 	}
-	zap.ReplaceGlobals(log)
+	// 设为全局 logger：service/middleware 里 slog.Default() 拿到的就是它。
+	slog.SetDefault(log)
 
 	if err := autodb.Init(cfg, log); err != nil {
-		_ = log.Sync()
+		_ = closeLog()
 		return nil, fmt.Errorf("init db: %w", err)
 	}
 
 	return &App{
-		Config: cfg,
-		Logger: log,
+		Config:      cfg,
+		Logger:      log,
+		closeLogger: closeLog,
 	}, nil
 }
 
@@ -44,8 +47,8 @@ func (app *App) Close() error {
 	if e := autodb.Close(); e != nil {
 		err = e
 	}
-	if app != nil && app.Logger != nil {
-		if e := app.Logger.Sync(); e != nil && err == nil {
+	if app != nil && app.closeLogger != nil {
+		if e := app.closeLogger(); e != nil && err == nil {
 			err = e
 		}
 	}

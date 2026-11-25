@@ -3,27 +3,26 @@ package autodb
 import (
 	"context"
 	"fmt"
-
-	"go.uber.org/zap"
+	"log/slog"
 )
 
 // 适配 go-redis 的 internal.Logging 接口,
-// 将 go-redis 内部的底层告警(连接池异常、重连失败等)转发到 zap。
+// 将 go-redis 内部的底层告警(连接池异常、重连失败等)转发到 slog。
 // go-redis 默认通过标准库 log 输出到 stderr,会以裸文本混入 JSON 日志流,
 // 接管后统一格式且不丢底层告警。
-type zapRedisLogger struct {
-	log *zap.Logger
+type slogRedisLogger struct {
+	log *slog.Logger
 }
 
-func newRedisLogger(log *zap.Logger) *zapRedisLogger {
+func newRedisLogger(log *slog.Logger) *slogRedisLogger {
 	if log == nil {
-		log = zap.NewNop()
+		log = slog.New(slog.DiscardHandler)
 	}
-	return &zapRedisLogger{log: log.Named("redis")}
+	return &slogRedisLogger{log: log.With("component", "redis")}
 }
 
 // 是 go-redis internal.Logging 接口的唯一方法。
-// go-redis 内部仅用它输出告警级别的信息,统一映射为 zap Warn。
-func (l *zapRedisLogger) Printf(_ context.Context, format string, v ...any) {
+// go-redis 内部仅用它输出告警级别的信息,统一映射为 Warn。
+func (l *slogRedisLogger) Printf(_ context.Context, format string, v ...any) {
 	l.log.Warn(fmt.Sprintf(format, v...))
 }
