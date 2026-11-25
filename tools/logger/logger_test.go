@@ -1,13 +1,34 @@
 package logger
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"app/config"
 )
+
+// TestReplaceAttrTimeLayout 锁定日志时间格式：秒之后再补 3 位毫秒。
+// 没有毫秒时，同一秒内的多条日志在 JSON 里 time 完全相同，只能靠行序区分。
+func TestReplaceAttrTimeLayout(t *testing.T) {
+	// 纳秒部分取 123456789，验证是截断到毫秒而不是四舍五入。
+	now := time.Date(2026, 11, 25, 18, 3, 51, 123456789, time.Local)
+	got := replaceAttr(nil, slog.Time(slog.TimeKey, now))
+
+	if got.Key != slog.TimeKey {
+		t.Fatalf("字段名被改掉了: %q", got.Key)
+	}
+	const want = "2026-11-25 18:03:51.123"
+	if text := got.Value.String(); text != want {
+		t.Fatalf("时间格式不对:\n got %q\nwant %q", text, want)
+	}
+	if _, err := time.Parse(logTimeLayout, got.Value.String()); err != nil {
+		t.Fatalf("无法按 logTimeLayout 解析回去: %v", err)
+	}
+}
 
 // TestNewTruncatesEveryFile 覆盖“多个输出文件 + clearOnStart”场景：
 // 每个文件都必须被截断，而不是只有第一个。

@@ -16,7 +16,7 @@ import (
 // New 按配置构造 *slog.Logger，并返回关闭函数（关闭日志文件）。
 //
 // 输出由 slog 的 JSON/Text Handler 负责；时间、级别、caller 通过 ReplaceAttr
-// 只把时间换成 time.DateTime 格式（字段名仍是 time）；level 和 source 都用 slog 默认。
+// 只把时间换成 logTimeLayout 格式（字段名仍是 time）；level 和 source 都用 slog 默认。
 func New(cfg config.LoggerConfig) (*slog.Logger, func() error, error) {
 	var level slog.Level
 	if strings.TrimSpace(cfg.Level) != "" {
@@ -71,14 +71,19 @@ func loggerFormat(cfg config.LoggerConfig) string {
 	}
 }
 
+// logTimeLayout 是日志时间字段的格式：time.DateTime 再补 3 位毫秒。
+// 固定用 ".000" 而不是 ".999"：毫秒一定占满 3 位，长度一致，
+// 同一秒内的多条日志按字符串排序也不会错位。
+const logTimeLayout = time.DateTime + ".000"
+
 // replaceAttr 把 slog 的默认字段改成项目沿用的名字与格式：
-//   - time   → time.DateTime 格式（字段名不变）
+//   - time   → logTimeLayout 格式（字段名不变）
 func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	if len(groups) > 0 {
 		return a
 	}
 	if a.Key == slog.TimeKey {
-		return slog.String(slog.TimeKey, a.Value.Time().Format(time.DateTime))
+		return slog.String(slog.TimeKey, a.Value.Time().Format(logTimeLayout))
 	}
 	return a
 }
