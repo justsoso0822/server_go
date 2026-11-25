@@ -68,6 +68,54 @@ func TestOpenWritersDefaultsToStdout(t *testing.T) {
 	}
 }
 
+// TestOpenWritersSpecialValuesIgnoreCase 覆盖特殊值的大小写：
+// "STDOUT" 必须写标准输出，而不是在工作目录里建一个叫 STDOUT 的文件。
+func TestOpenWritersSpecialValuesIgnoreCase(t *testing.T) {
+	t.Chdir(t.TempDir()) // 万一实现写错，别在包目录里留下垃圾文件
+
+	for _, name := range []string{"stdout", "STDOUT", "StdOut"} {
+		writers, closers, err := openWriters(config.LoggerConfig{OutputPaths: []string{name}})
+		if err != nil {
+			t.Fatalf("%q 应被当作特殊值: %v", name, err)
+		}
+		if len(closers) != 0 {
+			closeFiles(closers) // 失败路径也别留占用，Windows 上会挡住 TempDir 清理
+			t.Fatalf("%q 不应打开文件", name)
+		}
+		if len(writers) != 1 || writers[0] != os.Stdout {
+			t.Fatalf("%q 应映射到 os.Stdout", name)
+		}
+	}
+	if _, err := os.Stat("STDOUT"); err == nil {
+		t.Fatal("不应在当前目录创建 STDOUT 文件")
+	}
+}
+
+// TestOpenWritersRejectsDuplicate 覆盖重复项：
+// MultiWriter 会把同一份日志写两遍，必须在构造期拒绝而不是静默去重。
+func TestOpenWritersRejectsDuplicate(t *testing.T) {
+	for _, paths := range [][]string{
+		{"stdout", "stdout"},
+		{"STDOUT", "stdout"}, // 忽略大小写后是同一个
+		{"stderr", "STDERR"},
+	} {
+		if _, _, err := openWriters(config.LoggerConfig{OutputPaths: paths}); err == nil {
+			t.Fatalf("%v 应被拒绝", paths)
+		}
+	}
+
+	dir := t.TempDir()
+	p := filepath.Join(dir, "a.log")
+	if _, _, err := openWriters(config.LoggerConfig{OutputPaths: []string{p, p}}); err == nil {
+		t.Fatal("同一个文件路径写两遍应被拒绝")
+	}
+	// 同一文件的另一种写法：./a.log 与 a.log 词法归一再比较
+	alias := dir + string(os.PathSeparator) + "." + string(os.PathSeparator) + "a.log"
+	if _, _, err := openWriters(config.LoggerConfig{OutputPaths: []string{p, alias}}); err == nil {
+		t.Fatalf("%s 与 %s 是同一个文件，应被拒绝", p, alias)
+	}
+}
+
 // TestOpenWritersClosesOnFailure 覆盖中途失败时的回滚：
 // 第二个路径的父目录是普通文件，openWriters 必须返回错误而不是留下半开的状态。
 func TestOpenWritersClosesOnFailure(t *testing.T) {

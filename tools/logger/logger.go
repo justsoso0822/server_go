@@ -86,18 +86,38 @@ func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 func openWriters(cfg config.LoggerConfig) ([]io.Writer, []*os.File, error) {
 	var writers []io.Writer
 	var closers []*os.File
+	// seen 用来拒绝重复项：同一个 writer 出现两次，io.MultiWriter 会把
+	// 每条日志写两遍（同一个文件则是两行交错），这属于配置错误。
+	seen := make(map[string]struct{}, len(cfg.OutputPaths))
 
 	for _, path := range cfg.OutputPaths {
 		path = strings.TrimSpace(path)
 		if path == "" {
 			continue
 		}
-		switch path {
+
+		// key 是「同一个输出」的判等依据：
+		//   - 特殊值忽略大小写（配成 "STDOUT" 也该写标准输出，而不是建一个叫 STDOUT 的文件）；
+		//   - 文件路径按词法归一（"./log/app.log" 与 "log/app.log" 是同一个文件），
+		//     但保持原始大小写——Linux 区分大小写，整串 ToLower 会把两个真实文件折叠成一个。
+		// 两类 key 加前缀区分，避免 "./stdout" 这种写法被误当成特殊值。
+		key := "file:" + filepath.Clean(path)
+		var special io.Writer
+		switch strings.ToLower(path) {
 		case "stdout":
-			writers = append(writers, os.Stdout)
-			continue
+			key, special = "stdout", os.Stdout
 		case "stderr":
-			writers = append(writers, os.Stderr)
+			key, special = "stderr", os.Stderr
+		}
+
+		if _, dup := seen[key]; dup {
+			closeFiles(closers)
+			return nil, nil, fmt.Errorf("duplicate log output path %q in outputPaths", path)
+		}
+		seen[key] = struct{}{}
+
+		if special != nil {
+			writers = append(writers, special)
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
