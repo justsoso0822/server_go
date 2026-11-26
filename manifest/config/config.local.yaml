@@ -15,7 +15,7 @@ database:
     link: "mysql:root:root@tcp(mysql:3306)/game_db_1?charset=utf8mb4&parseTime=true&loc=Local"
     debug: true
     maxIdle: 50
-    maxOpen: 100
+    maxOpen: 60
     maxLifetime: 3600
     slowThreshold: 300
 

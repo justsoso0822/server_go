@@ -146,13 +146,15 @@ func openDB(name string, cfg config.DatabaseConfig, log *slog.Logger) (*gorm.DB,
 	}
 	cancel()
 
+	// 默认值按 4核8G MySQL 服务器估算：MaxOpen ≈ 核数×15，瓶颈在 DB 的 CPU，
+	// 池再大只会让请求在 DB 侧排队；MaxIdle 接近 MaxOpen，避免脉冲流量下反复建连。
 	maxIdle := cfg.MaxIdle
 	if maxIdle <= 0 {
-		maxIdle = 10
+		maxIdle = 50
 	}
 	maxOpen := cfg.MaxOpen
 	if maxOpen <= 0 {
-		maxOpen = 100
+		maxOpen = 60
 	}
 	maxLifetime := cfg.MaxLifetime
 	if maxLifetime <= 0 {

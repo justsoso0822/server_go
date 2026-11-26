@@ -18,7 +18,7 @@ database:
     debug: false
     cache: true
     maxIdle: 50
-    maxOpen: 100
+    maxOpen: 60
     maxLifetime: 3600
     slowThreshold: 300
 
