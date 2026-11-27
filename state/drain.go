@@ -12,10 +12,16 @@ var (
 // 业务请求进入 DrainGuard 后加一。atomic 避免每个请求都抢 mutex。
 func IncActiveRequests() { activeRequests.Add(1) }
 
-// 业务请求结束后减一；防御性归零是为了避免异常调用顺序导致计数长期为负。
+// // 业务请求结束后减一；异常顺序下保持非负，不做无条件归零。
 func DecActiveRequests() {
-	if v := activeRequests.Add(-1); v < 0 {
-		activeRequests.Store(0)
+	for {
+		v := activeRequests.Load()
+		if v <= 0 {
+			return
+		}
+		if activeRequests.CompareAndSwap(v, v-1) {
+			return
+		}
 	}
 }
 
